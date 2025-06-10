@@ -1,0 +1,28 @@
+[build-system]
+requires = [
+  "setuptools>=42",
+  "wheel",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+log_cli = true
+#addopts = "-ra -q"
+testpaths = [
+    "tests",
+    "acouchbase_analytics/tests",
+    "couchbase_analytics/tests",
+]
+python_classes = [
+    "*Tests"
+]
+python_files = [
+    "*_t.py"
+]
+markers = [
+    "pycbac_couchbase: marks a test for the couchbase API (deselect with '-m \"not pycbac_couchbase\"')",
+    "pycbac_acouchbase: marks a test for the acouchbase API (deselect with '-m \"not pycbac_acouchbase\"')",
+    "pycbac_unit: marks a test as a unit test",
+    "pycbac_integration: marks a test as an integration test",
+]
