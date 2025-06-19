@@ -16,13 +16,11 @@
 from __future__ import annotations
 
 import sys
-from enum import Enum
 from typing import (Any,
                     Dict,
                     List,
                     Optional,
-                    Union,
-                    cast)
+                    Union)
 
 if sys.version_info < (3, 10):
     from typing_extensions import TypeAlias
@@ -34,7 +32,8 @@ from couchbase_analytics.common.errors import (AnalyticsError,
                                               InvalidCredentialError,
                                               QueryError)
 
-AnalyticsClientError: TypeAlias = Union[InternalSDKError,
+AnalyticsClientError: TypeAlias = Union[AnalyticsError,
+                                        InternalSDKError,
                                         QueryError,
                                         RuntimeError,
                                         ValueError]
@@ -66,27 +65,22 @@ AnalyticsClientError: TypeAlias = Union[InternalSDKError,
 
 
 class ErrorMapper:
-    @staticmethod  # noqa: C901
-    def build_error(base_error: Exception,
-                    mapping: Optional[Dict[str, type[AnalyticsError]]] = None
-                    ) -> AnalyticsClientError:
-        # TODO: exceptions
-        return AnalyticsError(base=base_error)
-    
 
     @staticmethod  # noqa: C901
     def build_error_from_json(json_data: List[Dict[str, Any]],
                               status_code: Optional[int]=None) -> AnalyticsClientError:
         context = {'errors': json_data,
                    'http_status': status_code}
+        # TODO: error handling needs to be more robust
         if status_code is None:
-            status_code = json_data.get('status', 500)
+            status_code = json_data[0].get('status', 500)
+            return AnalyticsError(message='Unknown error occurred.')
         elif status_code == 401:
-            return InvalidCredentialError(context, message='Invalid credentials provided.')
+            return InvalidCredentialError(str(context), message='Invalid credentials provided.')
         else:
             first_error = json_data[0]
             code = first_error.get('code', 0)
             server_message = first_error.get('msg', 'Unknown error occurred.')
-            return QueryError(code, server_message, context)
+            return QueryError(code, server_message, str(context))
 
 

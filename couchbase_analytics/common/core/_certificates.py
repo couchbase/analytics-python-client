@@ -16,11 +16,43 @@
 
 from __future__ import annotations
 
+import os
+
+from pathlib import Path
 from typing import List
 
 
 class _Certificates:
     """**INTERNAL**"""
+
+    @staticmethod
+    def get_certificate_from_file(certpath: str) -> str:
+        """
+        **INTERNAL** Convenience method for access to the certificate file.  NOT part of the public API.
+
+        Returns:
+            str: The contents of the certificate file.
+        """
+        cert_file = Path(certpath)
+        if not cert_file.exists():
+            raise FileNotFoundError(f'Certificate file not found: {cert_file}')
+        return cert_file.read_text()
+
+    @staticmethod
+    def get_capella_certificates() -> List[str]:
+        """
+        **INTERNAL** Convenience method for access to Capella certificates.  NOT part of the public API.
+        Returns:
+            List[str]: List of Capella certificates.
+        """
+        nonprod_cert_dir = Path(Path(__file__).resolve().parent, '_capella_certificates')
+        nonprod_certs: List[str] = []
+        for cert in nonprod_cert_dir.iterdir():
+            if os.path.isdir(cert) or cert.suffix != '.pem':
+                continue
+            nonprod_certs.append(cert.read_text())
+        return nonprod_certs
+
     @staticmethod
     def get_nonprod_certificates() -> List[str]:
         """
@@ -30,11 +62,9 @@ class _Certificates:
         Returns:
             List[str]: List of nonprod Capella certificates.
         """
-        import os
         import warnings
-        from pathlib import Path
         warnings.warn('Only use non-prod certificate in DEVELOPMENT environments.', ResourceWarning)
-        nonprod_cert_dir = Path(Path(__file__).resolve().parent, 'nonprod_certificates')
+        nonprod_cert_dir = Path(Path(__file__).resolve().parent, '_nonprod_certificates')
         nonprod_certs: List[str] = []
         for cert in nonprod_cert_dir.iterdir():
             if os.path.isdir(cert) or cert.suffix != '.pem':

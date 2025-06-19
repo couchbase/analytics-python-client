@@ -21,7 +21,7 @@ if sys.version_info < (3, 11):
 else:
     from typing import Unpack
 
-from acouchbase_analytics.protocol.core.client_adapter import _ClientAdapter
+from acouchbase_analytics.protocol.core.client_adapter import _AsyncClientAdapter
 from acouchbase_analytics.protocol.database import AsyncDatabase as AsyncDatabase
 from couchbase_analytics.options import QueryOptions, QueryOptionsKwargs
 from couchbase_analytics.result import AsyncQueryResult
@@ -30,7 +30,7 @@ class AsyncScope:
     def __init__(self, database: AsyncDatabase, scope_name: str) -> None: ...
 
     @property
-    def client_adapter(self) -> _ClientAdapter: ...
+    def client_adapter(self) -> _AsyncClientAdapter: ...
 
     @property
     def name(self) -> str: ...

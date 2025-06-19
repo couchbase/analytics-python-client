@@ -34,9 +34,9 @@ logger = logging.getLogger(__name__)
 
 class WebServerHandler:
     def __init__(self, host: Optional[str]='0.0.0.0', port:Optional[int]=8080) -> None:
-        self._host = host
-        self._port = port
-        self._server_process = None
+        self._host = host or '0.0.0.0'
+        self._port = port or 8080
+        self._server_process: Optional[subprocess.Popen[bytes]]
         atexit.register(self.stop_server)
 
     @property

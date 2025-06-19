@@ -54,7 +54,7 @@ class QueryMetrics:
         Returns:
             The total amount of time spent running the query.
         """
-        us = (self._raw.get('elapsed_time') or 0) / 1000
+        us = (self._raw.get('elapsed_time') or 0) * 1000
         return timedelta(microseconds=us)
 
     def execution_time(self) -> timedelta:
@@ -63,7 +63,7 @@ class QueryMetrics:
         Returns:
             The total amount of time spent executing the query.
         """
-        us = (self._raw.get('execution_time') or 0) / 1000
+        us = (self._raw.get('execution_time') or 0) * 1000
         return timedelta(microseconds=us)
 
     def result_count(self) -> int:

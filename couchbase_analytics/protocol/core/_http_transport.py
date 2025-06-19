@@ -39,13 +39,13 @@ DEFAULT_LIMITS = Limits(max_connections=100, max_keepalive_connections=20)
 # CertTypes = Union[str, Tuple[str, str], Tuple[str, str, str]]
 
 class AnalyticsHTTPConnection(HTTPConnection):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, **kwargs) -> None:  # type: ignore
         super().__init__(*args, **kwargs)
 
     # The logic is the exact same as httpcore's Connection.handle_request, with the following additions:
     #       - We update the request's read timeout to remove the time taken to establish a connection
     # 2025-06-05: https://github.com/encode/httpcore/blob/98209758cc14e1a5f966fe1dfdc1064b94055d8c/httpcore/_sync/connection.py#L69
-    def handle_request(self, request: Request) -> Response:
+    def handle_request(self, request: Request) -> CoreResponse:
         if not self.can_handle_request(request.url.origin):
             raise RuntimeError(
                 f"Attempted to send request to {request.url.origin} on connection to {self._origin}"
@@ -88,7 +88,7 @@ class AnalyticsHTTPConnection(HTTPConnection):
         return self._connection.handle_request(request)
 
 class AnalyticsConnectionPool(ConnectionPool):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, **kwargs) -> None:  # type: ignore
         super().__init__(*args, **kwargs)
 
     # The logic is the exact same as httpcore's ConnectionPool.handle_request, with the following additions:
@@ -192,7 +192,7 @@ class AnalyticsConnectionPool(ConnectionPool):
 class AnalyticsHTTPTransport(BaseTransport):
     def __init__(
         self,
-        verify: Optional[Union[ssl.SSLContext, str, bool]] = True,
+        verify: Union[ssl.SSLContext, str, bool] = True,
         cert: Optional[CertTypes] = None,
         trust_env: bool = True,
         http1: bool = True,
@@ -221,7 +221,7 @@ class AnalyticsHTTPTransport(BaseTransport):
             socket_options=socket_options,
         )
 
-    def __enter__(self: T) -> T:  # Use generics for subclass support.
+    def __enter__(self: T) -> T:  # type: ignore
         self._pool.__enter__()
         return self
 
@@ -236,7 +236,7 @@ class AnalyticsHTTPTransport(BaseTransport):
 
     def handle_request(
         self,
-        request: Request,
+        request: Request,  # type: ignore
     ) -> Response:
         assert isinstance(request.stream, SyncByteStream)
         import httpcore
@@ -244,12 +244,12 @@ class AnalyticsHTTPTransport(BaseTransport):
         req = httpcore.Request(
             method=request.method,
             url=httpcore.URL(
-                scheme=request.url.raw_scheme,
-                host=request.url.raw_host,
+                scheme=request.url.raw_scheme,  # type: ignore
+                host=request.url.raw_host,  # type: ignore
                 port=request.url.port,
-                target=request.url.raw_path,
+                target=request.url.raw_path,  # type: ignore
             ),
-            headers=request.headers.raw,
+            headers=request.headers.raw,  # type: ignore
             content=request.stream,
             extensions=request.extensions,
         )

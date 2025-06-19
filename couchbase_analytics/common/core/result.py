@@ -37,7 +37,7 @@ class QueryResult(ABC):
     """Abstract base class for query results."""
 
     @abstractmethod
-    def cancel(self) -> None:
+    def cancel(self) -> Union[Coroutine[Any, Any, None], None]:
         """
         Cancel streaming the query results.
 

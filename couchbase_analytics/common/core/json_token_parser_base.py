@@ -29,31 +29,20 @@ class ParsingState(Enum):
     START_ERRORS_PROCESSING = 'start_errors_processing'
     PROCESSING_ERRORS = 'processing_errors'
     PROCESSING_ERROR = 'processing_error'
-    # RESULTS_START = 'results_start'
-    # RESULT_START = 'result_start'
-    # ERRORS_START = 'errors_start'
-    # ERROR_START = 'error_start'
     UNDEFINED = 'undefined'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
     
 
 class TokenState(Enum):
-    # PROCESSING = 'processing'
-    # START_RESULTS_PROCESSING = 'start_results_processing'
-    # PROCESSING_RESULTS = 'processing_results'
-    # PROCESSING_RESULT = 'processing_result'
-    # START_ERRORS_PROCESSING = 'start_errors_processing'
-    # PROCESSING_ERRORS = 'processing_errors'
-    # PROCESSING_ERROR = 'processing_error'
     RESULTS_START = 'results_start'
     RESULT_START = 'result_start'
     ERRORS_START = 'errors_start'
     ERROR_START = 'error_start'
     UNDEFINED = 'undefined'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
 class TokenType(Enum):
@@ -79,7 +68,7 @@ class TokenType(Enum):
         except KeyError:
             raise ValueError(f'Invalid token type: {value}')
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
 class Token(NamedTuple):
@@ -171,7 +160,7 @@ class JsonTokenParserBase:
             self._previous_state = self._state
             self._state = ParsingState.PROCESSING_ERROR
             return TokenState.ERROR_START
-        # TODO:  Handle other states?? or error?
+        raise ValueError(f'Invalid state for push transition: {self._state}')
 
     def _handle_start_event(self, token_type: TokenType) -> None:
         transition = False

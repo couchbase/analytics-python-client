@@ -17,22 +17,23 @@ from __future__ import annotations
 
 import socket
 
-from ipaddress import ip_address
+from ipaddress import (IPv4Address, IPv6Address, ip_address)
 from random import choice
 from typing import (Any,
                     Dict,
-                    List,
-                    Optional)
+                    Optional,
+                    Set,
+                    Union)
 from urllib.parse import quote
 
 import anyio
 
 def get_request_ip(host: str,
                    port: int,
-                   previous_ips: Optional[List[str]]=None) -> Optional[str]:
+                   previous_ips: Optional[Set[str]]=None) -> Optional[str]:
     # Lets not call getaddrinfo, if the host is already an IP address
     try:
-        ip = ip_address(host)
+        ip: Optional[Union[IPv4Address, IPv6Address, str]] = ip_address(host)
     except ValueError:
         ip = None
 
@@ -42,14 +43,15 @@ def get_request_ip(host: str,
         ip = '127.0.0.1'
 
     if previous_ips is None:
-        previous_ips = []
+        previous_ips = set()
     if not ip:
         # TODO: getaddrinfo() will raise an exception if name resolution fails
         result = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM, family=socket.AF_UNSPEC)
         # TODO: Handle IPv4 vs IPv6; with or without port?
         # ips = [f'{addr[4][0]}:{addr[4][1]}' for addr in result]
         try:
-            ip = choice([addr[4][0] for addr in result if addr[4][0] not in previous_ips])
+            res_ip = choice([addr[4][0] for addr in result if addr[4][0] not in previous_ips])
+            ip = str(res_ip)
         except IndexError:
             ip = None
     else:
@@ -61,10 +63,10 @@ def get_request_ip(host: str,
 
 async def get_request_ip_async(host: str,
                                port: int,
-                               previous_ips: Optional[List[str]]=None) -> Optional[str]:
+                               previous_ips: Optional[Set[str]]=None) -> Optional[str]:
     # Lets not call getaddrinfo, if the host is already an IP address
     try:
-        ip = ip_address(host)
+        ip: Optional[Union[IPv4Address, IPv6Address, str]] = ip_address(host)
     except ValueError:
         ip = None
 
@@ -74,7 +76,7 @@ async def get_request_ip_async(host: str,
         ip = '127.0.0.1'
 
     if previous_ips is None:
-        previous_ips = []
+        previous_ips = set()
 
     if not ip:
         # TODO: getaddrinfo() will raise an exception if name resolution fails
@@ -82,7 +84,8 @@ async def get_request_ip_async(host: str,
         # TODO: Handle IPv4 vs IPv6; with or without port?
         # ips = [f'{addr[4][0]}:{addr[4][1]}' for addr in result]
         try:
-            ip = choice([addr[4][0] for addr in result if addr[4][0] not in previous_ips])
+            res_ip = choice([addr[4][0] for addr in result if addr[4][0] not in previous_ips])
+            ip = str(res_ip)
         except IndexError:
             ip = None
     else:

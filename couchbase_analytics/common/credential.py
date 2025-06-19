@@ -15,7 +15,9 @@
 
 from __future__ import annotations
 
-from typing import Callable, Tuple
+from typing import (Callable,
+                    Dict,
+                    Tuple)
 
 
 class Credential:
@@ -44,6 +46,15 @@ class Credential:
 
         self._username = username
         self._password = password
+
+    def asdict(self) -> Dict[str, str]:
+        """
+        **INTERNAL**
+        """
+        return {
+            'username': self._username,
+            'password': self._password
+        }
 
     def astuple(self) -> Tuple[bytes, bytes]:
         """
@@ -89,8 +100,8 @@ class Credential:
         """
         return Credential(**callback().asdict())
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'Credential(username={self._username}, password=****)'
     
-    def __str__(self):
+    def __str__(self) -> str:
         return self.__repr__()

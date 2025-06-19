@@ -73,17 +73,21 @@ def build_query_metadata(json_data: Optional[Any]=None,
         QueryMetadataCore: The parsed query metadata.
     """
     if json_data is None and raw_metadata is None:
-        raise ValueError("Either json_data or raw_metadata must be provided")
+        raise ValueError('No metadata provided.')
 
-    if json_data is None:
+    if json_data is None and raw_metadata is not None:
         json_data = json.loads(raw_metadata.decode('utf-8'))
-    warnings = []
+
+    if json_data is None or not isinstance(json_data, dict):
+        raise ValueError('Invalid query metadata format. Expected a JSON object.')
+
+    warnings: List[QueryWarningCore] = []
     for warning in json_data.get('warnings', []):
         warnings.append({'code':warning.get('code', 0), 'message': warning.get('msg', '')})
 
-    metadata = {'request_id':json_data.get('requestID', ''),
-                'client_context_id':json_data.get('clientContextID', ''),
-                'warnings':warnings}
+    metadata: QueryMetadataCore = {'request_id':json_data.get('requestID', ''),
+                                   'client_context_id':json_data.get('clientContextID', ''),
+                                   'warnings':warnings}
     
     # TODO:  include status in metadata??  Seems to only be populated in error scenario
     if 'status' in json_data:

@@ -24,7 +24,8 @@ from typing import (Any,
                     List,
                     Literal,
                     Optional,
-                    TypedDict)
+                    TypedDict,
+                    Union)
 
 if sys.version_info < (3, 10):
     from typing_extensions import TypeAlias, Unpack
@@ -112,13 +113,11 @@ class SecurityOptionsBase(Dict[str, object]):
 
 class TimeoutOptionsKwargs(TypedDict, total=False):
     connect_timeout: Optional[timedelta]
-    dispatch_timeout: Optional[timedelta]
     query_timeout: Optional[timedelta]
 
 
 TimeoutOptionsValidKeys: TypeAlias = Literal[
     'connect_timeout',
-    'dispatch_timeout',
     'query_timeout',
 ]
 
@@ -130,7 +129,6 @@ class TimeoutOptionsBase(Dict[str, object]):
 
     VALID_OPTION_KEYS: List[TimeoutOptionsValidKeys] = [
         'connect_timeout',
-        'dispatch_timeout',
         'query_timeout',
     ]
 
@@ -145,11 +143,10 @@ class QueryOptionsKwargs(TypedDict, total=False):
     lazy_execute: Optional[bool]
     named_parameters: Optional[Dict[str, JSONType]]
     positional_parameters: Optional[Iterable[JSONType]]
-    priority: Optional[bool]
     query_context: Optional[str]
     raw: Optional[Dict[str, Any]]
-    read_only: Optional[bool]
-    scan_consistency: Optional[QueryScanConsistency]
+    readonly: Optional[bool]
+    scan_consistency: Optional[Union[QueryScanConsistency, str]]
     stream_config: Optional[JsonStreamConfig]
     timeout: Optional[timedelta]
 
@@ -160,10 +157,9 @@ QueryOptionsValidKeys: TypeAlias = Literal[
     'lazy_execute',
     'named_parameters',
     'positional_parameters',
-    'priority',
     'query_context',
     'raw',
-    'read_only',
+    'readonly',
     'scan_consistency',
     'stream_config',
     'timeout',
@@ -178,10 +174,9 @@ class QueryOptionsBase(Dict[str, object]):
         'lazy_execute',
         'named_parameters',
         'positional_parameters',
-        'priority',
         'query_context',
         'raw',
-        'read_only',
+        'readonly',
         'scan_consistency',
         'stream_config',
         'timeout',

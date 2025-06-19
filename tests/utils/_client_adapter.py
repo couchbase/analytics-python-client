@@ -8,7 +8,7 @@ from couchbase_analytics.protocol.core.client_adapter import _ClientAdapter
 from couchbase_analytics.protocol.core.request import QueryRequest
     
 
-def client_adapter_init_override(self, *args, **kwargs) -> None:
+def client_adapter_init_override(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
     if not hasattr(self, 'PYCBAC_TESTING'):
         raise RuntimeError('This is a testing only adapter')
     self._http_transport_cls = kwargs.pop('http_transport_cls', None)
@@ -39,10 +39,13 @@ def client_adapter_init_override(self, *args, **kwargs) -> None:
 #             self._client = Client(auth=BasicAuth(*self._conn_details.credential),
 #                                     transport=transport)
             
-def send_request_override(self, request: QueryRequest) -> Response:
+def send_request_override(self: _ClientAdapter, request: QueryRequest) -> Response:
     if not hasattr(self, '_client'):
         raise RuntimeError('Client not created yet')
     
+    if request.url is None:
+        raise ValueError('Request URL cannot be None')
+
     print(f'Sending request: {request.method} {request.url}')
     request_json = request.body
     if hasattr(self, '_request_json') and self._request_json is not None:
@@ -67,19 +70,23 @@ def send_request_override(self, request: QueryRequest) -> Response:
     except socket.gaierror as err:
         raise RuntimeError(f'Unable to connect to {self._conn_details.get_scheme_host_and_port()}') from err
     
-def set_request_path(self, path: str) -> None:
+def set_request_path(self: _ClientAdapter, path: str) -> None:
     self._ANALYTICS_PATH = path
 
-def update_request_json(self, json: Dict[str, object]) -> None:
-    self._request_json = json
+def update_request_json(self: _ClientAdapter, json: Dict[str, object]) -> None:
+    self._request_json = json  # type: ignore[attr-defined]
 
-def update_request_extensions(self, extensions: Dict[str, str]) -> None:
-    self._request_extensions = extensions
+def update_request_extensions(self: _ClientAdapter, extensions: Dict[str, str]) -> None:
+    self._request_extensions = extensions  # type: ignore[attr-defined]
 
-_ClientAdapter.__init__ = client_adapter_init_override
+_ClientAdapter.__init__ = client_adapter_init_override  # type: ignore[method-assign]
 # _ClientAdapter.create_client = create_client_override
-_ClientAdapter.send_request = send_request_override
+_ClientAdapter.send_request = send_request_override  # type: ignore[method-assign]
 setattr(_ClientAdapter, 'set_request_path', set_request_path)
 setattr(_ClientAdapter, 'update_request_json', update_request_json)
 setattr(_ClientAdapter, 'update_request_extensions', update_request_extensions)
 setattr(_ClientAdapter, 'PYCBAC_TESTING', True)
+
+_TestClientAdapter = _ClientAdapter
+
+__all__ = ["_TestClientAdapter"]

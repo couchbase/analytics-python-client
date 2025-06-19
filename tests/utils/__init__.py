@@ -15,31 +15,42 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from __future__ import print_function
+from __future__ import annotations
 
+import os
+import pathlib
 import random
-from typing import Optional, Union
+
+from collections.abc import AsyncIterator as PyAsyncIterator
+from collections.abc import Iterator
+from typing import (Any,
+                    Dict,
+                    List,
+                    Optional,
+                    Tuple,
+                    Union)
+from urllib.parse import quote
 
 import anyio
 
-class AsyncBytesIterator:
+class AsyncBytesIterator(PyAsyncIterator[bytes]):
 
     def __init__(self,
                  data: Union[bytes, str],
                  chunk_size: Optional[int] = 100,
                  simulate_delay: Optional[bool] = False,
-                 simulate_delay_range: Optional[tuple] = (0.01, 0.1)):
+                 simulate_delay_range: Optional[Tuple[float, float]] = (0.01, 0.1)) -> None:
         self._data = data if isinstance(data, bytes) else bytes(data, 'utf-8')
-        self._chunk_size = chunk_size
-        self._simulate_delay = simulate_delay
-        self._simulate_delay_range = simulate_delay_range
+        self._chunk_size = chunk_size or 100
+        self._simulate_delay = simulate_delay or False
+        self._simulate_delay_range = simulate_delay_range or (0.01, 0.1)
         self._start = 0
         self._stop = self._chunk_size
 
-    def __aiter__(self):
+    def __aiter__(self) -> AsyncBytesIterator:
         return self
     
-    async def __anext__(self):
+    async def __anext__(self) -> bytes:
         if self._simulate_delay:
             delay = random.uniform(*self._simulate_delay_range)
             await anyio.sleep(delay)
@@ -60,18 +71,18 @@ class AsyncBytesIterator:
             self._stop += self._chunk_size
             return chunk
 
-class BytesIterator:
+class BytesIterator(Iterator[bytes]):
 
-    def __init__(self, data: Union[bytes, str], chunk_size: Optional[int] = 100):
+    def __init__(self, data: Union[bytes, str], chunk_size: Optional[int] = 100) -> None:
         self._data = data if isinstance(data, bytes) else bytes(data, 'utf-8')
-        self._chunk_size = chunk_size
+        self._chunk_size = chunk_size or 100
         self._start = 0
         self._stop = self._chunk_size
 
-    def __iter__(self):
+    def __iter__(self) -> BytesIterator:
         return self
     
-    def __next__(self):
+    def __next__(self) -> bytes:
         if not self._data:
             raise StopIteration
         while True:
@@ -88,3 +99,26 @@ class BytesIterator:
             self._start = self._stop
             self._stop += self._chunk_size
             return chunk
+        
+
+def get_test_cert_path() -> str:
+    return os.path.join(pathlib.Path(__file__).parent, 'certs', 'dinocluster.pem')
+
+def get_test_cert_list() -> List[str]:
+    cert_file = pathlib.Path(get_test_cert_path())
+    cert_file1 = pathlib.Path(os.path.join(pathlib.Path(__file__).parent, 'certs', 'dinoca.pem'))
+    return [cert_file.read_text(), cert_file1.read_text()]
+
+def get_test_cert_str() -> str:
+    cert_file = pathlib.Path(get_test_cert_path())
+    return cert_file.read_text()
+
+def to_query_str(params: Dict[str, Any]) -> str:
+    encoded_params = []
+    for k, v in params.items():
+        if v in [True, False]:
+            encoded_params.append(f'{quote(k)}={quote(str(v).lower())}')
+        else:
+            encoded_params.append(f'{quote(k)}={quote(str(v))}')
+
+    return '&'.join(encoded_params)

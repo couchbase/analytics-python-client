@@ -23,42 +23,46 @@ from typing import (TYPE_CHECKING,
                     List,
                     Optional,
                     Tuple,
-                    TypedDict)
+                    TypedDict,
+                    cast)
 from urllib.parse import parse_qs, urlparse
 
+from couchbase_analytics.common.core._certificates import _Certificates
+from couchbase_analytics.common.core.duration_str_utils import parse_duration_str
 from couchbase_analytics.common.credential import Credential
 from couchbase_analytics.common.deserializer import DefaultJsonDeserializer, Deserializer
-from couchbase_analytics.common.options import ClusterOptions
+from couchbase_analytics.common.options import (ClusterOptions,
+                                                SecurityOptions,
+                                                TimeoutOptions)
+
 from couchbase_analytics.protocol import PYCBAC_VERSION
 from couchbase_analytics.protocol.options import (ClusterOptionsTransformedKwargs,
                                                   QueryStrVal,
                                                   SecurityOptionsTransformedKwargs,
                                                   TimeoutOptionsTransformedKwargs)
 
-from httpcore import (Origin, URL)
+from httpcore import URL
 
 if TYPE_CHECKING:
     from couchbase_analytics.protocol.options import OptionsBuilder
 
 
 class StreamingTimeouts(TypedDict, total=False):
-    query_timeout: Optional[int]
-
+    query_timeout: Optional[float]
 
 
 class DefaultTimeouts(TypedDict):
-    connect_timeout: int
-    dispatch_timeout: int
-    query_timeout: int
+    connect_timeout: float
+    query_timeout: float
+
 
 DEFAULT_TIMEOUTS: DefaultTimeouts = {
     'connect_timeout': 10,
-    'dispatch_timeout': 30,
     'query_timeout': 60 * 10,
 }
 
 
-def parse_http_endpoint(http_endpoint: str) -> Tuple[URL, Dict[str, QueryStrVal]]:
+def parse_http_endpoint(http_endpoint: str) -> Tuple[URL, Dict[str, List[str]]]:
     """ **INTERNAL**
 
     Parse the provided HTTP endpoint
@@ -77,41 +81,27 @@ def parse_http_endpoint(http_endpoint: str) -> Tuple[URL, Dict[str, QueryStrVal]
     if parsed_endpoint.scheme is None or parsed_endpoint.scheme not in ['http', 'https']:
         raise ValueError(f"The endpoint scheme must be 'http[s]'.  Found: {parsed_endpoint.scheme}.")
 
+    host = parsed_endpoint.hostname
+    if host is None:
+        host = ''
+
+    if len(host.split(',')) > 1:
+        raise ValueError('The endpoint must not contain multiple hosts.')
+
     port = parsed_endpoint.port
     if parsed_endpoint.port is None:
         port = 80 if parsed_endpoint.scheme == 'http' else 443
         
 
     url = URL(scheme=parsed_endpoint.scheme,
-              host=parsed_endpoint.hostname,
+              host=host,
               port=port,
               target=parsed_endpoint.path or '/')
 
-    return url, parse_query_string_options(parsed_endpoint.query)
+    return url, parse_qs(parsed_endpoint.query)
 
 
-def parse_query_string_options(query_str: str) -> Dict[str, QueryStrVal]:
-    """Parse the query string options
-
-    Query options will be split into legacy options and 'current' options. The values for the
-    'current' options are cast to integers or booleans where applicable
-
-    Args:
-        query_str (str): The query string.
-
-    Returns:
-        Tuple[Dict[str, QueryStrVal], Dict[str, QueryStrVal]]: The parsed current options and legacy options.
-    """
-    options = parse_qs(query_str)
-
-    query_str_opts: Dict[str, QueryStrVal] = {}
-    for k, v in options.items():
-        query_str_opts[k] = parse_query_string_value(v)
-
-    return query_str_opts
-
-
-def parse_query_string_value(value: List[str]) -> QueryStrVal:
+def parse_query_string_value(value: List[str], enforce_str: Optional[bool]=False) -> QueryStrVal:
     """Parse a query string value
 
     The provided value is a list of at least one element. Returns either a list of strings or a single element
@@ -127,25 +117,36 @@ def parse_query_string_value(value: List[str]) -> QueryStrVal:
     if len(value) > 1:
         return value
     v = value[0]
-    if v.isnumeric():
+    if v.isnumeric() and not enforce_str:
         return int(v)
     elif v.lower() in ['true', 'false']:
         return v.lower() == 'true'
     return v
 
 
-def parse_query_str_options(query_str_opts: Dict[str, QueryStrVal]) -> Dict[str, QueryStrVal]:
+def parse_query_str_options(query_str_opts: Dict[str, List[str]]) -> Dict[str, QueryStrVal]:
     final_opts: Dict[str, QueryStrVal] = {}
     for k, v in query_str_opts.items():
         tokens = k.split('.')
         if len(tokens) == 2:
-            if tokens[0] in ['timeout', 'security']:
-                final_opts[tokens[1]] = v
+            if tokens[0] == 'security':
+                final_opts[tokens[1]] = parse_query_string_value(v)
+            elif tokens[0] == 'timeout':
+                val = parse_query_string_value(v, enforce_str=True)
+                final_opts[tokens[1]] = parse_duration_str(cast(str, val))
             else:
+                print('Warning: Unrecognized query string option:', k)
                 # TODO:  exceptions -- this means the user passed in an invalid option
                 pass 
         else:
-            final_opts[k] = v
+            if k in SecurityOptions.VALID_OPTION_KEYS:
+                msg = f'Invalid query string option: {k}.'
+                if k not in ['trust_only_pem_str', 'trust_only_certificates']:
+                    msg += f'  Use "security.{k}" instead.'
+                raise ValueError(msg)
+            elif k in TimeoutOptions.VALID_OPTION_KEYS:
+                raise ValueError(f'Invalid query string option: {k}.  Use "timeout.{k}" instead.')
+            final_opts[k] = parse_query_string_value(v)
 
     return final_opts
 
@@ -162,7 +163,7 @@ class _ConnectionDetails:
     ssl_context: Optional[ssl.SSLContext] = None
     sni_hostname: Optional[str] = None
     
-    def get_connect_timeout(self) -> int:
+    def get_connect_timeout(self) -> float:
         timeout_opts: Optional[TimeoutOptionsTransformedKwargs] = self.cluster_options.get('timeout_options')
         if timeout_opts is not None:
             connect_timeout = timeout_opts.get('connect_timeout', None)
@@ -170,7 +171,7 @@ class _ConnectionDetails:
                 return connect_timeout
         return DEFAULT_TIMEOUTS['connect_timeout']
     
-    def get_query_timeout(self) -> int:
+    def get_query_timeout(self) -> float:
         timeout_opts: Optional[TimeoutOptionsTransformedKwargs] = self.cluster_options.get('timeout_options')
         if timeout_opts is not None:
             query_timeout = timeout_opts.get('query_timeout', None)
@@ -179,6 +180,8 @@ class _ConnectionDetails:
         return DEFAULT_TIMEOUTS['query_timeout']
 
     def get_scheme_host_and_port(self) -> Tuple[str, str, int]:
+        if self.url.port is None:
+            raise ValueError('The URL must have a port specified.')
         return self.url.scheme.decode(), self.url.host.decode(), self.url.port
 
     def is_secure(self) -> bool:
@@ -189,23 +192,36 @@ class _ConnectionDetails:
         # TODO: security settings
         if security_opts is not None:
             # separate between value options and boolean option (trust_only_capella)
-            solo_security_opts = ['trust_only_pem_file',
-                                'trust_only_pem_str',
-                                'trust_only_certificates']
+            solo_security_opts = ['trust_only_pem_file', 'trust_only_pem_str', 'trust_only_certificates']
             trust_capella = security_opts.get('trust_only_capella', None)
             security_opt_count = sum(map(lambda k: 1 if security_opts.get(k, None) is not None else 0, solo_security_opts))
             if security_opt_count > 1 or (security_opt_count == 1 and trust_capella is True):
                 raise ValueError(('Can only set one of the following options: '
                                 f'[{", ".join(["trust_only_capella"] + solo_security_opts)}]'))
         
-        if self.is_secure():
-            self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        if not self.is_secure():
+            return
+        
+        self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        self.sni_hostname = self.url.host.decode()
+
+        if security_opts is None:
             self.ssl_context.set_default_verify_paths()
-            # ssl_context.load_verify_locations(cafile='.vscode/tls/cluster_ca.pem')
-            self.ssl_context.load_verify_locations(cafile='.vscode/tls/capella.pem')
-            self.ssl_context.load_verify_locations(cafile='.vscode/tls/dinocluster.pem')
-            self.ssl_context.load_verify_locations(cafile='.vscode/tls/dinoca.pem')
-            self.sni_hostname = self.url.host.decode()
+            capalla_certs = _Certificates.get_capella_certificates()
+            self.ssl_context.load_verify_locations(cadata='\n'.join(capalla_certs))
+        elif security_opts.get('trust_only_capella', False):
+            capalla_certs = _Certificates.get_capella_certificates()
+            self.ssl_context.load_verify_locations(cadata='\n'.join(capalla_certs))
+        elif (certpath := security_opts.get('trust_only_pem_file', None)) is not None:
+            self.ssl_context.load_verify_locations(cafile=certpath)
+            security_opts['trust_only_capella'] = False
+        elif (certstr := security_opts.get('trust_only_pem_str', None)) is not None:
+            self.ssl_context.load_verify_locations(cadata=certstr)
+            security_opts['trust_only_capella'] = False
+        elif (certificates := security_opts.get('trust_only_certificates', None)) is not None:
+            self.ssl_context.load_verify_locations(cadata='\n'.join(certificates))
+            security_opts['trust_only_capella'] = False
+            
 
     @classmethod
     def create(cls,

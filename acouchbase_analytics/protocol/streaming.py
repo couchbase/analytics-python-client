@@ -16,12 +16,19 @@
 from __future__ import annotations
 
 import json
+import sys
+
 from asyncio import CancelledError
 from functools import wraps
 from typing import (Any,
                     Callable,
                     Coroutine,
                     Optional)
+
+if sys.version_info < (3, 10):
+    from typing_extensions import TypeAlias
+else:
+    from typing import TypeAlias
 
 from httpx import Response as HttpCoreResponse
 
@@ -39,20 +46,20 @@ from couchbase_analytics.common.query import QueryMetadata
 from couchbase_analytics.common.streaming import StreamingState
 
 
+
+
 class RequestWrapper:
     """
         **INTERNAL**
     """
 
     @classmethod
-    def handle_retries(cls,  # noqa: C901
-                       ) -> Callable[[Callable[[], None]], Callable[[AsyncHttpStreamingResponse], Coroutine[Any, Any, None]]]:
+    def handle_retries(cls) -> Callable[[SendRequestFunc], WrappedSendRequestFunc]:  # noqa: C901
         """
             **INTERNAL**
         """
 
-        def decorator(fn: Callable[[], None]  # noqa: C901
-                      ) -> Callable[[AsyncHttpStreamingResponse], Coroutine[Any, Any, None]]:
+        def decorator(fn: SendRequestFunc) -> WrappedSendRequestFunc:  # noqa: C901
             @wraps(fn)
             async def wrapped_fn(self: AsyncHttpStreamingResponse) -> None:
                 try:
@@ -93,11 +100,11 @@ class AsyncHttpStreamingResponse:
 
     async def _finish_processing_stream(self) -> None:
         if not self._request_context.has_stage_completed:
-            await self._request_context.stage_completed.wait()
+            await self._request_context.wait_for_stage_to_complete()
         
         while not self._json_stream.token_stream_exhausted:
             self._request_context.start_next_stage(self._json_stream.continue_parsing, reset_previous_stage=True)
-            await self._request_context.stage_completed.wait()
+            await self._request_context.wait_for_stage_to_complete()
 
     def _maybe_continue_to_process_stream(self) -> None:
         if not self._request_context.has_stage_completed:
@@ -112,10 +119,11 @@ class AsyncHttpStreamingResponse:
         if raw_response is None:
             raw_response = await self._json_stream.get_result()
             if raw_response is None:
-                # TODO: logging??
-                # TODO: exception??
-                raise RuntimeError('No result from JsonStream')
-        
+                raise AnalyticsError(message='Received unexpected empty result from JsonStream.')
+                
+        if raw_response.value is None:
+            raise AnalyticsError(message='Received unexpected empty result from JsonStream.')
+
         json_response = json.loads(raw_response.value)
         if 'errors' in json_response:
             await self._request_context.process_error(json_response['errors'])
@@ -173,6 +181,8 @@ class AsyncHttpStreamingResponse:
         self._maybe_continue_to_process_stream()
         raw_response = await self._json_stream.get_result()
         if raw_response.result_type == ParsedResultType.ROW:
+            if raw_response.value is None:
+                raise AnalyticsError(message='Unexpected empty row response while streaming.')
             return self._request_context.deserializer.deserialize(raw_response.value)
         elif raw_response.result_type in [ParsedResultType.ERROR, ParsedResultType.UNKNOWN]:
             await self._process_response(raw_response=raw_response)
@@ -200,3 +210,8 @@ class AsyncHttpStreamingResponse:
         else:
             await self._finish_processing_stream()
             await self._process_response()
+
+SendRequestFunc: TypeAlias = Callable[[AsyncHttpStreamingResponse], Coroutine[Any, Any, None]]
+# Although, SendRequestFunc is the same type as WrappedSendRequestFunc, keep separate for clarity and indicate
+# WrappedSendRequestFunc is a decorator
+WrappedSendRequestFunc: TypeAlias = Callable[[AsyncHttpStreamingResponse], Coroutine[Any, Any, None]]
