@@ -15,7 +15,9 @@
 
 from __future__ import annotations
 
-from typing import Callable, Optional
+from typing import (Callable,
+                    List,
+                    Optional)
 
 from couchbase_analytics.common.core.json_token_parser_base import (JsonTokenParserBase,
                                                                     ParsingState,
@@ -26,23 +28,22 @@ from couchbase_analytics.common.core.json_token_parser_base import (JsonTokenPar
 
 class JsonTokenParser(JsonTokenParserBase):
     def __init__(self,
-                 result_handler: Optional[Callable[[str], None]]=None) -> None:
+                 result_handler: Optional[Callable[[bytes], None]]=None) -> None:
         self._result_handler = result_handler
         super().__init__(emit_results_enabled=result_handler is not None)
 
 
-    def _handle_obj_emit(self, obj: str) -> None:
-        should_emit_result = (self._emit_results_enabled
-                              and self._result_handler is not None
-                              and self._state == ParsingState.PROCESSING_RESULTS)
-        if should_emit_result:
+    def _handle_obj_emit(self, obj: str) -> bool:
+        if (self._emit_results_enabled
+            and self._result_handler is not None
+            and self._state == ParsingState.PROCESSING_RESULTS):
             self._result_handler(bytes(obj, 'utf-8'))
             return True
         return False
     
     def _handle_pop_event(self, token_type: TokenType) -> None:
         matching_token = self._get_matching_token(token_type)
-        obj_pairs = []
+        obj_pairs: List[str] = []
         while self._stack:
             next_token = self._pop()
             if next_token.type == matching_token.type:

@@ -16,9 +16,7 @@
 from __future__ import annotations
 
 from typing import (Dict,
-                    Optional,
-                    Union,
-                    cast)
+                    Optional)
 
 """
 
@@ -40,7 +38,7 @@ class AnalyticsError(Exception):
     def __repr__(self) -> str:
         details: Dict[str, str] = {}
         if self._cause is not None:
-            details['cause'] = self._base.__repr__()
+            details['cause'] = self._cause.__repr__()
 
         if self._message is not None and not self._message.isspace():
             details['message'] = self._message
@@ -67,7 +65,7 @@ class InvalidCredentialError(AnalyticsError):
             'context': self._context
         }
         if self._cause is not None:
-            details['cause'] = self._base.__repr__()
+            details['cause'] = self._cause.__repr__()
 
         if self._message is not None and not self._message.isspace():
             details['message'] = self._message

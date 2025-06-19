@@ -17,8 +17,7 @@ from __future__ import annotations
 
 import socket
 
-from random import choice
-from typing import Dict, Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 from uuid import uuid4
 
 from httpx import BasicAuth, Client, Response
@@ -27,7 +26,7 @@ from couchbase_analytics.common.credential import Credential
 from couchbase_analytics.common.deserializer import Deserializer
 from couchbase_analytics.protocol.connection import _ConnectionDetails
 from couchbase_analytics.protocol.options import OptionsBuilder
-from couchbase_analytics.protocol.core._http_transport import AnalyticsHTTPTransport
+# from couchbase_analytics.protocol.core._http_transport import AnalyticsHTTPTransport
 
 if TYPE_CHECKING:
     from couchbase_analytics.protocol.core.request import QueryRequest
@@ -121,6 +120,8 @@ class _ClientAdapter:
         if not hasattr(self, '_client'):
             auth = BasicAuth(*self._conn_details.credential)
             if self._conn_details.is_secure():
+                if self._conn_details.ssl_context is None:
+                    raise ValueError('SSL context is required for secure connections.')
                 transport = None
                 if self._http_transport_cls is not None:
                     transport = self._http_transport_cls(verify=self._conn_details.ssl_context)
@@ -140,6 +141,9 @@ class _ClientAdapter:
         """
         if not hasattr(self, '_client'):
             raise RuntimeError('Client not created yet')
+        
+        if request.url is None:
+            raise ValueError('Request URL cannot be None')
         
         req = self._client.build_request(request.method,
                                          request.url,

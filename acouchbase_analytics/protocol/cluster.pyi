@@ -21,7 +21,7 @@ if sys.version_info < (3, 11):
 else:
     from typing import Unpack
 
-from acouchbase_analytics.protocol.core.client_adapter import _ClientAdapter
+from acouchbase_analytics.protocol.core.client_adapter import _AsyncClientAdapter
 from acouchbase_analytics.protocol.database import AsyncDatabase
 from couchbase_analytics.common.credential import Credential
 from couchbase_analytics.common.result import AsyncQueryResult
@@ -54,7 +54,7 @@ class AsyncCluster:
                  **kwargs: Unpack[ClusterOptionsKwargs]) -> None: ...
 
     @property
-    def client_adapter(self) -> _ClientAdapter: ...
+    def client_adapter(self) -> _AsyncClientAdapter: ...
 
     @property
     def connected(self) -> bool: ...

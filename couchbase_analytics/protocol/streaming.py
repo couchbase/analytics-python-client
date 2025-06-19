@@ -16,12 +16,18 @@
 from __future__ import annotations
 
 import json
+import sys
 
 from concurrent.futures import CancelledError
 from functools import wraps
 from typing import (Any,
                     Callable,
                     Optional)
+
+if sys.version_info < (3, 10):
+    from typing_extensions import TypeAlias
+else:
+    from typing import TypeAlias
 
 from httpx import Response as HttpCoreResponse
 
@@ -42,12 +48,12 @@ class RequestWrapper:
     """
 
     @classmethod
-    def handle_retries(cls) -> Callable[[Callable[[], None]], Callable[[HttpStreamingResponse], None]]:
+    def handle_retries(cls) -> Callable[[SendRequestFunc], WrappedSendRequestFunc]:
         """
             **INTERNAL**
         """
 
-        def decorator(fn: Callable[[], None]) -> Callable[[HttpStreamingResponse], None]:
+        def decorator(fn: SendRequestFunc) -> WrappedSendRequestFunc:
             @wraps(fn)
             def wrapped_fn(self: HttpStreamingResponse) -> None:
                 try:
@@ -87,7 +93,7 @@ class HttpStreamingResponse:
         self._metadata: Optional[QueryMetadata] = None
         self._core_response: HttpCoreResponse
         self._stream_config = stream_config or JsonStreamConfig()
-        self._json_stream = None
+        self._json_stream: JsonStream
 
     @property
     def lazy_execute(self) -> bool:
@@ -98,7 +104,7 @@ class HttpStreamingResponse:
 
     def _finish_processing_stream(self) -> None:
         if not self._request_context.has_stage_completed:
-            self._process_ft.result()
+            self._request_context.wait_for_stage_completed()
         
         if self._request_context.cancelled:
             return
@@ -123,9 +129,10 @@ class HttpStreamingResponse:
         if raw_response is None:
             raw_response = self._json_stream.get_result(self._stream_config.queue_timeout)
             if raw_response is None:
-                # TODO: logging??
-                # TODO: exception??
-                raise RuntimeError('No result from JsonStream')
+                raise AnalyticsError(message='Received unexpected empty result from JsonStream.')
+                
+        if raw_response.value is None:
+            raise AnalyticsError(message='Received unexpected empty result from JsonStream.')
 
         json_response = json.loads(raw_response.value)
         if 'errors' in json_response:
@@ -138,7 +145,7 @@ class HttpStreamingResponse:
         """
         **INTERNAL**
         """
-        if self._json_stream is not None:
+        if hasattr(self, '_json_stream'):
             # TODO: logging; I don't think this is an error...
             return
         
@@ -193,7 +200,11 @@ class HttpStreamingResponse:
                 raise StopIteration
             # TODO: handle timeout
             raw_response = self._json_stream.get_result(self._stream_config.queue_timeout)
+            if raw_response is None:
+                continue
             if raw_response.result_type == ParsedResultType.ROW:
+                if raw_response.value is None:
+                    raise AnalyticsError(message='Unexpected empty row response while streaming.')
                 return self._request_context.deserializer.deserialize(raw_response.value)
             elif raw_response.result_type in [ParsedResultType.ERROR, ParsedResultType.UNKNOWN]:
                 self._process_response(raw_response=raw_response)
@@ -214,10 +225,15 @@ class HttpStreamingResponse:
             raise CancelledError('Request was cancelled.')
         self._start()
         # block until we either know we have rows or errors
-        res = self._request_context.wait_for_stage_notification()
-        if res == ParsedResultType.ROW:
+        result_type = self._request_context.wait_for_stage_notification()
+        if result_type == ParsedResultType.ROW:
             # we move to iterating rows
             self._request_context.set_state_to_streaming()
         else:
             self._finish_processing_stream()
             self._process_response()
+
+SendRequestFunc: TypeAlias = Callable[[HttpStreamingResponse], None]
+# Although, SendRequestFunc is the same type as WrappedSendRequestFunc, keep separate for clarity and indicate
+# WrappedSendRequestFunc is a decorator
+WrappedSendRequestFunc: TypeAlias = Callable[[HttpStreamingResponse], None]

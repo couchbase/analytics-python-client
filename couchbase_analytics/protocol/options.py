@@ -32,7 +32,7 @@ from couchbase_analytics.common.core.utils import (VALIDATE_BOOL,
                                                   VALIDATE_STR,
                                                   VALIDATE_STR_LIST,
                                                   EnumToStr,
-                                                  timedelta_as_seconds,
+                                                  to_seconds,
                                                   to_microseconds,
                                                   validate_path,
                                                   validate_raw_dict)
@@ -51,7 +51,7 @@ from couchbase_analytics.common.options_base import (ClusterOptionsValidKeys,
 
 QUERY_CONSISTENCY_TO_STR = EnumToStr[QueryScanConsistency]()
 
-QueryStrVal = Union[List[str], str, bool, int]
+QueryStrVal = Union[List[str], str, bool, int, float]
 
 
 class ClusterOptionsTransforms(TypedDict):
@@ -100,21 +100,18 @@ class SecurityOptionsTransformedKwargs(TypedDict, total=False):
 
 
 class TimeoutOptionsTransforms(TypedDict):
-    connect_timeout: Dict[Literal['bootstrap_timeout'], Callable[[Any], int]]
-    dispatch_timeout: Dict[Literal['dispatch_timeout'], Callable[[Any], int]]
-    query_timeout: Dict[Literal['query_timeout'], Callable[[Any], int]]
+    connect_timeout: Dict[Literal['connect_timeout'], Callable[[Any], float]]
+    query_timeout: Dict[Literal['query_timeout'], Callable[[Any], float]]
 
 
 TIMEOUT_OPTIONS_TRANSFORMS: TimeoutOptionsTransforms = {
-    'connect_timeout': {'bootstrap_timeout': timedelta_as_seconds},
-    'dispatch_timeout': {'dispatch_timeout': timedelta_as_seconds},
-    'query_timeout': {'query_timeout': timedelta_as_seconds},
+    'connect_timeout': {'connect_timeout': to_seconds},
+    'query_timeout': {'query_timeout': to_seconds},
 }
 
 
 class TimeoutOptionsTransformedKwargs(TypedDict, total=False):
     connect_timeout: Optional[int]
-    dispatch_timeout: Optional[int]
     query_timeout: Optional[int]
 
 
@@ -124,13 +121,12 @@ class QueryOptionsTransforms(TypedDict):
     lazy_execute: Dict[Literal['lazy_execute'], Callable[[Any], bool]]
     named_parameters: Dict[Literal['named_parameters'], Callable[[Any], Any]]
     positional_parameters: Dict[Literal['positional_parameters'], Callable[[Any], Any]]
-    priority: Dict[Literal['priority'], Callable[[Any], bool]]
     query_context: Dict[Literal['query_context'], Callable[[Any], str]]
     raw: Dict[Literal['raw'], Callable[[Any], Dict[str, Any]]]
-    read_only: Dict[Literal['readonly'], Callable[[Any], bool]]
+    readonly: Dict[Literal['readonly'], Callable[[Any], bool]]
     scan_consistency: Dict[Literal['scan_consistency'], Callable[[Any], str]]
     stream_config: Dict[Literal['stream_config'], Callable[[Any], JsonStreamConfig]]
-    timeout: Dict[Literal['timeout'], Callable[[Any], int]]
+    timeout: Dict[Literal['timeout'], Callable[[Any], float]]
 
 
 QUERY_OPTIONS_TRANSFORMS: QueryOptionsTransforms = {
@@ -139,13 +135,12 @@ QUERY_OPTIONS_TRANSFORMS: QueryOptionsTransforms = {
     'lazy_execute': {'lazy_execute': VALIDATE_BOOL},
     'named_parameters':  {'named_parameters': lambda x: x},
     'positional_parameters':  {'positional_parameters': lambda x: x},
-    'priority': {'priority': VALIDATE_BOOL},
     'query_context': {'query_context': VALIDATE_STR},
     'raw': {'raw': validate_raw_dict},
-    'read_only': {'readonly': VALIDATE_BOOL},
+    'readonly': {'readonly': VALIDATE_BOOL},
     'scan_consistency': {'scan_consistency': QUERY_CONSISTENCY_TO_STR},
     'stream_config':  {'stream_config': lambda x: x},
-    'timeout': {'timeout': to_microseconds}
+    'timeout': {'timeout': to_seconds}
 }
 
 
@@ -161,7 +156,7 @@ class QueryOptionsTransformedKwargs(TypedDict, total=False):
     readonly: Optional[bool]
     scan_consistency: Optional[str]
     stream_config: Optional[JsonStreamConfig]
-    timeout: Optional[int]
+    timeout: Optional[float]
 
 
 TransformedOptionKwargs = TypeVar('TransformedOptionKwargs',
@@ -196,7 +191,7 @@ class OptionsBuilder:
         temp_options: Dict[str, object] = {}
         if options and isinstance(options, (options_class, dict)):
             # mypy cannot recognize that all our options classes are dicts
-            temp_options = options_class(**options)
+            temp_options = options_class(**options)  # type: ignore[arg-type]
         else:
             temp_options = dict()
         temp_options.update(orig_kwargs)
@@ -246,7 +241,7 @@ class OptionsBuilder:
         if query_str_opts:
             # query string options override the options passed in via ClusterOptions
             for k, v in query_str_opts.items():
-                    temp_options[k] = v
+                temp_options[k] = v
 
         keys_to_ignore: List[str] = [*ClusterOptions.VALID_OPTION_KEYS,
                                      *TimeoutOptions.VALID_OPTION_KEYS]

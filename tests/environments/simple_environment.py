@@ -8,6 +8,8 @@ class JsonDataType(Enum):
     SIMPLE_REQUEST = 'simple_request'
     MULTIPLE_RESULTS = 'multiple_results'
     FAILED_REQUEST = 'failed_request'
+    FAILED_REQUEST_MULTI_ERRORS = 'failed_request_multi_errors'
+    FAILED_REQUEST_MID_STREAM = 'failed_request_mid_stream'
 
 JSON_DATA = {
     'simple_request':"""
@@ -112,11 +114,65 @@ JSON_DATA = {
     "bufferCachePageReadCount": 0,
     "errorCount": 1
   }
+}""".strip(),
+    'failed_request_multi_errors':"""
+{
+  "requestID": "c5f50c58-c044-481f-a26a-357a29f7446e",
+  "errors": [
+    {
+      "code": 24000,
+      "msg": "Syntax error: TokenMgrError: Lexical error at line 1, column 14.  Encountered: <EOF> after : \\"'m not N1QL;\\""
+    },
+    {
+      "code": 20001,
+      "msg": "Insufficient permissions or the requested object does not exist"
+    }
+  ],
+  "status": "fatal",
+  "metrics": {
+    "elapsedTime": "3.146092ms",
+    "executionTime": "1.907313ms",
+    "compileTime": "0ns",
+    "queueWaitTime": "0ns",
+    "resultCount": 0,
+    "resultSize": 0,
+    "processedObjects": 0,
+    "bufferCacheHitRatio": "0.00%",
+    "bufferCachePageReadCount": 0,
+    "errorCount": 2
+  }
+}""".strip(),
+    'failed_request_mid_stream':"""
+{
+  "requestID": "c5f50c58-c044-481f-a26a-357a29f7446e",
+  "results": [
+    {"id": 1, "name": "John Doe", "age": 30, "city": "New York"},
+    {"id": 2, "name": "Jane Smith", "age": 25, "city": "Los Angeles"}
+  ],
+  "errors": [
+    {
+      "code": 24000,
+      "msg": "Syntax error: TokenMgrError: Lexical error at line 1, column 14.  Encountered: <EOF> after : \\"'m not N1QL;\\""
+    }
+  ],
+  "status": "fatal",
+  "metrics": {
+    "elapsedTime": "3.146092ms",
+    "executionTime": "1.907313ms",
+    "compileTime": "0ns",
+    "queueWaitTime": "0ns",
+    "resultCount": 2,
+    "resultSize": 2,
+    "processedObjects": 2,
+    "bufferCacheHitRatio": "0.00%",
+    "bufferCachePageReadCount": 0,
+    "errorCount": 2
+  }
 }""".strip()
 }
 
 class BaseSimpleEnvironment:
-    def __init__(self, backend) -> None:
+    def __init__(self, backend: str) -> None:
         self._backend = backend
 
     def get_json_data(self, json_type: JsonDataType) -> Tuple[Any, bytes]:
@@ -130,17 +186,17 @@ class BaseSimpleEnvironment:
         return json.loads(data), bytes(data, 'utf-8')
 
 class AsyncSimpleEnvironment(BaseSimpleEnvironment):
-    def __init__(self, backend) -> None:
+    def __init__(self, backend: str) -> None:
         super().__init__(backend)
 
 class SimpleEnvironment(BaseSimpleEnvironment):
-    def __init__(self, backend) -> None:
+    def __init__(self, backend: str) -> None:
         super().__init__(backend)
 
 @pytest.fixture(scope='class', name='simple_async_test_env')
-def simple_async_test_environment(anyio_backend) -> AsyncSimpleEnvironment:
+def simple_async_test_environment(anyio_backend: str) -> AsyncSimpleEnvironment:
     return AsyncSimpleEnvironment(anyio_backend)
 
 @pytest.fixture(scope='class', name='simple_test_env')
-def simple_test_environment(anyio_backend) -> SimpleEnvironment:
+def simple_test_environment(anyio_backend: str) -> SimpleEnvironment:
     return SimpleEnvironment(anyio_backend)

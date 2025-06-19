@@ -37,7 +37,7 @@ class AsyncWebServer:
         self._app.add_routes([web.get('/test_get', self.handle_get_request),
                              web.post('/test_post', self.handle_post_request)])
 
-    async def handle_get_request(self, request):
+    async def handle_get_request(self, request: web.Request) -> web.Response:
         path = request.match_info['path']
         query_params = request.query_string
         response_data = {
@@ -46,7 +46,7 @@ class AsyncWebServer:
         }
         return web.json_response(response_data)
     
-    async def handle_post_request(self, request):
+    async def handle_post_request(self, request: web.Request) -> web.Response:
         try:
             received_json = await request.json()
             logger.info(f"Received JSON: {received_json}")
@@ -59,18 +59,19 @@ class AsyncWebServer:
             msg = "POST request received, but data is not valid JSON. Showing as plain text."
             logger.error(msg)
             logger.error(f'Received text: {received_text}')
+            return web.Response(status=400, text="Bad Request")
         except Exception as e:
             logger.error(f'An error occurred: {e}', exc_info=True)
             return web.Response(status=400, text="Bad Request")
 
-    async def start(self):
+    async def start(self) -> None:
         runner = web.AppRunner(self._app)
         await runner.setup()
         site = web.TCPSite(runner, self._host, self._port)
         await site.start()
         logger.info(f'Server running on http://{self._host}:{self._port}')
 
-    async def stop(self):
+    async def stop(self) -> None:
         await self._app.shutdown()
         await self._app.cleanup()
 

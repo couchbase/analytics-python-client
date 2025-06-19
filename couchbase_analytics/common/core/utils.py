@@ -60,6 +60,22 @@ def to_microseconds(value: Union[timedelta, float, int]) -> int:
 
     return total_us
 
+def to_seconds(value: Union[timedelta, float, int]) -> float:
+    if value and not isinstance(value, (timedelta, float, int)):
+        raise ValueError(f'Excepted value to be of type Union[timedelta, float, int] instead of {type(value)}')
+    if not value:
+        total_secs = float(0)
+    elif isinstance(value, timedelta):
+        if value.total_seconds() < 0:
+            raise ValueError('Timeout must be non-negative.')
+        total_secs = float(value.total_seconds())
+    else:
+        if value < 0:
+            raise ValueError('Timeout must be non-negative.')
+        total_secs = float(value)
+
+    return total_secs
+
 
 def validate_raw_dict(value: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(value, dict):

@@ -42,7 +42,7 @@ class AnalyticsConfig:
         self._scope_name = ''
         self._collection_name = ''
         self._disable_server_certificate_verification = False
-        self._create_keyspace = True
+        self._create_keyspace = False
 
     @property
     def database_name(self) -> str:
@@ -73,6 +73,8 @@ class AnalyticsConfig:
         return self._scope_name
 
     def get_connection_string(self) -> str:
+        if self._port is not None:
+            return f'{self._scheme}://{self._host}:{self._port}'
         return f'{self._scheme}://{self._host}'
 
     def get_username_and_pw(self) -> Tuple[str, str]:
@@ -86,7 +88,7 @@ class AnalyticsConfig:
             test_config.read(CONFIG_FILE)
             test_config_analytics = test_config['analytics']
             analytics_config._scheme = os.environ.get('PYCBAC_SCHEME',
-                                                      test_config_analytics.get('scheme', fallback='httpss'))
+                                                      test_config_analytics.get('scheme', fallback='https'))
             analytics_config._host = os.environ.get('PYCBAC_HOST',
                                                     test_config_analytics.get('host', fallback='localhost'))
             port = os.environ.get('PYCBAC_PORT', test_config_analytics.get('port', fallback='8095'))

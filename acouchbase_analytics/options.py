@@ -13,7 +13,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from couchbase_analytics.common.enums import IpProtocol as IpProtocol  # noqa: F401
 from couchbase_analytics.common.options import ClusterOptions as ClusterOptions  # noqa: F401
 from couchbase_analytics.common.options import ClusterOptionsKwargs as ClusterOptionsKwargs  # noqa: F401
 from couchbase_analytics.common.options import QueryOptions as QueryOptions  # noqa: F401

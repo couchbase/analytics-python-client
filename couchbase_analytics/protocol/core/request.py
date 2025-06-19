@@ -19,16 +19,21 @@ from copy import deepcopy
 from dataclasses import dataclass
 
 from typing import (TYPE_CHECKING,
+                    Any,
+                    Callable,
+                    Coroutine,
                     Dict,
                     Optional,
                     Set,
                     Tuple,
+                    TypedDict,
                     Union)
 from uuid import uuid4
 
 from couchbase_analytics.common.deserializer import Deserializer
 from couchbase_analytics.common.options import QueryOptions
 from couchbase_analytics.protocol.options import QueryOptionsTransformedKwargs
+from couchbase_analytics.query import QueryScanConsistency
 
 if TYPE_CHECKING:
     from httpx import Response as HttpCoreResponse
@@ -36,7 +41,16 @@ if TYPE_CHECKING:
     from acouchbase_analytics.protocol.core.client_adapter import _AsyncClientAdapter as AsyncClientAdapter
     from couchbase_analytics.protocol.core.client_adapter import _ClientAdapter as BlockingClientAdapter
 
+class RequestTimeoutExtensions(TypedDict, total=False):
+    pool: Optional[float]  # Timeout for acquiring a connection from the pool
+    connect: Optional[float]  # Timeout for establishing a socket connection
+    read: Optional[float]  # Timeout for reading data from the socket connection
+    write: Optional[float]  # Timeout for writing data to the socket connection
 
+class RequestExtensions(TypedDict, total=False):
+    timeout: RequestTimeoutExtensions
+    sni_hostname: Optional[str]
+    trace: Optional[Callable[[str, str], Union[None, Coroutine[Any, Any, None]]]]
 
 @dataclass
 class QueryRequest:
@@ -44,10 +58,10 @@ class QueryRequest:
     host: str
     port: int
     deserializer: Deserializer
-    body: Dict[str, object]
-    extensions: Dict[str, str]
+    body: Dict[str, Union[str, object]]
+    extensions: RequestExtensions
+    method: str = 'POST'
     url: Optional[str] = None
-    method: Optional[str] = 'POST'
     
     options: Optional[QueryOptionsTransformedKwargs] = None
     client_addr: Optional[Tuple[str, int]] = None
@@ -56,7 +70,7 @@ class QueryRequest:
     response_status_code: Optional[int] = None
     enable_cancel: Optional[bool] = None
 
-    def get_request_timeouts(self) -> Dict[str, int]:
+    def get_request_timeouts(self) -> Optional[RequestTimeoutExtensions]:
         """
         **INTERNAL**
         Get the request timeouts from the extensions.
@@ -77,7 +91,7 @@ class QueryRequest:
         
         self.response_status_code = response.status_code
 
-    def update_extensions(self, new_extensions: Dict[str, str]) -> QueryRequest:
+    def add_trace_to_extensions(self, handler: Callable[[str, str], Union[None, Coroutine[Any, Any, None]]]) -> QueryRequest:
         """
         **INTERNAL**
         Update the extensions of the request.
@@ -86,7 +100,7 @@ class QueryRequest:
         """
         if self.extensions is None:
             self.extensions = {}
-        self.extensions.update(new_extensions)
+        self.extensions['trace'] = handler
         return self
 
     def update_previous_ips(self, ip: str) -> QueryRequest:
@@ -126,7 +140,7 @@ class _RequestBuilder:
         
         connect_timeout = self._conn_details.get_connect_timeout()
         self._default_query_timeout = self._conn_details.get_query_timeout()
-        self._extensions = {
+        self._extensions: RequestExtensions = {
             'timeout': {
                 'pool': connect_timeout,
                 'connect': connect_timeout,
@@ -136,6 +150,7 @@ class _RequestBuilder:
         # TODO:  warning if we have a secure connection, but the sni_hostname is not set?
         if self._conn_details.is_secure() and self._conn_details.sni_hostname is not None:
             self._extensions['sni_hostname'] = self._conn_details.sni_hostname
+
 
     def build_base_query_request(self,  # noqa: C901
                                  statement: str,
@@ -178,16 +193,19 @@ class _RequestBuilder:
         # add the default serializer if one does not exist
         deserializer = q_opts.pop('deserializer', None) or self._conn_details.default_deserializer
 
-        body = {'statement': statement,
-                'client_context_id': q_opts.get('client_context_id', str(uuid4()))}
+        body: Dict[str, Union[str, object]] = {
+            'statement': statement,
+            'client_context_id': q_opts.get('client_context_id', None) or str(uuid4())
+        }
         
         if self._database_name is not None and self._scope_name is not None:
             body['query_context'] = f'default:`{self._database_name}`.`{self._scope_name}`'
 
         # handle timeouts
-        timeout = q_opts.get('timeout', self._default_query_timeout)
+        timeout = q_opts.get('timeout', None) or self._default_query_timeout
         extensions = deepcopy(self._extensions)
-        if timeout != self._default_query_timeout:
+        if (timeout is not None
+            and timeout != self._default_query_timeout):
             extensions['timeout']['read'] = timeout
         # in the async world we have our own cancel scope that handles the connect timeout
         if is_async:
@@ -201,17 +219,21 @@ class _RequestBuilder:
             if opt_key == 'deserializer':
                 continue
             elif opt_key == 'raw':
-                for k, v in opt_val.items():
+                for k, v in opt_val.items():  # type: ignore[attr-defined]
                     body[k] = v
             elif opt_key == 'positional_parameters':
-                body['args'] = [arg for arg in opt_val]
+                body['args'] = [arg for arg in opt_val]  # type: ignore[attr-defined]
             elif opt_key == 'named_parameters':
-                for k, v in opt_val.items():
+                for k, v in opt_val.items():  # type: ignore[attr-defined]
                     key = f'${k}' if not k.startswith('$') else k
                     body[key] = v
-            else:
-                # TODO: readonly, priority & scan_consistency
-                pass
+            elif opt_key == 'readonly':
+                body['readonly'] = opt_val 
+            elif opt_key == 'scan_consistency':
+                if isinstance(opt_val, QueryScanConsistency):
+                    body['scan_consistency'] = opt_val.value
+                else:
+                    body['scan_consistency'] = opt_val
 
         scheme, host, port = self._conn_details.get_scheme_host_and_port()
         return QueryRequest(scheme,

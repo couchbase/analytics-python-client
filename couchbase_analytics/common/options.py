@@ -130,8 +130,7 @@ class TimeoutOptions(TimeoutOptionsBase):
         Options marked **VOLATILE** are subject to change at any time.
 
     Args:
-        connect_timeout (Optional[timedelta]): Set to configure the period of time allowed to complete bootstrap connection. Defaults to `None` (10s).
-        dispatch_timeout (Optional[timedelta]): Set to configure the period of time allowed to complete HTTP connection prior to sending request. Defaults to `None` (30s).
+        connect_timeout (Optional[timedelta]): Set to configure the period of time allowed to make a connection. Defaults to `None` (10s).
         query_timeout (Optional[timedelta]): Set to configure the period of time allowed for query operations. Defaults to `None` (10m).
     """  # noqa: E501
 
@@ -150,10 +149,9 @@ class QueryOptions(QueryOptionsBase):
         lazy_execute (Optional[bool]): **VOLATILE** If enabled, the query will not execute until the application begins to iterate over results.  Defaulst to `None` (disabled).
         named_parameters (Optional[Dict[str, :py:type:`~couchbase_analytics.JSONType`]]): Values to use for positional placeholders in query.
         positional_parameters (Optional[List[:py:type:`~couchbase_analytics.JSONType`]]):, optional): Values to use for named placeholders in query.
-        priority (Optional[bool]): Indicates whether this query should be executed with a specific priority level.
         query_context (Optional[str]): Specifies the context within which this query should be executed.
         raw (Optional[Dict[str, Any]]): Specifies any additional parameters which should be passed to the Analytics engine when executing the query.
-        read_only (Optional[bool]): Specifies that this query should be executed in read-only mode, disabling the ability for the query to make any changes to the data.
+        readonly (Optional[bool]): Specifies that this query should be executed in read-only mode, disabling the ability for the query to make any changes to the data.
         scan_consistency (Optional[QueryScanConsistency]): Specifies the consistency requirements when executing the query.
         timeout (Optional[timedelta]): Set to configure allowed time for operation to complete. Defaults to `None` (75s).
         stream_config (Optional[JsonStreamConfig]): **VOLATILE** Configuration for JSON stream processing. Defaults to `None` (default configuration).  See :class:`~couchbase_analytics.common.json_parsing.JsonStreamConfig` for details.

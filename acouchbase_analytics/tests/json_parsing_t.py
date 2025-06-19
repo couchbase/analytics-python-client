@@ -22,11 +22,11 @@ from typing import Dict, TYPE_CHECKING
 import pytest
 
 from couchbase_analytics.common.core import (JsonParsingError,
+                                             JsonStreamConfig,
                                              ParsedResult,
                                              ParsedResultType)
 
 from couchbase_analytics.common.core.async_json_stream import AsyncJsonStream
-from couchbase_analytics.common.core.json_stream import JsonStreamConfig
 from couchbase_analytics.common.errors import AnalyticsError
 from tests.environments.simple_environment import JsonDataType
 from tests.utils import AsyncBytesIterator
@@ -39,7 +39,9 @@ if TYPE_CHECKING:
 class JsonParsingTestSuite:
     TEST_MANIFEST = [
         'test_analytics_error',
+        'test_analytics_error_mid_stream',
         'test_analytics_many_rows',
+        'test_analytics_multiple_errors',
         'test_analytics_parses_async',
         'test_analytics_simple_result',
 
@@ -84,6 +86,32 @@ class JsonParsingTestSuite:
         with pytest.raises(AnalyticsError):
             await parser.get_result()
 
+    async def test_analytics_error_mid_stream(self, async_test_env: AsyncSimpleEnvironment) -> None:
+        json_object, bytes_data = async_test_env.get_json_data(JsonDataType.FAILED_REQUEST_MID_STREAM)
+        parser = AsyncJsonStream(AsyncBytesIterator(bytes_data))
+        await parser.start_parsing()
+        row_idx = 0
+        while True:
+            result = await parser.get_result()
+            if result is None and not parser.token_stream_exhausted:
+                await parser.continue_parsing()
+                continue
+            assert isinstance(result, ParsedResult)
+            assert result.result_type in [ParsedResultType.ROW, ParsedResultType.ERROR]
+            assert isinstance(result.value, bytes)
+            if result.result_type == ParsedResultType.ROW:
+                assert json.loads(result.value.decode('utf-8')) == json_object['results'][row_idx]
+                row_idx += 1
+            else:
+                final_result = result.value.decode('utf-8')
+                break
+
+        # if we are not buffering the entire result, the final result will exclude the results key
+        json_object.pop('results')
+        assert json.loads(final_result) == json_object
+        with pytest.raises(AnalyticsError):
+            await parser.get_result()
+
     async def test_analytics_many_rows(self, async_test_env: AsyncSimpleEnvironment) -> None:
         json_object, bytes_data = async_test_env.get_json_data(JsonDataType.MULTIPLE_RESULTS)
         parser = AsyncJsonStream(AsyncBytesIterator(bytes_data))
@@ -107,6 +135,25 @@ class JsonParsingTestSuite:
         # if we are not buffering the entire result, the final result will exclude the results key
         json_object.pop('results')
         assert json.loads(final_result.value.decode('utf-8')) == json_object
+        with pytest.raises(AnalyticsError):
+            await parser.get_result()
+
+    @pytest.mark.parametrize('buffered_result', [True, False])
+    async def test_analytics_multiple_errors(self,
+                                             async_test_env: AsyncSimpleEnvironment,
+                                             buffered_result: bool) -> None:
+        json_object, bytes_data = async_test_env.get_json_data(JsonDataType.FAILED_REQUEST_MULTI_ERRORS)
+        if buffered_result:
+            parser = AsyncJsonStream(AsyncBytesIterator(bytes_data),
+                                     stream_config=JsonStreamConfig(buffer_entire_result=True))
+        else:
+            parser = AsyncJsonStream(AsyncBytesIterator(bytes_data))
+        await parser.start_parsing()
+        result = await parser.get_result()
+        assert isinstance(result, ParsedResult)
+        assert result.result_type == ParsedResultType.ERROR
+        assert isinstance(result.value, bytes)
+        assert json.loads(result.value.decode('utf-8')) == json_object
         with pytest.raises(AnalyticsError):
             await parser.get_result()
 

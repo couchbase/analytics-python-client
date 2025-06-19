@@ -23,7 +23,7 @@ from httpcore._sync.interfaces import ConnectionInterface
 from httpcore._trace import Trace
 
 class TestHTTPConnection(HTTPConnection):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, **kwargs) -> None:  # type: ignore
         super().__init__(*args, **kwargs)
 
     def _connect(self, request: Request) -> NetworkStream:
@@ -103,7 +103,7 @@ class TestHTTPConnection(HTTPConnection):
                     self._network_backend.sleep(delay)
 
 class TestConnectionPool(ConnectionPool):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, **kwargs) -> None:  # type: ignore
         super().__init__(*args, **kwargs)
 
     def create_connection(self, origin: Origin) -> ConnectionInterface:
@@ -249,11 +249,11 @@ class TestConnectionPool(ConnectionPool):
             extensions=response.extensions,
         )
     
-def http_transport_init_override(self, *args, **kwargs) -> None:
+def http_transport_init_override(self, *args, **kwargs) -> None:  # type: ignore
     verify = kwargs.get('verify')
     cert = kwargs.get('cert')
     trust_env = kwargs.get('trust_env')
-    ssl_context = create_ssl_context(verify=verify, cert=cert, trust_env=trust_env)
+    ssl_context = create_ssl_context(verify=verify, cert=cert, trust_env=trust_env)  # type: ignore
 
     # See https://github.com/encode/httpx/blob/master/httpx/_config.py for defaults
     # default keepalive_expiry is 5 seconds
@@ -277,5 +277,9 @@ def http_transport_init_override(self, *args, **kwargs) -> None:
         socket_options=socket_options,
     )
 
-HTTPTransport.__init__ = http_transport_init_override
+HTTPTransport.__init__ = http_transport_init_override  # type: ignore
 setattr(HTTPTransport, 'PYCBAC_TESTING', True)
+
+TestHTTPTransport = HTTPTransport
+
+__all__ = ["TestHTTPTransport"]

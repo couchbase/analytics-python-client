@@ -21,7 +21,7 @@ from httpcore._ssl import default_ssl_context
 from httpcore._trace import Trace
 
 class TestAsyncHTTPConnection(AsyncHTTPConnection):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, **kwargs) -> None:  # type: ignore
         super().__init__(*args, **kwargs)
 
     async def _connect(self, request: Request) -> AsyncNetworkStream:
@@ -90,7 +90,7 @@ class TestAsyncHTTPConnection(AsyncHTTPConnection):
                     await self._network_backend.sleep(delay)
 
 class TestAsyncConnectionPool(AsyncConnectionPool):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, **kwargs) -> None:  # type: ignore
         super().__init__(*args, **kwargs)
 
     def create_connection(self, origin: Origin) -> AsyncConnectionInterface:
@@ -221,11 +221,11 @@ class TestAsyncConnectionPool(AsyncConnectionPool):
             extensions=response.extensions,
         )
 
-def async_http_transport_init_override(self, *args, **kwargs) -> None:
+def async_http_transport_init_override(self, *args, **kwargs) -> None:  # type: ignore
     verify = kwargs.get('verify')
     cert = kwargs.get('cert')
     trust_env = kwargs.get('trust_env')
-    ssl_context = create_ssl_context(verify=verify, cert=cert, trust_env=trust_env)
+    ssl_context = create_ssl_context(verify=verify, cert=cert, trust_env=trust_env)  # type: ignore
 
     # See https://github.com/encode/httpx/blob/master/httpx/_config.py for defaults
     # default keepalive_expiry is 5 seconds
@@ -249,5 +249,9 @@ def async_http_transport_init_override(self, *args, **kwargs) -> None:
         socket_options=socket_options,
     )
 
-AsyncHTTPTransport.__init__ = async_http_transport_init_override
+AsyncHTTPTransport.__init__ = async_http_transport_init_override  # type: ignore
 setattr(AsyncHTTPTransport, 'PYCBAC_TESTING', True)
+
+TestAsyncHTTPTransport = AsyncHTTPTransport
+
+__all__ = ["TestAsyncHTTPTransport"]

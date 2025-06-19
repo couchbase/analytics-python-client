@@ -35,9 +35,11 @@ class AsyncJsonStream:
     def __init__(self,
                  http_stream_iter: AsyncIterator[bytes],
                  *,
-                 stream_config: Optional[JsonStreamConfig]=JsonStreamConfig(),
+                 stream_config: Optional[JsonStreamConfig]=None,
                  ) -> None:
         # HTTP stream handling
+        if stream_config is None:
+            stream_config = JsonStreamConfig()
         self._http_stream_iter = http_stream_iter
         self._http_stream_buffer_size = stream_config.http_stream_buffer_size
         self._http_response_buffer = bytearray()
@@ -96,7 +98,7 @@ class AsyncJsonStream:
         if close is True:
             await self._send_stream.aclose()
 
-    async def _handle_json_result(self, row: str) -> None:
+    async def _handle_json_result(self, row: bytes) -> None:
         """
         **INTERNAL**
         """
@@ -125,7 +127,7 @@ class AsyncJsonStream:
 
         while self._continue_processing():
             try:
-                _, event, value = await self._json_stream_parser.__anext__()
+                _, event, value = await self._json_stream_parser.__anext__()  # type: ignore[attr-defined]
                 # this is a hack b/c the ijson.parse_async iterator does not yield to the event loop
                 # TODO:  create PYCO to either build custom JSON parsing, or dig into ijson root cause
                 await self._json_token_parser.parse_token(event, value)
@@ -140,11 +142,11 @@ class AsyncJsonStream:
             await self._send_to_stream(ParsedResult(self._json_token_parser.get_result(), result_type), close=True)
             self._handle_notification(result_type)
     
-    async def read(self, size=-1) -> bytes:
+    async def read(self, size: Optional[int]=-1) -> bytes:
         """
         **INTERNAL**
         """
-        if size == 0 or self._http_stream_exhausted:
+        if size is None or size == 0 or self._http_stream_exhausted:
             return b''
         
         while not self._http_stream_exhausted:

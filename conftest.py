@@ -24,14 +24,28 @@ pytest_plugins = [
 ]
 
 _UNIT_TESTS = [
+    'acouchbase_analytics/tests/connection_t.py::ConnectionTests',
+    'acouchbase_analytics/tests/json_parsing_t.py::JsonParsingTests',
+    'acouchbase_analytics/tests/options_t.py::ClusterOptionsTests',
+    'acouchbase_analytics/tests/query_options_t.py::ClusterQueryOptionsTests',
+    'acouchbase_analytics/tests/query_options_t.py::ScopeQueryOptionsTests',
+    'couchbase_analytics/tests/connection_t.py::ConnectionTests',
+    'couchbase_analytics/tests/duration_parsing_t.py::DurationParsingTests',
     'couchbase_analytics/tests/json_parsing_t.py::JsonParsingTests',
+    'couchbase_analytics/tests/options_t.py::ClusterOptionsTests',
+    'couchbase_analytics/tests/query_options_t.py::ClusterQueryOptionsTests',
+    'couchbase_analytics/tests/query_options_t.py::ScopeQueryOptionsTests',
 ]
 
 _INTEGRATRION_TESTS = [
+    'acouchbase_analytics/tests/query_integration_t.py::ClusterQueryTests',
+    'acouchbase_analytics/tests/query_integration_t.py::ScopeQueryTests',
+    'couchbase_analytics/tests/query_integration_t.py::ClusterQueryTests',
+    'couchbase_analytics/tests/query_integration_t.py::ScopeQueryTests',
 ]
 
 @pytest.fixture(scope='class')
-def anyio_backend():
+def anyio_backend() -> str:
     return 'asyncio'
 
 # https://docs.pytest.org/en/stable/reference/reference.html#std-hook-pytest_collection_modifyitems

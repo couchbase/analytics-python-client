@@ -40,9 +40,11 @@ class JsonStream:
     def __init__(self,
                  http_stream_iter: Iterator[bytes],
                  *,
-                 stream_config: Optional[JsonStreamConfig]=JsonStreamConfig(),
+                 stream_config: Optional[JsonStreamConfig]=None,
                  ) -> None:
         # HTTP stream handling
+        if stream_config is None:
+            stream_config = JsonStreamConfig()
         self._http_stream_iter = http_stream_iter
         self._http_stream_buffer_size = stream_config.http_stream_buffer_size
         self._http_response_buffer = bytearray()
@@ -101,7 +103,7 @@ class JsonStream:
                 pass
 
 
-    def _handle_json_result(self, row: str) -> None:
+    def _handle_json_result(self, row: bytes) -> None:
         """
         **INTERNAL**
         """
@@ -124,7 +126,7 @@ class JsonStream:
 
         while self._continue_processing(request_context=request_context):
             try:
-                _, event, value = next(self._json_stream_parser)
+                _, event, value = next(self._json_stream_parser)  # type: ignore[call-overload]
                 self._json_token_parser.parse_token(event, value)
             except StopIteration as ex:
                 self._token_stream_exhausted = True
@@ -136,11 +138,11 @@ class JsonStream:
             self._put(ParsedResult(self._json_token_parser.get_result(), result_type))
             self._handle_notification(result_type)
 
-    def read(self, size=-1) -> bytes:
+    def read(self, size: Optional[int]=-1) -> bytes:
         """
         **INTERNAL**
         """
-        if size == 0 or self._http_stream_exhausted:
+        if size is None or size == 0 or self._http_stream_exhausted:
             return b''
         
         while not self._http_stream_exhausted:

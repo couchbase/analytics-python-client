@@ -115,6 +115,8 @@ class _AsyncClientAdapter:
         """
         if not hasattr(self, '_client'):
             if self._conn_details.is_secure():
+                if self._conn_details.ssl_context is None:
+                    raise ValueError('SSL context is required for secure connections.')
                 transport = None
                 if self._http_transport_cls is not None:
                     transport = self._http_transport_cls(verify=self._conn_details.ssl_context)
@@ -137,6 +139,9 @@ class _AsyncClientAdapter:
         if not hasattr(self, '_client'):
             raise RuntimeError('Client not created yet')
         
+        if request.url is None:
+            raise ValueError('Request URL cannot be None')
+
         req = self._client.build_request(request.method,
                                          request.url,
                                          json=request.body,

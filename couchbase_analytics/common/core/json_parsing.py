@@ -28,7 +28,7 @@ class JsonParsingError(Exception):
     def cause(self) -> Optional[Exception]:
         return self._cause
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'JsonParsingError(cause={self._cause})'
         
     def __str__(self) -> str:
@@ -61,5 +61,5 @@ class ParsedResult(NamedTuple):
     """
     **INTERNAL**
     """
-    value: bytes
+    value: Optional[bytes]
     result_type: ParsedResultType

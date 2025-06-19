@@ -15,12 +15,13 @@ from typing import (Any,
                     Iterator,
                     List,
                     Optional,
+                    Union,
                     TYPE_CHECKING)
 from uuid import uuid4
 
 from httpx import Response as HttpCoreResponse
 
-from couchbase_analytics.common.core import ParsedResult
+from couchbase_analytics.common.core import ParsedResult, ParsedResultType
 from couchbase_analytics.common.core.net_utils import get_request_ip
 from couchbase_analytics.common.deserializer import Deserializer
 from couchbase_analytics.common.errors import AnalyticsError, InvalidCredentialError
@@ -109,8 +110,8 @@ class RequestContext:
         self._cancel_event = Event()
         self._request_error: Optional[Exception] = None
         self._tp_executor = tp_executor
-        self._stage_completed_ft: Optional[Future] = None
-        self._stage_notification_ft: Optional[Future[ParsedResult]] = None
+        self._stage_completed_ft: Optional[Future[Any]] = None
+        self._stage_notification_ft: Optional[Future[ParsedResultType]] = None
         self._request_deadline = math.inf
         self._background_request: Optional[BackgroundRequest] = None
 
@@ -121,12 +122,12 @@ class RequestContext:
     #     return self._stage_notification_ft
 
     @property
-    def cancel_enabled(self) -> bool:
+    def cancel_enabled(self) -> Optional[bool]:
         return self._request.enable_cancel
 
-    @property
-    def cancel_event(self) -> Event:
-        return self._request._cancel_event
+    # @property
+    # def cancel_event(self) -> Event:
+    #     return self._request._cancel_event
 
     @property
     def deserializer(self) -> Deserializer:
@@ -201,34 +202,35 @@ class RequestContext:
         # TODO:  custom ThreadPoolExecutor, to get a "plain" future
         if self._stage_notification_ft is not None:
             raise RuntimeError('Stage notification future already created for this context.')
-        self._stage_notification_ft = Future[ParsedResult]()
+        self._stage_notification_ft = Future[ParsedResultType]()
 
-    def _trace_handler(self, event_name, _) -> None:
+    def _trace_handler(self, event_name: str, _: str) -> None:
         if event_name == 'connection.connect_tcp.complete':
             print('Connection established, updating cancel scope deadline')
 
     def initialize(self) -> None:
         self._request_state = StreamingState.Started
-        timeouts = self._request.get_request_timeouts()
-        self._request_deadline = time.monotonic() + timeouts.get('read', DEFAULT_TIMEOUTS['query_timeout'])
+        timeouts = self._request.get_request_timeouts() or {}
+        self._request_deadline = time.monotonic() + (timeouts.get('read', None) or DEFAULT_TIMEOUTS['query_timeout'])
 
     def process_error(self, json_data: List[Dict[str, Any]]) -> None:
         self._request_state = StreamingState.Error
         if not isinstance(json_data, list):
-            self._request_error = AnalyticsError('Cannot parse error response; expected JSON array')
+            self._request_error = AnalyticsError(message='Cannot parse error response; expected JSON array')
 
         self._request_error = ErrorMapper.build_error_from_json(json_data, status_code=self._request.response_status_code)
         raise self._request_error
 
     def send_request(self, enable_trace_handling: Optional[bool]=False) -> HttpCoreResponse:
+        # TODO:  handle if lookup fails
         ip = get_request_ip(self._request.host, self._request.port, self._request.previous_ips)
         if ip is None:
             attempted_ips = ', '.join(self._request.previous_ips or [])
-            raise AnalyticsError(f'Connect failure.  Attempted to connect to resolved IPs: {attempted_ips}.')
+            raise AnalyticsError(message=f'Connect failure.  Attempted to connect to resolved IPs: {attempted_ips}.')
         
         if enable_trace_handling is True:
             (self._request.update_url(ip, self._client_adapter.analytics_path)
-                          .update_extensions({'trace': self._trace_handler})
+                          .add_trace_to_extensions(self._trace_handler)
                           .update_previous_ips(ip))
         else:
             self._request.update_url(ip, self._client_adapter.analytics_path).update_previous_ips(ip)
@@ -240,7 +242,7 @@ class RequestContext:
                 'server_addr': self._request.server_addr,
                 'http_status': response.status_code,
             }
-            raise InvalidCredentialError(context)
+            raise InvalidCredentialError(str(context))
         
         return response
     
@@ -283,14 +285,23 @@ class RequestContext:
         elif self._stage_completed_ft is not None and not self._stage_completed_ft.done():
             raise RuntimeError('Future already running in this context.')
         
-        kwargs = {'request_context': self}
+        kwargs: Dict[str, Union[RequestContext, Future[ParsedResultType]]] = {'request_context': self}
         if create_notification is True:
             self._create_stage_notification_future()
+            if self._stage_notification_ft is None:
+                raise RuntimeError('Unable to create stage notification future.')
             kwargs['notify_on_results_or_error'] = self._stage_notification_ft
 
         self._stage_completed_ft = self._tp_executor.submit(fn, *args, **kwargs)
-    
-    def wait_for_stage_notification(self) -> ParsedResult:
+
+    def wait_for_stage_completed(self) -> None:
+        if self._stage_completed_ft is None:
+            raise RuntimeError('Stage completed future not created for this context.')
+        self._stage_completed_ft.result()
+
+    def wait_for_stage_notification(self) -> ParsedResultType:
+        if self._stage_notification_ft is None:
+            raise RuntimeError('Stage notification future not created for this context.')
         # TODO: what if the deadline is already passed?
         deadline = round(self._request_deadline - time.monotonic(), 6) # round to microseconds
         res = self._stage_notification_ft.result(timeout=deadline)
