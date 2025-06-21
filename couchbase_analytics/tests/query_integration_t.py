@@ -17,8 +17,11 @@ from __future__ import annotations
 
 import json
 from concurrent.futures import Future
+from enum import Enum
 from datetime import timedelta
-from typing import TYPE_CHECKING
+from typing import (TYPE_CHECKING,
+                    Any,
+                    Dict)
 
 import pytest
 
@@ -32,6 +35,12 @@ from tests import YieldFixture
 
 if TYPE_CHECKING:
     from tests.environments.base_environment import BlockingTestEnvironment
+
+
+class SyncQueryType(Enum):
+    NORMAL = 'normal'
+    LAZY = 'lazy'
+    CANCELLABLE = 'cancellable'
 
 
 class QueryTestSuite:
@@ -88,10 +97,21 @@ class QueryTestSuite:
         else:
             return f'SELECT * FROM {test_env.fqdn} LIMIT 5;'
 
+    @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_metadata(self,
                             test_env: BlockingTestEnvironment,
-                            query_statement_limit5: str) -> None:
-        result = test_env.cluster_or_scope.execute_query(query_statement_limit5)
+                            query_statement_limit5: str,
+                            query_type: SyncQueryType) -> None:
+        if query_type == SyncQueryType.NORMAL:
+            result = test_env.cluster_or_scope.execute_query(query_statement_limit5)
+        elif query_type == SyncQueryType.LAZY:
+            result = test_env.cluster_or_scope.execute_query(query_statement_limit5,
+                                                             QueryOptions(lazy_execute=True))
+        else:
+            res = test_env.cluster_or_scope.execute_query(query_statement_limit5, enable_cancel=True)
+            assert isinstance(res, Future)
+            result = res.result()
+
         expected_count = 5
         test_env.assert_rows(result, expected_count)
 
@@ -108,10 +128,21 @@ class QueryTestSuite:
         assert metrics.elapsed_time() > timedelta(0)
         assert metrics.execution_time() > timedelta(0)
 
+    @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_metadata_not_available(self,
                                           test_env: BlockingTestEnvironment,
-                                          query_statement_limit5: str) -> None:
-        result = test_env.cluster_or_scope.execute_query(query_statement_limit5)
+                                          query_statement_limit5: str,
+                                          query_type: SyncQueryType) -> None:
+
+        if query_type == SyncQueryType.NORMAL:
+            result = test_env.cluster_or_scope.execute_query(query_statement_limit5)
+        elif query_type == SyncQueryType.LAZY:
+            result = test_env.cluster_or_scope.execute_query(query_statement_limit5,
+                                                             QueryOptions(lazy_execute=True))
+        else:
+            res = test_env.cluster_or_scope.execute_query(query_statement_limit5, enable_cancel=True)
+            assert isinstance(res, Future)
+            result = res.result()
 
         with pytest.raises(RuntimeError):
             result.metadata()
@@ -122,6 +153,11 @@ class QueryTestSuite:
         with pytest.raises(RuntimeError):
             result.metadata()
 
+        # This would attempt to send the request when using lazy execution
+        if query_type == SyncQueryType.LAZY:
+            with pytest.raises(RuntimeError):
+                list(result.rows())
+            return
         # Iterate the rest of the rows
         rows = list(result.rows())
         assert len(rows) == 4
@@ -130,56 +166,161 @@ class QueryTestSuite:
         assert len(metadata.warnings()) == 0
         assert len(metadata.request_id()) > 0
 
+    @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_named_parameters(self,
                                     test_env: BlockingTestEnvironment,
-                                    query_statement_named_params_limit2: str) -> None:
-        result = test_env.cluster_or_scope.execute_query(query_statement_named_params_limit2,
-                                                         QueryOptions(named_parameters={'country': 'United States'}))
+                                    query_statement_named_params_limit2: str,
+                                    query_type: SyncQueryType) -> None:
+
+        named_parameters: Dict[str, Any] = {'country': 'United States'}
+        if query_type == SyncQueryType.NORMAL:
+            result = test_env.cluster_or_scope.execute_query(query_statement_named_params_limit2,
+                                                             QueryOptions(named_parameters=named_parameters))
+        elif query_type == SyncQueryType.LAZY:
+            result = test_env.cluster_or_scope.execute_query(query_statement_named_params_limit2,
+                                                             QueryOptions(named_parameters=named_parameters,
+                                                                          lazy_execute=True))
+        else:
+            res = test_env.cluster_or_scope.execute_query(query_statement_named_params_limit2,
+                                                          QueryOptions(named_parameters=named_parameters),
+                                                          enable_cancel=True)
+            assert isinstance(res, Future)
+            result = res.result()
         test_env.assert_rows(result, 2)
 
+    @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_named_parameters_no_options(self,
                                                test_env: BlockingTestEnvironment,
-                                               query_statement_named_params_limit2: str) -> None:
-        result = test_env.cluster_or_scope.execute_query(query_statement_named_params_limit2, country='United States')
+                                               query_statement_named_params_limit2: str,
+                                               query_type: SyncQueryType) -> None:
+        if query_type == SyncQueryType.NORMAL:
+            result = test_env.cluster_or_scope.execute_query(query_statement_named_params_limit2,
+                                                             country='United States')
+        elif query_type == SyncQueryType.LAZY:
+            # this format does not really make sense, if users are using static type checking it will prevent them
+            # but, technically viable so we test it
+            result = test_env.cluster_or_scope.execute_query(query_statement_named_params_limit2,  # type: ignore[call-overload]
+                                                             lazy_execute=True,
+                                                             country='United States')
+        else:
+            res = test_env.cluster_or_scope.execute_query(query_statement_named_params_limit2,
+                                                          country='United States',
+                                                          enable_cancel=True)
+            assert isinstance(res, Future)
+            result = res.result()
         test_env.assert_rows(result, 2)
 
+    @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_named_parameters_override(self,
                                              test_env: BlockingTestEnvironment,
-                                             query_statement_named_params_limit2: str) -> None:
-        result = test_env.cluster_or_scope.execute_query(query_statement_named_params_limit2,
-                                                         QueryOptions(named_parameters={'country': 'abcdefg'}),
-                                                         country='United States')
+                                             query_statement_named_params_limit2: str,
+                                             query_type: SyncQueryType) -> None:
+
+        if query_type == SyncQueryType.NORMAL:
+            result = test_env.cluster_or_scope.execute_query(query_statement_named_params_limit2,
+                                                             QueryOptions(named_parameters={'country': 'abcdefg'}),
+                                                             country='United States')
+        elif query_type == SyncQueryType.LAZY:
+            result = test_env.cluster_or_scope.execute_query(query_statement_named_params_limit2,
+                                                             QueryOptions(named_parameters={'country': 'abcdefg'},
+                                                                          lazy_execute=True),
+                                                             country='United States')
+        else:
+            res = test_env.cluster_or_scope.execute_query(query_statement_named_params_limit2,
+                                                          QueryOptions(named_parameters={'country': 'abcdefg'}),
+                                                          country='United States',
+                                                          enable_cancel=True)
+            assert isinstance(res, Future)
+            result = res.result()
         test_env.assert_rows(result, 2)
 
+    @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_positional_params(self,
                                      test_env: BlockingTestEnvironment,
-                                     query_statement_pos_params_limit2: str) -> None:
-        result = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2,
-                                                         QueryOptions(positional_parameters=['United States']))
+                                     query_statement_pos_params_limit2: str,
+                                     query_type: SyncQueryType) -> None:
+        if query_type == SyncQueryType.NORMAL:
+            result = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2,
+                                                             QueryOptions(positional_parameters=['United States']))
+        elif query_type == SyncQueryType.LAZY:
+            result = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2,
+                                                             QueryOptions(positional_parameters=['United States'],
+                                                                          lazy_execute=True))
+        else:
+            res = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2,
+                                                          QueryOptions(positional_parameters=['United States']),
+                                                          enable_cancel=True)
+            assert isinstance(res, Future)
+            result = res.result()
         test_env.assert_rows(result, 2)
 
+    @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_positional_params_no_option(self,
                                                test_env: BlockingTestEnvironment,
-                                               query_statement_pos_params_limit2: str) -> None:
-        result = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2, 'United States')
+                                               query_statement_pos_params_limit2: str,
+                                               query_type: SyncQueryType) -> None:
+        
+        if query_type == SyncQueryType.NORMAL:
+            result = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2, 'United States')
+        elif query_type == SyncQueryType.LAZY:
+            # this format does not really make sense, if users are using static type checking it will prevent them
+            # but, technically viable so we test it
+            result = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2,  # type: ignore[call-overload]
+                                                             'United States',
+                                                             lazy_execute=True)
+        else:
+            res = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2,
+                                                          'United States',
+                                                          enable_cancel=True)
+            assert isinstance(res, Future)
+            result = res.result()
         test_env.assert_rows(result, 2)
 
+    @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_positional_params_override(self,
                                               test_env: BlockingTestEnvironment,
-                                              query_statement_pos_params_limit2: str) -> None:
-        result = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2,
-                                                         QueryOptions(positional_parameters=['abcdefg']),
-                                                         'United States')
+                                              query_statement_pos_params_limit2: str,
+                                              query_type: SyncQueryType) -> None:
+
+        if query_type == SyncQueryType.NORMAL:
+            result = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2,
+                                                             QueryOptions(positional_parameters=['abcdefg']),
+                                                             'United States')
+        elif query_type == SyncQueryType.LAZY:
+            result = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2,
+                                                             QueryOptions(positional_parameters=['abcdefg'],
+                                                                          lazy_execute=True),
+                                                            'United States')
+        else:
+            res = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2,
+                                                          QueryOptions(positional_parameters=['abcdefg']),
+                                                          'United States',
+                                                          enable_cancel=True)
+            assert isinstance(res, Future)
+            result = res.result()
         test_env.assert_rows(result, 2)
 
-    def test_query_raises_exception_prior_to_iterating(self, test_env: BlockingTestEnvironment) -> None:
+    # We test lazy execution in a separate test
+    @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.CANCELLABLE])
+    def test_query_raises_exception_prior_to_iterating(self,
+                                                       test_env: BlockingTestEnvironment,
+                                                       query_type: SyncQueryType) -> None:
         statement = "I'm not N1QL!"
-        with pytest.raises(QueryError):
-            test_env.cluster_or_scope.execute_query(statement)
 
+        if query_type == SyncQueryType.NORMAL:
+            with pytest.raises(QueryError):
+                test_env.cluster_or_scope.execute_query(statement)
+        else:
+            res = test_env.cluster_or_scope.execute_query(statement, enable_cancel=True)
+            assert isinstance(res, Future)
+            with pytest.raises(QueryError):
+                res.result()
+
+    @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_raw_options(self,
                                test_env: BlockingTestEnvironment,
-                               query_statement_pos_params_limit2: str) -> None:
+                               query_statement_pos_params_limit2: str,
+                               query_type: SyncQueryType) -> None:
         # via raw, we should be able to pass any option
         # if using named params, need to match full name param in query
         # which is different for when we pass in name_parameters via their specific
@@ -188,19 +329,56 @@ class QueryTestSuite:
             statement = f'SELECT * FROM {test_env.collection_name} WHERE country = $country LIMIT $1;'
         else:
             statement = f'SELECT * FROM {test_env.fqdn} WHERE country = $country LIMIT $1;'
-        result = test_env.cluster_or_scope.execute_query(statement,
-                                                         QueryOptions(raw={'$country': 'United States',
-                                                                           'args': [2]}))
+
+        
+        if query_type == SyncQueryType.NORMAL:
+            result = test_env.cluster_or_scope.execute_query(statement,
+                                                             QueryOptions(raw={'$country': 'United States',
+                                                                               'args': [2]}))
+        elif query_type == SyncQueryType.LAZY:
+            result = test_env.cluster_or_scope.execute_query(statement,
+                                                             QueryOptions(raw={'$country': 'United States',
+                                                                               'args': [2]},
+                                                                           lazy_execute=True))
+        else:
+            res = test_env.cluster_or_scope.execute_query(statement,
+                                                          QueryOptions(raw={'$country': 'United States',
+                                                                               'args': [2]}),
+                                                          enable_cancel=True)
+            assert isinstance(res, Future)
+            result = res.result()
+
+        test_env.assert_rows(result, 2)
+        
+        if query_type == SyncQueryType.NORMAL:
+            result = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2,
+                                                             QueryOptions(raw={'args': ['United States']}))
+        elif query_type == SyncQueryType.LAZY:
+            result = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2,
+                                                             QueryOptions(raw={'args': ['United States']},
+                                                                          lazy_execute=True))
+        else:
+            res = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2,
+                                                          QueryOptions(raw={'args': ['United States']}),
+                                                          enable_cancel=True)
+            assert isinstance(res, Future)
+            result = res.result()
         test_env.assert_rows(result, 2)
 
-        result = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2,
-                                                         QueryOptions(raw={'args': ['United States']}))
-        test_env.assert_rows(result, 2)
-
+    @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_simple_query(self,
                           test_env: BlockingTestEnvironment,
-                          query_statement_limit2: str) -> None:
-        result = test_env.cluster_or_scope.execute_query(query_statement_limit2)
+                          query_statement_limit2: str,
+                          query_type: SyncQueryType) -> None:
+        
+        if query_type == SyncQueryType.NORMAL:
+            result = test_env.cluster_or_scope.execute_query(query_statement_limit2)
+        elif query_type == SyncQueryType.LAZY:
+            result = test_env.cluster_or_scope.execute_query(query_statement_limit2, lazy_execute=True)
+        else:
+            res = test_env.cluster_or_scope.execute_query(query_statement_limit2, enable_cancel=True)
+            assert isinstance(res, Future)
+            result = res.result()
         test_env.assert_rows(result, 2)
 
     def test_query_with_lazy_execution(self,
@@ -226,10 +404,27 @@ class QueryTestSuite:
         with pytest.raises(QueryError):
             [r for r in result.rows()]
 
-    def test_query_passthrough_deserializer(self, test_env: BlockingTestEnvironment) -> None:
+    @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
+    def test_query_passthrough_deserializer(self,
+                                            test_env: BlockingTestEnvironment,
+                                            query_type: SyncQueryType) -> None:
         statement = 'FROM range(0, 10) AS num SELECT *'
-        result = test_env.cluster_or_scope.execute_query(statement,
-                                                         QueryOptions(deserializer=PassthroughDeserializer()))
+
+        
+        if query_type == SyncQueryType.NORMAL:
+            result = test_env.cluster_or_scope.execute_query(statement,
+                                                             QueryOptions(deserializer=PassthroughDeserializer()))
+        elif query_type == SyncQueryType.LAZY:
+            result = test_env.cluster_or_scope.execute_query(statement,
+                                                             QueryOptions(deserializer=PassthroughDeserializer(),
+                                                                          lazy_execute=True))
+        else:
+            res = test_env.cluster_or_scope.execute_query(statement,
+                                                          QueryOptions(deserializer=PassthroughDeserializer()),
+                                                          enable_cancel=True)
+            assert isinstance(res, Future)
+            result = res.result()
+
         for idx, row in enumerate(result.rows()):
             assert isinstance(row, bytes)
             assert json.loads(row) == {'num': idx}

@@ -124,8 +124,8 @@ class TimeoutError(AnalyticsError):
     Indicates that a request was unable to complete prior to reaching the deadline specified for the reqest.
     """
 
-    def __init__(self, base: Optional[Exception] = None, message: Optional[str] = None) -> None:
-        super().__init__(base, message)
+    def __init__(self, cause: Optional[Exception] = None, message: Optional[str] = None) -> None:
+        super().__init__(cause, message)
 
     def __repr__(self) -> str:
         return super().__repr__()
