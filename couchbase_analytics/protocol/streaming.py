@@ -32,7 +32,7 @@ else:
 from httpx import Response as HttpCoreResponse
 
 # TODO: errors?
-from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError
+from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError, TimeoutError
 from couchbase_analytics.common.core import (JsonStreamConfig,
                                              ParsedResult,
                                              ParsedResultType)
@@ -69,7 +69,7 @@ class RequestWrapper:
                     if self._request_context.request_error is not None:
                         raise self._request_context.request_error from None
                     if self._request_context.timed_out:
-                        raise TimeoutError() from None
+                        raise TimeoutError(message='Request timeout.') from None
                     if self._request_context.cancelled:
                         raise CancelledError('Request was cancelled.') from None
                     raise InternalSDKError(ex) from None
@@ -111,6 +111,17 @@ class HttpStreamingResponse:
 
         while not self._json_stream.token_stream_exhausted:
             self._json_stream.continue_parsing()
+
+    def _handle_iteration_abort(self) -> None:
+        self.close()
+        if self._request_context.cancelled:
+            print('Request was cancelled, closing stream.')
+            raise StopIteration
+        elif self._request_context.timed_out:
+            print('Request timed out, closing stream.')
+            raise TimeoutError(message='Request timeout.')
+        else:
+            raise StopIteration
 
     def _maybe_continue_to_process_stream(self) -> None:
         if not self._request_context.has_stage_completed:
@@ -190,17 +201,17 @@ class HttpStreamingResponse:
         if not (hasattr(self, '_core_response')
                 and self._core_response is not None
                 and self._request_context.okay_to_iterate):
-            self.close()
-            raise StopIteration
+            self._handle_iteration_abort()
         
         self._maybe_continue_to_process_stream()
+        check_state = False
         while True:
-            if self._request_context.cancelled:
-                self.close()
-                raise StopIteration
-            # TODO: handle timeout
+            if check_state and not self._request_context.okay_to_iterate:
+                self._handle_iteration_abort()
+
             raw_response = self._json_stream.get_result(self._stream_config.queue_timeout)
             if raw_response is None:
+                check_state = True
                 continue
             if raw_response.result_type == ParsedResultType.ROW:
                 if raw_response.value is None:
