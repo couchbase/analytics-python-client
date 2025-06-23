@@ -87,12 +87,19 @@ class AsyncQueryResult(QueryResult):
     def __init__(self, http_response: AsyncHttpStreamingResponse) -> None:
         self._http_response = http_response
 
-    async def cancel(self) -> None:
+    def cancel(self) -> None:
         """Cancel streaming the query results.
 
         **VOLATILE** This API is subject to change at any time.
         """
-        await self._http_response.cancel()
+        self._http_response.cancel()
+
+    async def cancel_async(self) -> None:
+        """Cancel streaming the query results.
+
+        **VOLATILE** This API is subject to change at any time.
+        """
+        await self._http_response.cancel_async()
 
     async def get_all_rows(self) -> List[Any]:
         """Convenience method to load all query results into memory.
@@ -131,6 +138,10 @@ class AsyncQueryResult(QueryResult):
             An async iterator for iterating over query results.
         """
         return AsyncIterator(self._http_response)
+    
+    async def shutdown(self) -> None:
+        """Shutdown the streaming connection."""
+        await self._http_response.shutdown()
 
     def __aiter__(self) -> AsyncIterator:
         return AsyncIterator(self._http_response).__aiter__()

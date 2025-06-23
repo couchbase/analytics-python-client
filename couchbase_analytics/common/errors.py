@@ -16,7 +16,8 @@
 from __future__ import annotations
 
 from typing import (Dict,
-                    Optional)
+                    Optional,
+                    Union)
 
 """
 
@@ -30,7 +31,7 @@ class AnalyticsError(Exception):
     Generic base error.  Analytics specific errors inherit from this base error.
     """
 
-    def __init__(self, cause: Optional[Exception] = None, message: Optional[str] = None) -> None:
+    def __init__(self, cause: Optional[Union[BaseException, Exception]] = None, message: Optional[str] = None) -> None:
         self._cause = cause
         self._message = message
         super().__init__(message)
@@ -56,7 +57,7 @@ class InvalidCredentialError(AnalyticsError):
     Indicates that an error occurred authenticating the user to the cluster.
     """
 
-    def __init__(self, context: str, cause: Optional[Exception] = None, message: Optional[str] = None) -> None:
+    def __init__(self, context: str, cause: Optional[Union[BaseException, Exception]] = None, message: Optional[str] = None) -> None:
         super().__init__(cause=cause, message=message)
         self._context = context
 
@@ -124,7 +125,7 @@ class TimeoutError(AnalyticsError):
     Indicates that a request was unable to complete prior to reaching the deadline specified for the reqest.
     """
 
-    def __init__(self, cause: Optional[Exception] = None, message: Optional[str] = None) -> None:
+    def __init__(self, cause: Optional[Union[BaseException, Exception]] = None, message: Optional[str] = None) -> None:
         super().__init__(cause, message)
 
     def __repr__(self) -> str:

@@ -14,8 +14,7 @@
 #  limitations under the License.
 
 import sys
-from asyncio import Future
-from typing import overload
+from typing import Awaitable, overload
 
 if sys.version_info < (3, 11):
     from typing_extensions import Unpack
@@ -33,36 +32,36 @@ class AsyncScope:
     def name(self) -> str: ...
 
     @overload
-    def execute_query(self, statement: str) -> Future[AsyncQueryResult]: ...
+    def execute_query(self, statement: str) -> Awaitable[AsyncQueryResult]: ...
 
     @overload
-    def execute_query(self, statement: str, options: QueryOptions) -> Future[AsyncQueryResult]: ...
+    def execute_query(self, statement: str, options: QueryOptions) -> Awaitable[AsyncQueryResult]: ...
 
     @overload
-    def execute_query(self, statement: str, **kwargs: Unpack[QueryOptionsKwargs]) -> Future[AsyncQueryResult]: ...
-
-    @overload
-    def execute_query(self,
-                      statement: str,
-                      options: QueryOptions,
-                      **kwargs: Unpack[QueryOptionsKwargs]) -> Future[AsyncQueryResult]: ...
+    def execute_query(self, statement: str, **kwargs: Unpack[QueryOptionsKwargs]) -> Awaitable[AsyncQueryResult]: ...
 
     @overload
     def execute_query(self,
                       statement: str,
                       options: QueryOptions,
-                      *args: str,
-                      **kwargs: Unpack[QueryOptionsKwargs]) -> Future[AsyncQueryResult]: ...
+                      **kwargs: Unpack[QueryOptionsKwargs]) -> Awaitable[AsyncQueryResult]: ...
 
     @overload
     def execute_query(self,
                       statement: str,
                       options: QueryOptions,
                       *args: str,
-                      **kwargs: str) -> Future[AsyncQueryResult]: ...
+                      **kwargs: Unpack[QueryOptionsKwargs]) -> Awaitable[AsyncQueryResult]: ...
+
+    @overload
+    def execute_query(self,
+                      statement: str,
+                      options: QueryOptions,
+                      *args: str,
+                      **kwargs: str) -> Awaitable[AsyncQueryResult]: ...
 
     @overload
     def execute_query(self,
                       statement: str,
                       *args: str,
-                      **kwargs: str) -> Future[AsyncQueryResult]: ...
+                      **kwargs: str) -> Awaitable[AsyncQueryResult]: ...

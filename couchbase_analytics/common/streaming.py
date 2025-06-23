@@ -42,7 +42,8 @@ class StreamingState(IntEnum):
     StreamingResults = 4
     Error = 5
     Timeout = 6
-    SyncCancelledPriorToTimeout = 7
+    AsyncCancelledPriorToTimeout = 7
+    SyncCancelledPriorToTimeout = 8
 
     @staticmethod
     def okay_to_stream(state: StreamingState) -> bool:
@@ -66,6 +67,16 @@ class StreamingState(IntEnum):
         return state not in [StreamingState.Cancelled,
                              StreamingState.Error,
                              StreamingState.Timeout]
+    
+    @staticmethod
+    def is_timeout_or_cancelled(state: StreamingState) -> bool:
+        """
+        **INTERNAL
+        """
+        return state in [StreamingState.Cancelled,
+                         StreamingState.Timeout,
+                         StreamingState.AsyncCancelledPriorToTimeout,
+                         StreamingState.SyncCancelledPriorToTimeout]
 
 
 class BlockingIterator(Iterator[Any]):

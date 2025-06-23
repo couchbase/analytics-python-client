@@ -16,18 +16,19 @@
 from __future__ import annotations
 
 import json
-from concurrent.futures import Future
+from concurrent.futures import CancelledError, Future
 from enum import Enum
 from datetime import timedelta
 from typing import (TYPE_CHECKING,
                     Any,
-                    Dict)
+                    Dict,
+                    Optional)
 
 import pytest
 
 from couchbase_analytics.common.streaming import StreamingState
 from couchbase_analytics.deserializer import PassthroughDeserializer
-from couchbase_analytics.errors import QueryError
+from couchbase_analytics.errors import QueryError, TimeoutError
 from couchbase_analytics.options import QueryOptions
 from couchbase_analytics.query import  QueryScanConsistency
 from couchbase_analytics.result import BlockingQueryResult
@@ -44,29 +45,31 @@ class SyncQueryType(Enum):
 
 
 class QueryTestSuite:
+
     TEST_MANIFEST = [
-        # 'test_cancel_positional_params_override',
-        # 'test_cancel_positional_params_override_token_in_kwargs',
-        # 'test_cancel_prior_iterating',
-        # 'test_cancel_prior_iterating_positional_params',
-        # 'test_cancel_prior_iterating_with_kwargs',
-        # 'test_cancel_prior_iterating_with_options',
-        # 'test_cancel_prior_iterating_with_opts_and_kwargs',
-        # 'test_cancel_while_iterating',
+        'test_cancel_prior_iterating',
+        'test_cancel_prior_iterating_positional_params',
+        'test_cancel_prior_iterating_with_kwargs',
+        'test_cancel_prior_iterating_with_options',
+        'test_cancel_prior_iterating_with_opts_and_kwargs',
+        'test_cancel_while_iterating',
+        'test_query_cannot_set_both_cancel_and_lazy_execution',
         'test_query_metadata',
         'test_query_metadata_not_available',
         'test_query_named_parameters',
         'test_query_named_parameters_no_options',
         'test_query_named_parameters_override',
+        'test_query_passthrough_deserializer',
         'test_query_positional_params',
         'test_query_positional_params_no_option',
         'test_query_positional_params_override',
         'test_query_raises_exception_prior_to_iterating',
         'test_query_raw_options',
+        'test_query_timeout',
+        'test_query_timeout_while_streaming',
         'test_simple_query',
         'test_query_with_lazy_execution',
-        'test_query_with_lazy_execution_raises_exception',
-        'test_query_passthrough_deserializer',
+        'test_query_with_lazy_execution_raises_exception',        
     ]
 
     @pytest.fixture(scope='class')
@@ -96,6 +99,208 @@ class QueryTestSuite:
             return f'SELECT * FROM {test_env.collection_name} LIMIT 5;'
         else:
             return f'SELECT * FROM {test_env.fqdn} LIMIT 5;'
+
+    @pytest.mark.parametrize('cancel_via_future', [False, True])
+    def test_cancel_prior_iterating(self, test_env: BlockingTestEnvironment, cancel_via_future: bool) -> None:
+        statement = 'FROM range(0, 100000) AS r SELECT *'
+        ft = test_env.cluster_or_scope.execute_query(statement, enable_cancel=True)
+        assert isinstance(ft, Future)
+        res: Optional[BlockingQueryResult] = None
+        rows = []
+        if cancel_via_future:
+            ft.cancel()
+            with pytest.raises(CancelledError):
+                res = ft.result()
+                for row in res.rows():
+                    rows.append(row)
+
+            assert res is None
+            assert len(rows) == 0
+        else:
+            res = ft.result()
+            res.cancel()
+
+            assert isinstance(res, BlockingQueryResult)
+            assert res._http_response._request_context.request_state == StreamingState.Cancelled
+            
+            for row in res.rows():
+                rows.append(row)
+
+            with pytest.raises(CancelledError):
+                res.metadata()
+
+    @pytest.mark.parametrize('cancel_via_future', [False, True])
+    def test_cancel_prior_iterating_positional_params(self,
+                                                      test_env: BlockingTestEnvironment,
+                                                      query_statement_pos_params_limit2: str,
+                                                      cancel_via_future: bool) -> None:
+        ft = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2,
+                                                     'United States',
+                                                     enable_cancel=True)
+        assert isinstance(ft, Future)
+        res: Optional[BlockingQueryResult] = None
+        rows = []
+        if cancel_via_future:
+            ft.cancel()
+            with pytest.raises(CancelledError):
+                res = ft.result()
+                for row in res.rows():
+                    rows.append(row)
+
+            assert res is None
+            assert len(rows) == 0
+        else:
+            res = ft.result()
+            res.cancel()
+
+            assert isinstance(res, BlockingQueryResult)
+            assert res._http_response._request_context.request_state == StreamingState.Cancelled
+            
+            for row in res.rows():
+                rows.append(row)
+
+            with pytest.raises(CancelledError):
+                res.metadata()
+
+    @pytest.mark.parametrize('cancel_via_future', [False, True])
+    def test_cancel_prior_iterating_with_kwargs(self,
+                                                test_env: BlockingTestEnvironment,
+                                                cancel_via_future: bool) -> None:
+        statement = 'FROM range(0, 100000) AS r SELECT *'
+        ft = test_env.cluster_or_scope.execute_query(statement,
+                                                     timeout=timedelta(seconds=4),
+                                                     enable_cancel=True)
+        assert isinstance(ft, Future)
+        res: Optional[BlockingQueryResult] = None
+        rows = []
+        if cancel_via_future:
+            ft.cancel()
+            with pytest.raises(CancelledError):
+                res = ft.result()
+                for row in res.rows():
+                    rows.append(row)
+
+            assert res is None
+            assert len(rows) == 0
+        else:
+            res = ft.result()
+            res.cancel()
+
+            assert isinstance(res, BlockingQueryResult)
+            assert res._http_response._request_context.request_state == StreamingState.Cancelled
+            
+            for row in res.rows():
+                rows.append(row)
+
+            with pytest.raises(CancelledError):
+                res.metadata()
+
+    @pytest.mark.parametrize('cancel_via_future', [False, True])
+    def test_cancel_prior_iterating_with_options(self,
+                                                 test_env: BlockingTestEnvironment,
+                                                 cancel_via_future: bool) -> None:
+        statement = 'FROM range(0, 100000) AS r SELECT *'
+        ft = test_env.cluster_or_scope.execute_query(statement,
+                                                     QueryOptions(timeout=timedelta(seconds=4)),
+                                                     enable_cancel=True)
+        assert isinstance(ft, Future)
+        res: Optional[BlockingQueryResult] = None
+        rows = []
+        if cancel_via_future:
+            ft.cancel()
+            with pytest.raises(CancelledError):
+                res = ft.result()
+                for row in res.rows():
+                    rows.append(row)
+
+            assert res is None
+            assert len(rows) == 0
+        else:
+            res = ft.result()
+            res.cancel()
+
+            assert isinstance(res, BlockingQueryResult)
+            assert res._http_response._request_context.request_state == StreamingState.Cancelled
+            
+            for row in res.rows():
+                rows.append(row)
+
+            with pytest.raises(CancelledError):
+                res.metadata()
+
+    @pytest.mark.parametrize('cancel_via_future', [False, True])
+    def test_cancel_prior_iterating_with_opts_and_kwargs(self,
+                                                         test_env: BlockingTestEnvironment,
+                                                         cancel_via_future: bool) -> None:
+        statement = 'FROM range(0, 100000) AS r SELECT *'
+        ft = test_env.cluster_or_scope.execute_query(statement,
+                                                     QueryOptions(scan_consistency=QueryScanConsistency.NOT_BOUNDED),
+                                                     timeout=timedelta(seconds=4),
+                                                     enable_cancel=True)
+        assert isinstance(ft, Future)
+        res: Optional[BlockingQueryResult] = None
+        rows = []
+        if cancel_via_future:
+            ft.cancel()
+            with pytest.raises(CancelledError):
+                res = ft.result()
+                for row in res.rows():
+                    rows.append(row)
+
+            assert res is None
+            assert len(rows) == 0
+        else:
+            res = ft.result()
+            res.cancel()
+
+            assert isinstance(res, BlockingQueryResult)
+            assert res._http_response._request_context.request_state == StreamingState.Cancelled
+            
+            for row in res.rows():
+                rows.append(row)
+
+            with pytest.raises(CancelledError):
+                res.metadata()
+
+    @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
+    def test_cancel_while_iterating(self,
+                                    test_env: BlockingTestEnvironment,
+                                    query_statement_limit5: str,
+                                    query_type: SyncQueryType) -> None:
+        if query_type == SyncQueryType.NORMAL:
+            result = test_env.cluster_or_scope.execute_query(query_statement_limit5)
+        elif query_type == SyncQueryType.LAZY:
+            result = test_env.cluster_or_scope.execute_query(query_statement_limit5,
+                                                             QueryOptions(lazy_execute=True))
+        else:
+            res = test_env.cluster_or_scope.execute_query(query_statement_limit5, enable_cancel=True)
+            assert isinstance(res, Future)
+            result = res.result()
+
+        assert isinstance(result, BlockingQueryResult)
+        expected_state = StreamingState.StreamingResults if query_type != SyncQueryType.LAZY else StreamingState.NotStarted
+        assert result._http_response._request_context.request_state == expected_state
+        rows = []
+        count = 0
+        for row in result.rows():
+            if count == 2:
+                result.cancel()
+            assert row is not None
+            rows.append(row)
+            count += 1
+
+        assert len(rows) == count
+        expected_state = StreamingState.Cancelled
+        assert result._http_response._request_context.request_state == expected_state
+        with pytest.raises(CancelledError):
+            result.metadata()
+
+    def test_query_cannot_set_both_cancel_and_lazy_execution(self, test_env: BlockingTestEnvironment) -> None:
+        statement = 'SELECT 1=1'
+        with pytest.raises(RuntimeError):
+            test_env.cluster_or_scope.execute_query(statement,
+                                                    QueryOptions(lazy_execute=True),
+                                                    enable_cancel=True)
 
     @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_metadata(self,
@@ -235,6 +440,31 @@ class QueryTestSuite:
         test_env.assert_rows(result, 2)
 
     @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
+    def test_query_passthrough_deserializer(self,
+                                            test_env: BlockingTestEnvironment,
+                                            query_type: SyncQueryType) -> None:
+        statement = 'FROM range(0, 10) AS num SELECT *'
+
+        
+        if query_type == SyncQueryType.NORMAL:
+            result = test_env.cluster_or_scope.execute_query(statement,
+                                                             QueryOptions(deserializer=PassthroughDeserializer()))
+        elif query_type == SyncQueryType.LAZY:
+            result = test_env.cluster_or_scope.execute_query(statement,
+                                                             QueryOptions(deserializer=PassthroughDeserializer(),
+                                                                          lazy_execute=True))
+        else:
+            res = test_env.cluster_or_scope.execute_query(statement,
+                                                          QueryOptions(deserializer=PassthroughDeserializer()),
+                                                          enable_cancel=True)
+            assert isinstance(res, Future)
+            result = res.result()
+
+        for idx, row in enumerate(result.rows()):
+            assert isinstance(row, bytes)
+            assert json.loads(row) == {'num': idx}
+
+    @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_positional_params(self,
                                      test_env: BlockingTestEnvironment,
                                      query_statement_pos_params_limit2: str,
@@ -366,6 +596,51 @@ class QueryTestSuite:
         test_env.assert_rows(result, 2)
 
     @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
+    def test_query_timeout(self, test_env: BlockingTestEnvironment, query_type: SyncQueryType) -> None:
+        statement = 'SELECT sleep("some value", 10000) AS some_field;'
+        
+        if query_type == SyncQueryType.NORMAL:
+            with pytest.raises(TimeoutError):
+                result = test_env.cluster_or_scope.execute_query(statement,
+                                                                 QueryOptions(timeout=timedelta(seconds=2)))
+        elif query_type == SyncQueryType.LAZY:
+            result = test_env.cluster_or_scope.execute_query(statement,
+                                                             QueryOptions(timeout=timedelta(seconds=2),
+                                                                          lazy_execute=True))
+            with pytest.raises(TimeoutError):
+                for _ in result.rows():
+                    pass
+        else:
+            res = test_env.cluster_or_scope.execute_query(statement,
+                                                          QueryOptions(timeout=timedelta(seconds=2)),
+                                                          enable_cancel=True)
+            assert isinstance(res, Future)
+            with pytest.raises(TimeoutError):
+                result = res.result()
+
+    @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
+    def test_query_timeout_while_streaming(self, test_env: BlockingTestEnvironment, query_type: SyncQueryType) -> None:
+        statement = 'SELECT {"x1": 1, "x2": 2, "x3": 3} FROM range(1, 100000) r;'
+        if query_type == SyncQueryType.NORMAL:
+            result = test_env.cluster_or_scope.execute_query(statement,
+                                                             QueryOptions(timeout=timedelta(seconds=2)))
+        elif query_type == SyncQueryType.LAZY:
+            result = test_env.cluster_or_scope.execute_query(statement,
+                                                             QueryOptions(timeout=timedelta(seconds=2),
+                                                                          lazy_execute=True))
+        else:
+            res = test_env.cluster_or_scope.execute_query(statement,
+                                                          QueryOptions(timeout=timedelta(seconds=2)),
+                                                          enable_cancel=True)
+            assert isinstance(res, Future)
+            result = res.result()
+
+        with pytest.raises(TimeoutError):
+            for _ in result.rows():
+                pass
+
+
+    @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_simple_query(self,
                           test_env: BlockingTestEnvironment,
                           query_statement_limit2: str,
@@ -404,31 +679,7 @@ class QueryTestSuite:
         with pytest.raises(QueryError):
             [r for r in result.rows()]
 
-    @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
-    def test_query_passthrough_deserializer(self,
-                                            test_env: BlockingTestEnvironment,
-                                            query_type: SyncQueryType) -> None:
-        statement = 'FROM range(0, 10) AS num SELECT *'
 
-        
-        if query_type == SyncQueryType.NORMAL:
-            result = test_env.cluster_or_scope.execute_query(statement,
-                                                             QueryOptions(deserializer=PassthroughDeserializer()))
-        elif query_type == SyncQueryType.LAZY:
-            result = test_env.cluster_or_scope.execute_query(statement,
-                                                             QueryOptions(deserializer=PassthroughDeserializer(),
-                                                                          lazy_execute=True))
-        else:
-            res = test_env.cluster_or_scope.execute_query(statement,
-                                                          QueryOptions(deserializer=PassthroughDeserializer()),
-                                                          enable_cancel=True)
-            assert isinstance(res, Future)
-            result = res.result()
-
-        for idx, row in enumerate(result.rows()):
-            assert isinstance(row, bytes)
-            assert json.loads(row) == {'num': idx}
-        
 class ClusterQueryTests(QueryTestSuite):
 
     @pytest.fixture(scope='class', autouse=True)
