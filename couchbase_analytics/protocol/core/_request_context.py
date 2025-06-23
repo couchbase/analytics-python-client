@@ -208,6 +208,11 @@ class RequestContext:
         if event_name == 'connection.connect_tcp.complete':
             print('Connection established, updating cancel scope deadline')
 
+    def cancel_request(self) -> None:
+        if self._request_state == StreamingState.Timeout:
+            return
+        self._request_state = StreamingState.Cancelled
+
     def initialize(self) -> None:
         self._request_state = StreamingState.Started
         timeouts = self._request.get_request_timeouts() or {}

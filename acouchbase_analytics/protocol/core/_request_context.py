@@ -10,11 +10,14 @@ from typing import (Any,
                     List,
                     Optional,
                     Type,
+                    Union,
                     TYPE_CHECKING)
 from uuid import uuid4
 
 import anyio
-from httpx import Response as HttpCoreResponse
+from httpx import (Response as HttpCoreResponse,
+                   TimeoutException)
+
 
 from acouchbase_analytics.protocol.core._anyio_utils import (AsyncBackend,
                                                              current_async_library,
@@ -45,8 +48,10 @@ class AsyncRequestContext:
         # self._response_task: Optional[Task] = None
         self._request_state = StreamingState.NotStarted
         self._stage_completed: Optional[anyio.Event] = None
-        self._request_error: Optional[Exception] = None
-        self._connect_timeout = self._client_adapter.connection_details.get_connect_timeout()
+        self._request_error: Optional[Union[BaseException, Exception]] = None
+        connect_timeout = self._client_adapter.connection_details.get_connect_timeout()
+        self._connect_deadline = get_time() + connect_timeout
+        self._cancel_scope_deadline_updated = False
 
     @property
     def deserializer(self) -> Deserializer:
@@ -61,14 +66,16 @@ class AsyncRequestContext:
 
     @property
     def okay_to_iterate(self) -> bool:
+        self._check_cancelled_or_timed_out()
         return StreamingState.okay_to_iterate(self._request_state)
     
     @property
     def okay_to_stream(self) -> bool:
+        self._check_cancelled_or_timed_out()
         return StreamingState.okay_to_stream(self._request_state)
 
     @property
-    def request_error(self) -> Optional[Exception]:
+    def request_error(self) -> Optional[Union[BaseException, Exception]]:
         return self._request_error
 
     @property
@@ -81,36 +88,89 @@ class AsyncRequestContext:
             raise TypeError('request_state must be an instance of StreamingState')
         self._request_state = state
 
-    # @property
-    # def stage_completed(self) -> Optional[anyio.Event]:
-    #     return self._stage_completed
-    
     @property
     def timed_out(self) -> bool:
+        self._check_cancelled_or_timed_out()
         return self._request_state == StreamingState.Timeout
 
     @property
     def cancelled(self) -> bool:
-        return self._request_state == StreamingState.Cancelled
+        self._check_cancelled_or_timed_out()
+        return self._request_state in [StreamingState.Cancelled, StreamingState.AsyncCancelledPriorToTimeout]
+
+    def _check_cancelled_or_timed_out(self) -> None:
+        if self._request_state in [StreamingState.Timeout, StreamingState.Cancelled, StreamingState.Error]:
+            return
+        
+        if hasattr(self, '_request_deadline') is False:
+            return
+
+        current_time = get_time()
+        if self._cancel_scope_deadline_updated is False:
+            timed_out = current_time >= self._connect_deadline
+        else:
+            timed_out = current_time >= self._request_deadline
+
+        if timed_out:
+            if self._request_state == StreamingState.Cancelled:
+                self._request_state = StreamingState.AsyncCancelledPriorToTimeout
+            else:
+                self._request_state = StreamingState.Timeout
 
     async def _execute(self, fn: Callable[..., Awaitable[Any]], *args: object) -> None:
         await fn(*args)
         if self._stage_completed is not None:
             self._stage_completed.set()
 
+    def _maybe_set_request_error(self,
+                                 exc_type: Optional[Type[BaseException]]=None,
+                                 exc_val: Optional[BaseException]=None) -> None:
+        self._check_cancelled_or_timed_out()
+        # TODO:  Do either of these conditions need to be checked?  Does _check_cancelled_or_timed_out() already handle this
+        # if self._taskgroup.cancel_scope.cancelled_caught and get_time() >= self._taskgroup.cancel_scope.deadline:
+        # if isinstance(exc_val, CancelledError):
+        if exc_val is None:
+            return
+        if not StreamingState.is_timeout_or_cancelled(self._request_state):
+            # This handles httpx timeouts
+            if exc_type is not None and issubclass(exc_type, TimeoutException):
+                self._request_state = StreamingState.Timeout
+            elif issubclass(type(exc_val), TimeoutException):
+                self._request_state = StreamingState.Timeout
+            else:
+                self._request_state = StreamingState.Error
+            self._request_error = exc_val
+        
+
     async def _trace_handler(self, event_name: str, _: str) -> None:
         if event_name == 'connection.connect_tcp.complete':
             # after connection is established, we need to update the cancel_scope deadline to match the query_timeout
             self._update_cancel_scope_deadline(self._request_deadline, is_absolute=True)
+            self._cancel_scope_deadline_updated = True
+        elif self._cancel_scope_deadline_updated is False and event_name.endswith('send_request_headers.started'):
+            # if the socket is reused, we won't get the connect_tcp.complete event, so the deadline at the next closest event
+            self._update_cancel_scope_deadline(self._request_deadline, is_absolute=True)
+            self._cancel_scope_deadline_updated = True
 
     def _update_cancel_scope_deadline(self, deadline: float, is_absolute: Optional[bool]=False) -> None:
         # TODO:  confirm scenario of get_time() < self._taskgroup.cancel_scope.deadline is handled by anyio
-
         new_deadline = deadline if is_absolute else get_time() + deadline
+        # TODO:  Useful debug log message
+        # print(f'Updating cancel scope deadline: {self._taskgroup.cancel_scope.deadline} -> {new_deadline}')
         if get_time() >= new_deadline:
             self._taskgroup.cancel_scope.cancel()
         else:
             self._taskgroup.cancel_scope.deadline = new_deadline
+
+    def cancel_request(self,
+                       fn: Optional[Callable[..., Awaitable[Any]]]=None,
+                       *args: object) -> None:
+        if fn is not None:
+            self._taskgroup.start_soon(fn, *args)
+        if self._request_state == StreamingState.Timeout:
+            return
+        self._taskgroup.cancel_scope.cancel()
+        self._request_state = StreamingState.Cancelled
 
     async def initialize(self) -> None:
         await self.__aenter__()
@@ -119,7 +179,7 @@ class AsyncRequestContext:
         # closer to when the upstream logic will begin to use the request context
         timeouts = self._request.get_request_timeouts() or {}
         self._request_deadline = get_time() + (timeouts.get('read', None) or DEFAULT_TIMEOUTS['query_timeout'])
-        self._update_cancel_scope_deadline(self._connect_timeout)
+        self._update_cancel_scope_deadline(self._connect_deadline, is_absolute=True)
 
     async def send_request(self, enable_trace_handling: Optional[bool]=False) -> HttpCoreResponse:
         ip = await get_request_ip_async(self._request.host, self._request.port, self._request.previous_ips)
@@ -133,6 +193,7 @@ class AsyncRequestContext:
                           .update_previous_ips(ip))
         else:
             self._request.update_url(ip, self._client_adapter.analytics_path).update_previous_ips(ip)
+        # TODO:  add logging; provide request details (to/from, deadlines, etc.)
         response = await self._client_adapter.send_request(self._request)
         self._request.set_client_server_addrs(response)
         if response.status_code == 401:
@@ -150,10 +211,8 @@ class AsyncRequestContext:
                        exc_tb: Optional[TracebackType]=None) -> None:
         if hasattr(self, '_taskgroup'):
             await self.__aexit__(exc_type, exc_val, exc_tb)
-        elif isinstance(exc_val, CancelledError):
-            self._request_state = StreamingState.Cancelled
-        elif exc_val is not None:
-            self._request_state = StreamingState.Error
+        else:
+            self._maybe_set_request_error()
 
         if StreamingState.is_okay(self._request_state):
             self._request_state = StreamingState.Completed
@@ -168,7 +227,7 @@ class AsyncRequestContext:
         task: Task[Any] = self._backend.loop.create_task(fn(*args), name=task_name)
         # TODO: I don't think this callback is necessary...need to add more tests to confirm
         def task_done(t: Task[Any]) -> None:
-            print(f'Task ({t.get_name()}) done: {t.done()}, cancelled: {t.cancelled()}')
+            print(f'Task done callback task=({t.get_name()}); done: {t.done()}, cancelled: {t.cancelled()}')
 
         task.add_done_callback(task_done)
         self._response_task = task
@@ -181,9 +240,6 @@ class AsyncRequestContext:
                          fn: Callable[..., Awaitable[Any]],
                          *args: object,
                          reset_previous_stage: Optional[bool]=False) -> None:
-        # if reset_previous_stage is True:
-        #     if self._stage_completed is not None:
-        #         self._stage_completed = None
         if self._stage_completed is not None:
             if reset_previous_stage is True:
                 self._stage_completed = None
@@ -222,12 +278,7 @@ class AsyncRequestContext:
         except BaseException as ex:
             pass # we handle the error when the context is shutdown (which is what calls __aexit__())
         finally:
-            if self._taskgroup.cancel_scope.cancelled_caught and get_time() >= self._taskgroup.cancel_scope.deadline:
-                self._request_state = StreamingState.Timeout
-            elif isinstance(exc_val, CancelledError):
-                self._request_state = StreamingState.Cancelled
-            elif exc_val is not None:
-                self._request_state = StreamingState.Error
+            self._maybe_set_request_error()
             del self._taskgroup
             # TODO:  should we suppress here (e.g., return True)
             return None

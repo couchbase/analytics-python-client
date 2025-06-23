@@ -82,7 +82,6 @@ class QueryRequest:
         return self.extensions['timeout']
 
     def set_client_server_addrs(self, response: HttpCoreResponse) -> None:
-        # TODO:  this logic comes from httpcore, typing won't be happy
         network_stream = response.extensions.get('network_stream', None)
         # TODO: what if network_stream is None?
         if network_stream is not None:

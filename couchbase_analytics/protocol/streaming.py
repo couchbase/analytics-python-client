@@ -177,10 +177,15 @@ class HttpStreamingResponse:
         """
         **INTERNAL**
         """
+        self._request_context.cancel_request()
         self.close()
 
     def get_metadata(self) -> QueryMetadata:
         if self._metadata is None:
+            if self._request_context.cancelled:
+                raise CancelledError('Request was cancelled.')
+            elif self._request_context.timed_out:
+                raise TimeoutError(message='Request timeout.')
             raise RuntimeError('Query metadata is only available after all rows have been iterated.')
         return self._metadata
 
