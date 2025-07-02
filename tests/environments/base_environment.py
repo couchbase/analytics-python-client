@@ -18,21 +18,15 @@ from __future__ import annotations
 import json
 import pathlib
 import sys
-
 from os import path
-from typing import (TYPE_CHECKING,
-                    Any,
-                    Dict,
-                    List,
-                    Optional,
-                    TypedDict,
-                    Union)
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict, Union
 
 if sys.version_info < (3, 11):
     from typing_extensions import Unpack
 else:
-    from typing import  Unpack
+    from typing import Unpack
 
+import anyio
 import pytest
 
 from acouchbase_analytics.cluster import AsyncCluster
@@ -43,10 +37,8 @@ from couchbase_analytics.credential import Credential
 from couchbase_analytics.options import ClusterOptions, SecurityOptions
 from couchbase_analytics.result import BlockingQueryResult
 from couchbase_analytics.scope import Scope
-
 from tests import AnalyticsTestEnvironmentError
 from tests.utils._run_web_server import WebServerHandler
-
 
 if TYPE_CHECKING:
     from tests.analytics_config import AnalyticsConfig
@@ -95,6 +87,42 @@ class TestEnvironment:
     def use_scope(self) -> bool:
         return self._use_scope
 
+    def assert_error_context_num_attempts(self,
+                                          expected_attempts: int,
+                                          context: Optional[str],
+                                          exact: Optional[bool]=True) -> None:
+        assert isinstance(context, str)
+        ctx_keys = context.replace('{', '').replace('}', '').split(',')
+        assert len(ctx_keys) > 1
+        match = next((k for k in ctx_keys if 'num_attempts' in k), None)
+        assert match is not None
+        match_keys = match.split()
+        assert len(match_keys) == 2
+        if exact is True:
+            assert int(match_keys[1].replace("'", "").replace('"', '')) == expected_attempts
+        else:
+            assert int(match_keys[1].replace("'", "").replace('"', '')) >= expected_attempts
+
+    def assert_error_context_contains_last_dispatch(self, context: Optional[str]) -> None:
+        assert isinstance(context, str)
+        ctx_keys = context.replace('{', '').replace('}', '').split(',')
+        assert len(ctx_keys) > 1
+        match = next((k for k in ctx_keys if 'last_dispatched_to' in k), None)
+        assert match is not None
+        match = next((k for k in ctx_keys if 'last_dispatched_from' in k), None)
+        assert match is not None
+
+    def assert_error_context_missing_last_dispatch(self, context: Optional[str]=None) -> None:
+        if context is None:
+            return
+        assert isinstance(context, str)
+        ctx_keys = context.replace('{', '').replace('}', '').split(',')
+        assert len(ctx_keys) > 1
+        match = next((k for k in ctx_keys if 'last_dispatched_to' in k), None)
+        assert match is None
+        match = next((k for k in ctx_keys if 'last_dispatched_from' in k), None)
+        assert match is None
+
     def load_collection_data_from_file(self, file_path: str, limit: Optional[int] = 100) -> List[Dict[str, Any]]:
         with open(file_path, mode='+r') as json_file:
             json_data: List[Dict[str, Any]] = json.load(json_file)
@@ -133,6 +161,10 @@ class BlockingTestEnvironment(TestEnvironment):
             count += 1
         assert count >= expected_count
 
+    def assert_streaming_response_state(self, result: BlockingQueryResult) -> None:
+        assert hasattr(result._http_response, '_core_response') is False
+        assert result._http_response._request_context.is_shutdown is True
+
     def disable_scope(self) -> BlockingTestEnvironment:
         self._scope = None
         self._use_scope = False
@@ -141,7 +173,7 @@ class BlockingTestEnvironment(TestEnvironment):
     def disable_test_server(self) -> BlockingTestEnvironment:
         if self._server_handler is not None:
             self._server_handler.stop_server()
-            self._server_handler = None
+            # self._server_handler = None
         return self
 
     def enable_scope(self,
@@ -167,12 +199,13 @@ class BlockingTestEnvironment(TestEnvironment):
             raise AnalyticsTestEnvironmentError('No cluster available, cannot enable test server.')
         from tests.utils._client_adapter import _TestClientAdapter
         from tests.utils._test_httpx import TestHTTPTransport
+        print(f'{self._cluster=}')
         new_adapter = _TestClientAdapter(adapter=self._cluster._impl._client_adapter,  # type: ignore[call-arg]
                                          http_transport_cls=TestHTTPTransport)
         new_adapter.create_client()
         self._cluster._impl._client_adapter = new_adapter
-        scheme, host, port = self._cluster._impl.client_adapter.connection_details.get_scheme_host_and_port()
-        print(f"Connecting to test server at {scheme}://{host}:{port}")
+        url = self._cluster._impl.client_adapter.connection_details.url.get_formatted_url()
+        print(f'Connecting to test server at {url}')
         self._server_handler.start_server()
         return self
     
@@ -266,7 +299,7 @@ class BlockingTestEnvironment(TestEnvironment):
         cred = Credential.from_username_and_password(username, pw)
         sec_opts: Optional[SecurityOptions] = None
         if config.nonprod is True:
-            from couchbase_analytics.common.core._certificates import _Certificates
+            from couchbase_analytics.common._core._certificates import _Certificates
             sec_opts = SecurityOptions.trust_only_certificates(_Certificates.get_nonprod_certificates())
 
         if config.disable_server_certificate_verification is True:
@@ -319,6 +352,10 @@ class AsyncTestEnvironment(TestEnvironment):
             count += 1
         assert count >= expected_count
 
+    def assert_streaming_response_state(self, result: AsyncQueryResult) -> None:
+        assert hasattr(result._http_response, '_core_response') is False
+        assert result._http_response._request_context.is_shutdown is True
+
     def disable_scope(self) -> AsyncTestEnvironment:
         self._async_scope = None
         self._use_scope = False
@@ -327,7 +364,6 @@ class AsyncTestEnvironment(TestEnvironment):
     def disable_test_server(self) -> AsyncTestEnvironment:
         if self._server_handler is not None:
             self._server_handler.stop_server()
-            self._server_handler = None
         return self
 
     def enable_scope(self,
@@ -359,8 +395,8 @@ class AsyncTestEnvironment(TestEnvironment):
                                               http_transport_cls=TestAsyncHTTPTransport)
         await new_adapter.create_client()
         self._async_cluster._impl._client_adapter = new_adapter
-        scheme, host, port = self._async_cluster._impl.client_adapter.connection_details.get_scheme_host_and_port()
-        print(f"Connecting to test server at {scheme}://{host}:{port}")
+        url = self._async_cluster._impl.client_adapter.connection_details.url.get_formatted_url()
+        print(f'Connecting to test server at {url}')
         self._server_handler.start_server()
         return self
     
@@ -404,6 +440,9 @@ class AsyncTestEnvironment(TestEnvironment):
         if self._async_cluster is None or not hasattr(self._async_cluster, '_impl'):
             raise AnalyticsTestEnvironmentError('No cluster available, cannot enable test server.')
         self._async_cluster._impl._client_adapter.set_request_path(url_path)
+
+    async def sleep(self, delay: float) -> None:
+        await anyio.sleep(delay)
 
     async def teardown(self) -> None:
         if self.config.create_keyspace is False:
@@ -457,7 +496,7 @@ class AsyncTestEnvironment(TestEnvironment):
         cred = Credential.from_username_and_password(username, pw)
         sec_opts: Optional[SecurityOptions] = None
         if config.nonprod is True:
-            from couchbase_analytics.common.core._certificates import _Certificates
+            from couchbase_analytics.common._core._certificates import _Certificates
             sec_opts = SecurityOptions.trust_only_certificates(_Certificates.get_nonprod_certificates())
 
         if config.disable_server_certificate_verification is True:

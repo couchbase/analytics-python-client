@@ -16,32 +16,23 @@
 from __future__ import annotations
 
 import ssl
-
 from dataclasses import dataclass
-from typing import (TYPE_CHECKING,
-                    Dict,
-                    List,
-                    Optional,
-                    Tuple,
-                    TypedDict,
-                    cast)
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, TypedDict, cast
 from urllib.parse import parse_qs, urlparse
 
-from couchbase_analytics.common.core._certificates import _Certificates
-from couchbase_analytics.common.core.duration_str_utils import parse_duration_str
+from couchbase_analytics.common._core._certificates import _Certificates
+from couchbase_analytics.common._core.duration_str_utils import parse_duration_str
+from couchbase_analytics.common._core.utils import is_null_or_empty
 from couchbase_analytics.common.credential import Credential
 from couchbase_analytics.common.deserializer import DefaultJsonDeserializer, Deserializer
-from couchbase_analytics.common.options import (ClusterOptions,
-                                                SecurityOptions,
-                                                TimeoutOptions)
-
-from couchbase_analytics.protocol import PYCBAC_VERSION
-from couchbase_analytics.protocol.options import (ClusterOptionsTransformedKwargs,
-                                                  QueryStrVal,
-                                                  SecurityOptionsTransformedKwargs,
-                                                  TimeoutOptionsTransformedKwargs)
-
-from httpcore import URL
+from couchbase_analytics.common.options import ClusterOptions, SecurityOptions, TimeoutOptions
+from couchbase_analytics.common.request import RequestURL
+from couchbase_analytics.protocol.options import (
+    ClusterOptionsTransformedKwargs,
+    QueryStrVal,
+    SecurityOptionsTransformedKwargs,
+    TimeoutOptionsTransformedKwargs,
+)
 
 if TYPE_CHECKING:
     from couchbase_analytics.protocol.options import OptionsBuilder
@@ -61,8 +52,7 @@ DEFAULT_TIMEOUTS: DefaultTimeouts = {
     'query_timeout': 60 * 10,
 }
 
-
-def parse_http_endpoint(http_endpoint: str) -> Tuple[URL, Dict[str, List[str]]]:
+def parse_http_endpoint(http_endpoint: str) -> Tuple[RequestURL, Dict[str, List[str]]]:
     """ **INTERNAL**
 
     Parse the provided HTTP endpoint
@@ -91,12 +81,16 @@ def parse_http_endpoint(http_endpoint: str) -> Tuple[URL, Dict[str, List[str]]]:
     port = parsed_endpoint.port
     if parsed_endpoint.port is None:
         port = 80 if parsed_endpoint.scheme == 'http' else 443
-        
 
-    url = URL(scheme=parsed_endpoint.scheme,
-              host=host,
-              port=port,
-              target=parsed_endpoint.path or '/')
+    if port is None:
+        raise ValueError('The URL must have a port specified.')
+    
+    if not is_null_or_empty(parsed_endpoint.path):
+        raise ValueError('The SDK does not currently support HTTP endpoint paths.')
+
+    url = RequestURL(scheme=parsed_endpoint.scheme,
+                     host=host,
+                     port=port)
 
     return url, parse_qs(parsed_endpoint.query)
 
@@ -156,7 +150,7 @@ class _ConnectionDetails:
     """
     **INTERNAL**
     """
-    url: URL
+    url: RequestURL
     cluster_options: ClusterOptionsTransformedKwargs
     credential: Tuple[bytes, bytes]
     default_deserializer: Deserializer
@@ -179,13 +173,8 @@ class _ConnectionDetails:
                 return query_timeout
         return DEFAULT_TIMEOUTS['query_timeout']
 
-    def get_scheme_host_and_port(self) -> Tuple[str, str, int]:
-        if self.url.port is None:
-            raise ValueError('The URL must have a port specified.')
-        return self.url.scheme.decode(), self.url.host.decode(), self.url.port
-
     def is_secure(self) -> bool:
-        return self.url.scheme.decode() == 'https'
+        return self.url.scheme == 'https'
 
     def validate_security_options(self) -> None:
         security_opts: Optional[SecurityOptionsTransformedKwargs] = self.cluster_options.get('security_options')
@@ -194,7 +183,7 @@ class _ConnectionDetails:
             # separate between value options and boolean option (trust_only_capella)
             solo_security_opts = ['trust_only_pem_file', 'trust_only_pem_str', 'trust_only_certificates']
             trust_capella = security_opts.get('trust_only_capella', None)
-            security_opt_count = sum(map(lambda k: 1 if security_opts.get(k, None) is not None else 0, solo_security_opts))
+            security_opt_count = sum((1 if security_opts.get(opt, None) is not None else 0 for opt in solo_security_opts))  # noqa: E501
             if security_opt_count > 1 or (security_opt_count == 1 and trust_capella is True):
                 raise ValueError(('Can only set one of the following options: '
                                 f'[{", ".join(["trust_only_capella"] + solo_security_opts)}]'))
@@ -203,7 +192,7 @@ class _ConnectionDetails:
             return
         
         self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        self.sni_hostname = self.url.host.decode()
+        self.sni_hostname = self.url.host
 
         if security_opts is None:
             self.ssl_context.set_default_verify_paths()
@@ -221,6 +210,15 @@ class _ConnectionDetails:
         elif (certificates := security_opts.get('trust_only_certificates', None)) is not None:
             self.ssl_context.load_verify_locations(cadata='\n'.join(certificates))
             security_opts['trust_only_capella'] = False
+
+        if security_opts is not None and security_opts.get('disable_server_certificate_verification', False):
+            # TODO: log warning
+            print('Warning: Server certificate verification is disabled. This is not recommended for production use.')
+            self.ssl_context.check_hostname = False
+            self.ssl_context.verify_mode = ssl.CERT_NONE
+        else:
+            self.ssl_context.check_hostname = True
+            self.ssl_context.verify_mode = ssl.CERT_REQUIRED
             
 
     @classmethod

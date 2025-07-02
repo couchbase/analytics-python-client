@@ -18,13 +18,7 @@ from __future__ import annotations
 from datetime import timedelta
 from enum import Enum
 from os import path
-from typing import (Any,
-                    Dict,
-                    Generic,
-                    List,
-                    Optional,
-                    TypeVar,
-                    Union)
+from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 
 from couchbase_analytics.common.deserializer import Deserializer
 
@@ -33,7 +27,7 @@ E = TypeVar('E', bound=Enum)
 
 
 def is_null_or_empty(value: Optional[str]) -> bool:
-    return value is None or value.isspace()
+    return not value or value.isspace()
 
 
 def timedelta_as_seconds(duration: timedelta) -> int:
@@ -80,7 +74,7 @@ def to_seconds(value: Union[timedelta, float, int]) -> float:
 def validate_raw_dict(value: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("Raw option must be of type Dict[str, Any].")
-    if not all(map(lambda k: isinstance(k, str), value.keys())):
+    if not all((isinstance(k, str) for k in value.keys())):
         raise ValueError("All keys in raw dict must be a str.")
     return value
 
@@ -112,7 +106,7 @@ class EnumToStr(Generic[E]):
         expected_type = self.__orig_class__.__args__[0]  # type: ignore[attr-defined]
 
         if isinstance(value, str):
-            if value in map(lambda x: x.value, expected_type):
+            if value in (x.value for x in expected_type):
                 # TODO: use warning -- maybe don't want to allow str representation?
                 return value
             raise ValueError(f"Invalid str representation of {expected_type}. Received '{value}'.")
@@ -136,8 +130,8 @@ class ValidateList(Generic[T]):
         expected_type = self.__orig_class__.__args__[0]  # type: ignore[attr-defined]
         if not isinstance(value, list):
             raise ValueError("Expected value to be a list.")
-        if not all(map(lambda x: isinstance(x, expected_type), value)):
-            item_types = list(map(lambda x: type(x), value))
+        if not all((isinstance(v, expected_type) for v in value)):
+            item_types = [type(x) for x in value]
             raise ValueError(("Expected all items in list to be of type "
                               f"{expected_type}. Provided item types {item_types}."))
         # we are returning List[T]

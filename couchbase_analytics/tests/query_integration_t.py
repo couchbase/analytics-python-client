@@ -17,12 +17,8 @@ from __future__ import annotations
 
 import json
 from concurrent.futures import CancelledError, Future
-from enum import Enum
 from datetime import timedelta
-from typing import (TYPE_CHECKING,
-                    Any,
-                    Dict,
-                    Optional)
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import pytest
 
@@ -30,18 +26,12 @@ from couchbase_analytics.common.streaming import StreamingState
 from couchbase_analytics.deserializer import PassthroughDeserializer
 from couchbase_analytics.errors import QueryError, TimeoutError
 from couchbase_analytics.options import QueryOptions
-from couchbase_analytics.query import  QueryScanConsistency
+from couchbase_analytics.query import QueryScanConsistency
 from couchbase_analytics.result import BlockingQueryResult
-from tests import YieldFixture
+from tests import SyncQueryType, YieldFixture
 
 if TYPE_CHECKING:
     from tests.environments.base_environment import BlockingTestEnvironment
-
-
-class SyncQueryType(Enum):
-    NORMAL = 'normal'
-    LAZY = 'lazy'
-    CANCELLABLE = 'cancellable'
 
 
 class QueryTestSuite:
@@ -126,8 +116,10 @@ class QueryTestSuite:
             for row in res.rows():
                 rows.append(row)
 
-            with pytest.raises(CancelledError):
+            with pytest.raises(RuntimeError):
                 res.metadata()
+
+            test_env.assert_streaming_response_state(res)
 
     @pytest.mark.parametrize('cancel_via_future', [False, True])
     def test_cancel_prior_iterating_positional_params(self,
@@ -159,8 +151,10 @@ class QueryTestSuite:
             for row in res.rows():
                 rows.append(row)
 
-            with pytest.raises(CancelledError):
+            with pytest.raises(RuntimeError):
                 res.metadata()
+
+            test_env.assert_streaming_response_state(res)
 
     @pytest.mark.parametrize('cancel_via_future', [False, True])
     def test_cancel_prior_iterating_with_kwargs(self,
@@ -192,8 +186,10 @@ class QueryTestSuite:
             for row in res.rows():
                 rows.append(row)
 
-            with pytest.raises(CancelledError):
+            with pytest.raises(RuntimeError):
                 res.metadata()
+            
+            test_env.assert_streaming_response_state(res)
 
     @pytest.mark.parametrize('cancel_via_future', [False, True])
     def test_cancel_prior_iterating_with_options(self,
@@ -225,8 +221,9 @@ class QueryTestSuite:
             for row in res.rows():
                 rows.append(row)
 
-            with pytest.raises(CancelledError):
+            with pytest.raises(RuntimeError):
                 res.metadata()
+            test_env.assert_streaming_response_state(res)
 
     @pytest.mark.parametrize('cancel_via_future', [False, True])
     def test_cancel_prior_iterating_with_opts_and_kwargs(self,
@@ -259,8 +256,9 @@ class QueryTestSuite:
             for row in res.rows():
                 rows.append(row)
 
-            with pytest.raises(CancelledError):
+            with pytest.raises(RuntimeError):
                 res.metadata()
+            test_env.assert_streaming_response_state(res)
 
     @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_cancel_while_iterating(self,
@@ -278,7 +276,10 @@ class QueryTestSuite:
             result = res.result()
 
         assert isinstance(result, BlockingQueryResult)
-        expected_state = StreamingState.StreamingResults if query_type != SyncQueryType.LAZY else StreamingState.NotStarted
+        if query_type != SyncQueryType.LAZY:
+            expected_state = StreamingState.StreamingResults
+        else:
+            expected_state = StreamingState.NotStarted
         assert result._http_response._request_context.request_state == expected_state
         rows = []
         count = 0
@@ -292,8 +293,9 @@ class QueryTestSuite:
         assert len(rows) == count
         expected_state = StreamingState.Cancelled
         assert result._http_response._request_context.request_state == expected_state
-        with pytest.raises(CancelledError):
+        with pytest.raises(RuntimeError):
             result.metadata()
+        test_env.assert_streaming_response_state(result)
 
     def test_query_cannot_set_both_cancel_and_lazy_execution(self, test_env: BlockingTestEnvironment) -> None:
         statement = 'SELECT 1=1'
@@ -332,6 +334,7 @@ class QueryTestSuite:
         assert metrics.processed_objects() > 0
         assert metrics.elapsed_time() > timedelta(0)
         assert metrics.execution_time() > timedelta(0)
+        test_env.assert_streaming_response_state(result)
 
     @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_metadata_not_available(self,
@@ -370,6 +373,7 @@ class QueryTestSuite:
         metadata = result.metadata()
         assert len(metadata.warnings()) == 0
         assert len(metadata.request_id()) > 0
+        test_env.assert_streaming_response_state(result)
 
     @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_named_parameters(self,
@@ -392,6 +396,7 @@ class QueryTestSuite:
             assert isinstance(res, Future)
             result = res.result()
         test_env.assert_rows(result, 2)
+        test_env.assert_streaming_response_state(result)
 
     @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_named_parameters_no_options(self,
@@ -414,6 +419,7 @@ class QueryTestSuite:
             assert isinstance(res, Future)
             result = res.result()
         test_env.assert_rows(result, 2)
+        test_env.assert_streaming_response_state(result)
 
     @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_named_parameters_override(self,
@@ -438,6 +444,7 @@ class QueryTestSuite:
             assert isinstance(res, Future)
             result = res.result()
         test_env.assert_rows(result, 2)
+        test_env.assert_streaming_response_state(result)
 
     @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_passthrough_deserializer(self,
@@ -463,6 +470,7 @@ class QueryTestSuite:
         for idx, row in enumerate(result.rows()):
             assert isinstance(row, bytes)
             assert json.loads(row) == {'num': idx}
+        test_env.assert_streaming_response_state(result)
 
     @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_positional_params(self,
@@ -483,6 +491,7 @@ class QueryTestSuite:
             assert isinstance(res, Future)
             result = res.result()
         test_env.assert_rows(result, 2)
+        test_env.assert_streaming_response_state(result)
 
     @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_positional_params_no_option(self,
@@ -505,6 +514,7 @@ class QueryTestSuite:
             assert isinstance(res, Future)
             result = res.result()
         test_env.assert_rows(result, 2)
+        test_env.assert_streaming_response_state(result)
 
     @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_positional_params_override(self,
@@ -529,6 +539,7 @@ class QueryTestSuite:
             assert isinstance(res, Future)
             result = res.result()
         test_env.assert_rows(result, 2)
+        test_env.assert_streaming_response_state(result)
 
     # We test lazy execution in a separate test
     @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.CANCELLABLE])
@@ -536,7 +547,6 @@ class QueryTestSuite:
                                                        test_env: BlockingTestEnvironment,
                                                        query_type: SyncQueryType) -> None:
         statement = "I'm not N1QL!"
-
         if query_type == SyncQueryType.NORMAL:
             with pytest.raises(QueryError):
                 test_env.cluster_or_scope.execute_query(statement)
@@ -594,6 +604,7 @@ class QueryTestSuite:
             assert isinstance(res, Future)
             result = res.result()
         test_env.assert_rows(result, 2)
+        test_env.assert_streaming_response_state(result)
 
     @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_timeout(self, test_env: BlockingTestEnvironment, query_type: SyncQueryType) -> None:
@@ -638,6 +649,7 @@ class QueryTestSuite:
         with pytest.raises(TimeoutError):
             for _ in result.rows():
                 pass
+        test_env.assert_streaming_response_state(result)
 
 
     @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
@@ -655,6 +667,7 @@ class QueryTestSuite:
             assert isinstance(res, Future)
             result = res.result()
         test_env.assert_rows(result, 2)
+        test_env.assert_streaming_response_state(result)
 
     def test_query_with_lazy_execution(self,
                                        test_env: BlockingTestEnvironment,
@@ -670,6 +683,7 @@ class QueryTestSuite:
             assert row is not None
             count += 1
         assert count == 2
+        test_env.assert_streaming_response_state(result)
 
     def test_query_with_lazy_execution_raises_exception(self, test_env: BlockingTestEnvironment) -> None:
         statement = "I'm not N1QL!"
@@ -677,7 +691,8 @@ class QueryTestSuite:
         expected_state = StreamingState.NotStarted
         assert result._http_response._request_context.request_state == expected_state
         with pytest.raises(QueryError):
-            [r for r in result.rows()]
+            list(result.rows())
+        test_env.assert_streaming_response_state(result)
 
 
 class ClusterQueryTests(QueryTestSuite):

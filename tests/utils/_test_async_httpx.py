@@ -1,24 +1,15 @@
 import typing
 
-from httpx import AsyncHTTPTransport, create_ssl_context, Limits
-from httpcore import (AsyncConnectionPool,
-                      Origin,
-                      Request,
-                      Response)
-from httpcore._async.connection import (AsyncHTTPConnection,
-                                        exponential_backoff,
-                                        RETRIES_BACKOFF_FACTOR,
-                                        logger)
+from httpcore import AsyncConnectionPool, Origin, Request, Response
+from httpcore._async.connection import RETRIES_BACKOFF_FACTOR, AsyncHTTPConnection, exponential_backoff, logger
 from httpcore._async.connection_pool import AsyncPoolRequest, PoolByteStream
 from httpcore._async.interfaces import AsyncConnectionInterface
 from httpcore._backends.base import AsyncNetworkStream
-from httpcore._exceptions import (ConnectError,
-                                  ConnectionNotAvailable,
-                                  ConnectTimeout,
-                                  UnsupportedProtocol)
-
+from httpcore._exceptions import ConnectError, ConnectionNotAvailable, ConnectTimeout, UnsupportedProtocol
 from httpcore._ssl import default_ssl_context
 from httpcore._trace import Trace
+from httpx import AsyncHTTPTransport, Limits, create_ssl_context
+
 
 class TestAsyncHTTPConnection(AsyncHTTPConnection):
     def __init__(self, *args, **kwargs) -> None:  # type: ignore
@@ -234,7 +225,7 @@ def async_http_transport_init_override(self, *args, **kwargs) -> None:  # type: 
     http2 = kwargs.get('http2')
     uds = kwargs.get('uds')
     local_address = kwargs.get('local_address')
-    retries = kwargs.get('retries')
+    retries = kwargs.get('retries', 0)
     socket_options = kwargs.get('socket_options')
     self._pool = TestAsyncConnectionPool(
         ssl_context=ssl_context,

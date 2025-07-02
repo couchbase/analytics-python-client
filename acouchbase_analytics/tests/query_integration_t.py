@@ -84,9 +84,11 @@ class QueryTestSuite:
             return f'SELECT * FROM {test_env.fqdn} LIMIT 5;'
 
     async def test_query_cancel_prior_iterating(self, test_env: AsyncTestEnvironment) -> None:
-        statement = 'FROM range(0, 100000) AS r SELECT *'
+        # simulate query that takes time to return
+        statement = 'SELECT sleep("some value", 10000) AS some_field;'
         qtask = test_env.cluster_or_scope.execute_query(statement)
         assert isinstance(qtask, Task)
+        await test_env.sleep(1)
         qtask.cancel()
         with pytest.raises(CancelledError):
             await qtask
@@ -112,8 +114,9 @@ class QueryTestSuite:
         assert len(rows) == count
         expected_state = StreamingState.Cancelled
         assert res._http_response._request_context.request_state == expected_state
-        with pytest.raises(CancelledError):
+        with pytest.raises(RuntimeError):
             res.metadata()
+        test_env.assert_streaming_response_state(res)
 
     async def test_query_cancel_while_iterating(self,
                                                 test_env: AsyncTestEnvironment,
@@ -136,10 +139,11 @@ class QueryTestSuite:
         assert len(rows) == count
         expected_state = StreamingState.Cancelled
         assert res._http_response._request_context.request_state == expected_state
-        with pytest.raises(CancelledError):
+        with pytest.raises(RuntimeError):
             res.metadata()
         # if we don't cancel via the async path, we want to ensure the stream/response is shutdown appropriately
         await res.shutdown()
+        test_env.assert_streaming_response_state(res)
 
     async def test_query_metadata(self,
                                   test_env: AsyncTestEnvironment,
@@ -160,6 +164,7 @@ class QueryTestSuite:
         assert metrics.processed_objects() > 0
         assert metrics.elapsed_time() > timedelta(0)
         assert metrics.execution_time() > timedelta(0)
+        test_env.assert_streaming_response_state(result)
 
     async def test_query_metadata_not_available(self,
                                                 test_env: AsyncTestEnvironment,
@@ -185,6 +190,7 @@ class QueryTestSuite:
         metadata = result.metadata()
         assert len(metadata.warnings()) == 0
         assert len(metadata.request_id()) > 0
+        test_env.assert_streaming_response_state(result)
 
     async def test_query_named_parameters(self,
                                           test_env: AsyncTestEnvironment,
@@ -192,6 +198,7 @@ class QueryTestSuite:
         q_opts = QueryOptions(named_parameters={'country': 'United States'})
         result = await test_env.cluster_or_scope.execute_query(query_statement_named_params_limit2, q_opts)
         await test_env.assert_rows(result, 2)
+        test_env.assert_streaming_response_state(result)
 
     async def test_query_named_parameters_no_options(self,
                                                      test_env: AsyncTestEnvironment,
@@ -199,6 +206,7 @@ class QueryTestSuite:
         result = await test_env.cluster_or_scope.execute_query(query_statement_named_params_limit2,
                                                                country='United States')
         await test_env.assert_rows(result, 2)
+        test_env.assert_streaming_response_state(result)
 
     async def test_query_named_parameters_override(self,
                                                    test_env: AsyncTestEnvironment,
@@ -208,6 +216,7 @@ class QueryTestSuite:
                                                                q_opts,
                                                                country='United States')
         await test_env.assert_rows(result, 2)
+        test_env.assert_streaming_response_state(result)
 
     async def test_query_passthrough_deserializer(self, test_env: AsyncTestEnvironment) -> None:
         statement = 'FROM range(0, 10) AS num SELECT *'
@@ -218,6 +227,7 @@ class QueryTestSuite:
             assert isinstance(row, bytes)
             assert json.loads(row) == {'num': idx}
             idx += 1
+        test_env.assert_streaming_response_state(result)
 
     async def test_query_positional_params(self,
                                            test_env: AsyncTestEnvironment,
@@ -225,12 +235,14 @@ class QueryTestSuite:
         q_opts = QueryOptions(positional_parameters=['United States'])
         result = await test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2, q_opts)
         await test_env.assert_rows(result, 2)
+        test_env.assert_streaming_response_state(result)
 
     async def test_query_positional_params_no_option(self,
                                                      test_env: AsyncTestEnvironment,
                                                      query_statement_pos_params_limit2: str) -> None:
         result = await test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2, 'United States')
         await test_env.assert_rows(result, 2)
+        test_env.assert_streaming_response_state(result)
 
     async def test_query_positional_params_override(self,
                                                     test_env: AsyncTestEnvironment,
@@ -240,6 +252,7 @@ class QueryTestSuite:
                                                                q_opts,
                                                                'United States')
         await test_env.assert_rows(result, 2)
+        test_env.assert_streaming_response_state(result)
 
     async def test_query_raises_exception_prior_to_iterating(self, test_env: AsyncTestEnvironment) -> None:
         statement = "I'm not N1QL!"
@@ -265,6 +278,7 @@ class QueryTestSuite:
         result = await test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2,
                                                                QueryOptions(raw={'args': ['United States']}))
         await test_env.assert_rows(result, 2)
+        test_env.assert_streaming_response_state(result)
 
     async def test_query_timeout(self, test_env: AsyncTestEnvironment) -> None:
         statement = 'SELECT sleep("some value", 10000) AS some_field;'
@@ -283,12 +297,14 @@ class QueryTestSuite:
         with pytest.raises(TimeoutError):
             async for _ in result.rows():
                 pass
+        test_env.assert_streaming_response_state(result)
 
     async def test_simple_query(self,
                                 test_env: AsyncTestEnvironment,
                                 query_statement_limit2: str) -> None:
         result = await test_env.cluster_or_scope.execute_query(query_statement_limit2)
         await test_env.assert_rows(result, 2)
+        test_env.assert_streaming_response_state(result)
 
 class ClusterQueryTests(QueryTestSuite):
 

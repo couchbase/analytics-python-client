@@ -15,9 +15,7 @@
 
 from __future__ import annotations
 
-from typing import (Dict,
-                    Optional,
-                    Union)
+from typing import Dict, Optional, Union
 
 """
 
@@ -31,19 +29,27 @@ class AnalyticsError(Exception):
     Generic base error.  Analytics specific errors inherit from this base error.
     """
 
-    def __init__(self, cause: Optional[Union[BaseException, Exception]] = None, message: Optional[str] = None) -> None:
+    def __init__(self,
+                 cause: Optional[Union[BaseException, Exception]] = None,
+                 message: Optional[str] = None,
+                 context: Optional[str] = None) -> None:
         self._cause = cause
         self._message = message
+        self._context = context
         super().__init__(message)
 
-    def __repr__(self) -> str:
+    def _err_details(self) -> Dict[str, str]:
         details: Dict[str, str] = {}
+        if self._context is not None:
+            details['context'] = self._context
         if self._cause is not None:
             details['cause'] = self._cause.__repr__()
-
         if self._message is not None and not self._message.isspace():
             details['message'] = self._message
+        return details
 
+    def __repr__(self) -> str:
+        details = self._err_details()
         if details:
             return f'{type(self).__name__}({details})'
         return f'{type(self).__name__}()'
@@ -57,21 +63,17 @@ class InvalidCredentialError(AnalyticsError):
     Indicates that an error occurred authenticating the user to the cluster.
     """
 
-    def __init__(self, context: str, cause: Optional[Union[BaseException, Exception]] = None, message: Optional[str] = None) -> None:
-        super().__init__(cause=cause, message=message)
-        self._context = context
+    def __init__(self,
+                 cause: Optional[Union[BaseException, Exception]] = None,
+                 context: Optional[str] = None,
+                 message: Optional[str] = None) -> None:
+        super().__init__(cause=cause, context=context, message=message)
 
     def __repr__(self) -> str:
-        details: Dict[str, str] = {
-            'context': self._context
-        }
-        if self._cause is not None:
-            details['cause'] = self._cause.__repr__()
-
-        if self._message is not None and not self._message.isspace():
-            details['message'] = self._message
-
-        return f'{type(self).__name__}({details})'
+        details = self._err_details()
+        if details:
+            return f'{type(self).__name__}({details})'
+        return f'{type(self).__name__}()'
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -87,10 +89,9 @@ class QueryError(AnalyticsError):
                  server_message: str,
                  context: str,
                  message: Optional[str] = None) -> None:
-        super().__init__(message=message)
+        super().__init__(message=message, context=context)
         self._code = code
         self._server_message = server_message
-        self._context = context
 
     @property
     def code(self) -> int:
@@ -112,7 +113,7 @@ class QueryError(AnalyticsError):
         details: Dict[str, str] = {
             'code': str(self._code),
             'server_message': self._server_message,
-            'context': self._context
+            'context': self._context or ''
         }
         return f"{type(self).__name__}({details})"
 
@@ -125,11 +126,17 @@ class TimeoutError(AnalyticsError):
     Indicates that a request was unable to complete prior to reaching the deadline specified for the reqest.
     """
 
-    def __init__(self, cause: Optional[Union[BaseException, Exception]] = None, message: Optional[str] = None) -> None:
-        super().__init__(cause, message)
+    def __init__(self,
+                 cause: Optional[Union[BaseException, Exception]] = None,
+                 context: Optional[str] = None,
+                 message: Optional[str] = None) -> None:
+        super().__init__(cause=cause, context=context, message=message)
 
     def __repr__(self) -> str:
-        return super().__repr__()
+        details = self._err_details()
+        if details:
+            return f'{type(self).__name__}({details})'
+        return f'{type(self).__name__}()'
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -153,20 +160,26 @@ class InternalSDKError(Exception):
     (this doesn't mean *you* didn't do anything wrong, it does mean you should not be seeing this message)
     """
 
-    def __repr__(self) -> str:
-        return f"{type(self).__name__}({super().__repr__()})"
-
-    def __str__(self) -> str:
-        return self.__repr__()
-
-
-class QueryOperationCanceledError(Exception):
-    """
-    **INTERNAL**
-    """
+    def __init__(self,
+                 cause: Optional[Union[BaseException, Exception]] = None,
+                 context: Optional[str] = None,
+                 message: Optional[str] = None) -> None:
+        self._cause = cause
+        self._message = message
+        self._context = context
+        super().__init__(message)
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({super().__repr__()})"
+        details: Dict[str, str] = {}
+        if self._context is not None:
+            details['context'] = self._context
+        if self._cause is not None:
+            details['cause'] = self._cause.__repr__()
+        if self._message is not None and not self._message.isspace():
+            details['message'] = self._message
+        if details:
+            return f'{type(self).__name__}({details})'
+        return f'{type(self).__name__}()'
 
     def __str__(self) -> str:
         return self.__repr__()

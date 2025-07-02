@@ -1,12 +1,11 @@
 import socket
-
 from typing import Dict
 
-from httpx import Response
+from httpx import URL, Response
 
-from couchbase_analytics.protocol.core.client_adapter import _ClientAdapter
-from couchbase_analytics.protocol.core.request import QueryRequest
-    
+from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter
+from couchbase_analytics.protocol._core.request import QueryRequest
+
 
 def client_adapter_init_override(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
     if not hasattr(self, 'PYCBAC_TESTING'):
@@ -43,8 +42,8 @@ def send_request_override(self: _ClientAdapter, request: QueryRequest) -> Respon
     if not hasattr(self, '_client'):
         raise RuntimeError('Client not created yet')
     
-    if request.url is None:
-        raise ValueError('Request URL cannot be None')
+    # if request.url is None:
+    #     raise ValueError('Request URL cannot be None')
 
     print(f'Sending request: {request.method} {request.url}')
     request_json = request.body
@@ -61,14 +60,19 @@ def send_request_override(self: _ClientAdapter, request: QueryRequest) -> Respon
 
     print(f'{request_extensions=}')
 
+    url = URL(scheme=request.url.scheme,
+                host=request.url.host,
+                port=request.url.port,
+                path=request.url.path)
     req = self._client.build_request(request.method,
-                                     request.url,
+                                     url,
                                      json=request_json,
                                      extensions=request_extensions)
     try:
         return self._client.send(req, stream=True)
     except socket.gaierror as err:
-        raise RuntimeError(f'Unable to connect to {self._conn_details.get_scheme_host_and_port()}') from err
+        req_url = self._conn_details.url.get_formatted_url()
+        raise RuntimeError(f'Unable to connect to {req_url}') from err
     
 def set_request_path(self: _ClientAdapter, path: str) -> None:
     self._ANALYTICS_PATH = path
@@ -79,14 +83,15 @@ def update_request_json(self: _ClientAdapter, json: Dict[str, object]) -> None:
 def update_request_extensions(self: _ClientAdapter, extensions: Dict[str, str]) -> None:
     self._request_extensions = extensions  # type: ignore[attr-defined]
 
-_ClientAdapter.__init__ = client_adapter_init_override  # type: ignore[method-assign]
-# _ClientAdapter.create_client = create_client_override
-_ClientAdapter.send_request = send_request_override  # type: ignore[method-assign]
-setattr(_ClientAdapter, 'set_request_path', set_request_path)
-setattr(_ClientAdapter, 'update_request_json', update_request_json)
-setattr(_ClientAdapter, 'update_request_extensions', update_request_extensions)
-setattr(_ClientAdapter, 'PYCBAC_TESTING', True)
+class _TestClientAdapter(_ClientAdapter):
+    pass
 
-_TestClientAdapter = _ClientAdapter
+_TestClientAdapter.__init__ = client_adapter_init_override  # type: ignore[method-assign]
+# _TestClientAdapter.create_client = create_client_override
+_TestClientAdapter.send_request = send_request_override  # type: ignore[method-assign]
+setattr(_TestClientAdapter, 'set_request_path', set_request_path)
+setattr(_TestClientAdapter, 'update_request_json', update_request_json)
+setattr(_TestClientAdapter, 'update_request_extensions', update_request_extensions)
+setattr(_TestClientAdapter, 'PYCBAC_TESTING', True)
 
 __all__ = ["_TestClientAdapter"]

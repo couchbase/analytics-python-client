@@ -17,11 +17,7 @@ from __future__ import annotations
 
 import sys
 from abc import ABC, abstractmethod
-from typing import (Any,
-                    Coroutine,
-                    List,
-                    Optional,
-                    Union)
+from typing import Any, Coroutine, List, Optional, Union
 
 if sys.version_info < (3, 9):
     from typing import AsyncIterator as PyAsyncIterator

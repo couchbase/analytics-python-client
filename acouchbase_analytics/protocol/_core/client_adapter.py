@@ -16,23 +16,21 @@
 from __future__ import annotations
 
 import socket
-
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from uuid import uuid4
 
-from httpx import BasicAuth, Client, Response
+from httpx import URL, AsyncClient, BasicAuth, Response
 
 from couchbase_analytics.common.credential import Credential
 from couchbase_analytics.common.deserializer import Deserializer
 from couchbase_analytics.protocol.connection import _ConnectionDetails
 from couchbase_analytics.protocol.options import OptionsBuilder
-# from couchbase_analytics.protocol.core._http_transport import AnalyticsHTTPTransport
 
 if TYPE_CHECKING:
-    from couchbase_analytics.protocol.core.request import QueryRequest
+    from couchbase_analytics.protocol._core.request import QueryRequest
 
 
-class _ClientAdapter:
+class _AsyncClientAdapter:
     """
         **INTERNAL**
     """
@@ -46,15 +44,13 @@ class _ClientAdapter:
                  **kwargs: object) -> None:
         self._client_id = str(uuid4())
         self._opts_builder = OptionsBuilder()
-        # TODO:  We should limit the allowed transports to the ones we support
-        #        Question is how do we want to limit the transports?  Should users even need to override?
-        # self._http_transport_cls = kwargs.pop('http_transport_cls', AnalyticsHTTPTransport)
-        self._http_transport_cls = None
         self._conn_details = _ConnectionDetails.create(self._opts_builder,
                                                        http_endpoint,
                                                        credential,
                                                        options,
                                                        **kwargs)
+        # TODO:  do we want to support custom HTTP transports for the async client?
+        self._http_transport_cls = None
 
     @property
     def analytics_path(self) -> str:
@@ -64,7 +60,7 @@ class _ClientAdapter:
         return self._ANALYTICS_PATH 
     
     @property
-    def client(self) -> Client:
+    def client(self) -> AsyncClient:
         """
             **INTERNAL**
         """
@@ -105,54 +101,59 @@ class _ClientAdapter:
         """
         return self._opts_builder
 
-
-    def close_client(self) -> None:
+    async def close_client(self) -> None:
         """
             **INTERNAL**
         """
         if hasattr(self, '_client'):
-            self._client.close()
+            await self._client.aclose()
 
-    def create_client(self) -> None:
+    async def create_client(self) -> None:
         """
             **INTERNAL**
         """
         if not hasattr(self, '_client'):
-            auth = BasicAuth(*self._conn_details.credential)
             if self._conn_details.is_secure():
                 if self._conn_details.ssl_context is None:
                     raise ValueError('SSL context is required for secure connections.')
                 transport = None
                 if self._http_transport_cls is not None:
                     transport = self._http_transport_cls(verify=self._conn_details.ssl_context)
-                self._client = Client(verify=self._conn_details.ssl_context,
-                                      auth=auth,
-                                      transport=transport)
+                self._client = AsyncClient(verify=self._conn_details.ssl_context,
+                                           auth=BasicAuth(*self._conn_details.credential),
+                                           transport=transport)
             else:
                 transport = None
                 if self._http_transport_cls is not None:
                     transport = self._http_transport_cls()
-                self._client = Client(auth=auth, transport=transport)
+                self._client = AsyncClient(auth=BasicAuth(*self._conn_details.credential),
+                                           transport=transport)
+            # TODO: log message
 
 
-    def send_request(self, request: QueryRequest) -> Response:
+    async def send_request(self, request: QueryRequest) -> Response:
         """
             **INTERNAL**
         """
         if not hasattr(self, '_client'):
             raise RuntimeError('Client not created yet')
         
-        if request.url is None:
-            raise ValueError('Request URL cannot be None')
-        
+        # if request.url is None:
+        #     raise ValueError('Request URL cannot be None')
+
+        url = URL(scheme=request.url.scheme,
+                  host=request.url.host,
+                  port=request.url.port,
+                  path=request.url.path,)
         req = self._client.build_request(request.method,
-                                         request.url,
+                                         url,
                                          json=request.body,
                                          extensions=request.extensions)
         try:
-            return self._client.send(req, stream=True)
+            return await self._client.send(req, stream=True)
         except socket.gaierror as err:
-            raise RuntimeError(f'Unable to connect to {self._conn_details.get_scheme_host_and_port()}') from err
+            req_url = self._conn_details.url.get_formatted_url()
+            raise RuntimeError(f'Unable to connect to {req_url}') from err
 
     def reset_client(self) -> None:
         """

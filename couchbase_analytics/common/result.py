@@ -15,15 +15,11 @@
 
 from __future__ import annotations
 
-from typing import (Any,
-                    List,
-                    Optional,
-                    TYPE_CHECKING)
+from typing import TYPE_CHECKING, Any, List, Optional
 
-from couchbase_analytics.common.core.result import QueryResult as QueryResult
+from couchbase_analytics.common._core.result import QueryResult as QueryResult
 from couchbase_analytics.common.query import QueryMetadata
-from couchbase_analytics.common.streaming import (AsyncIterator,
-                                                  BlockingIterator)
+from couchbase_analytics.common.streaming import AsyncIterator, BlockingIterator
 
 if TYPE_CHECKING:
     from acouchbase_analytics.protocol.streaming import AsyncHttpStreamingResponse

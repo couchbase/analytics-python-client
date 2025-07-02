@@ -16,7 +16,7 @@
 import re
 from typing import Optional
 
-from couchbase_analytics.common.core.utils import is_null_or_empty
+from couchbase_analytics.common._core.utils import is_null_or_empty
 
 # TODO: Apparently Go does not allow a leading decimal point without a leading zero, e.g., ".5s" is invalid.
 #       We allowed this in the Columnar SDK due to how the C++ client parsed durations
@@ -76,12 +76,12 @@ def parse_duration_str(duration_str: str, in_millis: Optional[bool]=False) -> fl
             total_seconds += value * unit_multipliers[unit_str]
         except OverflowError as e:
             raise ValueError((f'Invalid duration. Overflow error while parsing number "{num_str}{unit_str}". '
-                              f'Error details: {e}'))
+                              f'Error details: {e}')) from None
         except ValueError as e:
             raise ValueError((f'Invalid duration. Parsing error while parsing number "{num_str}{unit_str}". '
-                              f'Error details: {e}'))
+                              f'Error details: {e}')) from None
         except KeyError:
-            raise ValueError(f'Invalid duration.  Unknown unit "{unit_str}"')
+            raise ValueError(f'Invalid duration.  Unknown unit "{unit_str}"') from None
         
     if in_millis:
         total_seconds *= 1e3

@@ -18,14 +18,7 @@ from __future__ import annotations
 
 import sys
 from datetime import timedelta
-from typing import (Any,
-                    Dict,
-                    Iterable,
-                    List,
-                    Literal,
-                    Optional,
-                    TypedDict,
-                    Union)
+from typing import Any, Dict, Iterable, List, Literal, Optional, TypedDict, Union
 
 if sys.version_info < (3, 10):
     from typing_extensions import TypeAlias, Unpack
@@ -38,7 +31,7 @@ else:
         from typing import TypeAlias, Unpack
 
 from couchbase_analytics.common import JSONType
-from couchbase_analytics.common.core import JsonStreamConfig 
+from couchbase_analytics.common._core import JsonStreamConfig
 from couchbase_analytics.common.deserializer import Deserializer
 from couchbase_analytics.common.enums import QueryScanConsistency
 

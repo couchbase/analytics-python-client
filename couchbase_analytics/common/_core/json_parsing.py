@@ -17,7 +17,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Optional, NamedTuple
+from typing import NamedTuple, Optional
+
 
 class JsonParsingError(Exception):
     def __init__(self, cause: Optional[Exception]=None) -> None:

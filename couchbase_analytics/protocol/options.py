@@ -16,38 +16,34 @@
 from __future__ import annotations
 
 from copy import copy
-from typing import (Any,
-                    Callable,
-                    Dict,
-                    List,
-                    Literal,
-                    Optional,
-                    Tuple,
-                    TypedDict,
-                    TypeVar,
-                    Union)
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, TypedDict, TypeVar, Union
 
-from couchbase_analytics.common.core.utils import (VALIDATE_BOOL,
-                                                  VALIDATE_DESERIALIZER,
-                                                  VALIDATE_STR,
-                                                  VALIDATE_STR_LIST,
-                                                  EnumToStr,
-                                                  to_seconds,
-                                                  to_microseconds,
-                                                  validate_path,
-                                                  validate_raw_dict)
-from couchbase_analytics.common.core import JsonStreamConfig
+from couchbase_analytics.common._core import JsonStreamConfig
+from couchbase_analytics.common._core.utils import (
+    VALIDATE_BOOL,
+    VALIDATE_DESERIALIZER,
+    VALIDATE_STR,
+    VALIDATE_STR_LIST,
+    EnumToStr,
+    to_seconds,
+    validate_path,
+    validate_raw_dict,
+)
 from couchbase_analytics.common.deserializer import Deserializer
 from couchbase_analytics.common.enums import QueryScanConsistency
-from couchbase_analytics.common.options import (ClusterOptions,
-                                               OptionsClass,
-                                               QueryOptions,
-                                               SecurityOptions,
-                                               TimeoutOptions)
-from couchbase_analytics.common.options_base import (ClusterOptionsValidKeys,
-                                                     QueryOptionsValidKeys,
-                                                     SecurityOptionsValidKeys,
-                                                     TimeoutOptionsValidKeys)
+from couchbase_analytics.common.options import (
+    ClusterOptions,
+    OptionsClass,
+    QueryOptions,
+    SecurityOptions,
+    TimeoutOptions,
+)
+from couchbase_analytics.common.options_base import (
+    ClusterOptionsValidKeys,
+    QueryOptionsValidKeys,
+    SecurityOptionsValidKeys,
+    TimeoutOptionsValidKeys,
+)
 
 QUERY_CONSISTENCY_TO_STR = EnumToStr[QueryScanConsistency]()
 
@@ -186,14 +182,14 @@ class OptionsBuilder:
                           options_class: type[OptionsClass],
                           orig_kwargs: Dict[str, object],
                           options: Optional[object] = None) -> Dict[str, object]:
-        orig_kwargs = copy(orig_kwargs) if orig_kwargs else dict()
+        orig_kwargs = copy(orig_kwargs) if orig_kwargs else {}
         # set our options base dict()
         temp_options: Dict[str, object] = {}
         if options and isinstance(options, (options_class, dict)):
             # mypy cannot recognize that all our options classes are dicts
             temp_options = options_class(**options)  # type: ignore[arg-type]
         else:
-            temp_options = dict()
+            temp_options = {}
         temp_options.update(orig_kwargs)
 
         return temp_options

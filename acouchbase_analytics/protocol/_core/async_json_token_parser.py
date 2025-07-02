@@ -15,18 +15,17 @@
 
 from __future__ import annotations
 
-from typing import (Any,
-                    Callable,
-                    Coroutine,
-                    List,
-                    Optional)
+from typing import Any, Callable, Coroutine, List, Optional
 
-from couchbase_analytics.common.core.json_token_parser_base import (JsonTokenParserBase,
-                                                                    ParsingState,
-                                                                    TokenType,
-                                                                    POP_EVENTS,
-                                                                    START_EVENTS,
-                                                                    VALUE_TOKENS,)
+from couchbase_analytics.common._core.json_token_parser_base import (
+    POP_EVENTS,
+    START_EVENTS,
+    VALUE_TOKENS,
+    JsonTokenParserBase,
+    ParsingState,
+    TokenType,
+)
+
 
 class AsyncJsonTokenParser(JsonTokenParserBase):
     def __init__(self,
@@ -37,7 +36,7 @@ class AsyncJsonTokenParser(JsonTokenParserBase):
     async def _handle_obj_emit(self, obj: str) -> bool:
         if (self._emit_results_enabled
             and self._results_handler is not None
-            and self._state == ParsingState.PROCESSING_RESULTS):
+            and ParsingState.okay_to_emit(self._state, self._previous_state)):
             await self._results_handler(bytes(obj, 'utf-8'))
             return True
         return False
@@ -54,13 +53,16 @@ class AsyncJsonTokenParser(JsonTokenParserBase):
                     obj = f'[{",".join(reversed(obj_pairs))}]'
                 else:
                     obj = f'{{{",".join(reversed(obj_pairs))}}}'
-                object_emitted = await self._handle_obj_emit(obj)
-                if should_emit and object_emitted:
-                    break # this means we emiited the result/error, so stop processing the stack
+            
+                if should_emit:
+                    object_emitted = await self._handle_obj_emit(obj)
+                    if object_emitted:
+                        break # this means we emiited the result/error, so stop processing the stack
 
                 if len(self._stack) > 0 and self._stack[-1].type == TokenType.MAP_KEY:
                     map_key = self._pop()
-                    # If we are emitting rows and/or errors, we don't keep them in the stack and therefore don't need to return the results           
+                    # If we are emitting rows and/or errors, 
+                    # we don't keep them in the stack and therefore don't need to return the results           
                     if self._should_push_pair(next_token):
                         self._push(TokenType.PAIR, f'{map_key.value}:{obj}')
                 else:
@@ -75,7 +77,9 @@ class AsyncJsonTokenParser(JsonTokenParserBase):
     async def parse_token(self, token: str, value: str) -> None:
         token_type = TokenType.from_str(token)
         if token_type in VALUE_TOKENS:
-            self._handle_value_token(token_type, value)
+            val = self._handle_value_token(token_type, value)
+            if val is not None:
+                await self._handle_obj_emit(val)
         elif token_type == TokenType.MAP_KEY:
             self._handle_map_key_token(value)
         elif token_type in START_EVENTS:

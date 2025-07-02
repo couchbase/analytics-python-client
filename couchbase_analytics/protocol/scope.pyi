@@ -25,7 +25,7 @@ else:
 from couchbase_analytics import JSONType
 from couchbase_analytics.common.result import BlockingQueryResult
 from couchbase_analytics.options import QueryOptions, QueryOptionsKwargs
-from couchbase_analytics.protocol.core.client_adapter import _ClientAdapter
+from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter
 from couchbase_analytics.protocol.database import Database as Database
 
 class Scope:

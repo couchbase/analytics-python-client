@@ -17,29 +17,18 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
-
-from typing import (TYPE_CHECKING,
-                    Any,
-                    Callable,
-                    Coroutine,
-                    Dict,
-                    Optional,
-                    Set,
-                    Tuple,
-                    TypedDict,
-                    Union)
+from typing import TYPE_CHECKING, Any, Callable, Coroutine, Dict, Optional, Set, TypedDict, Union, cast
 from uuid import uuid4
 
 from couchbase_analytics.common.deserializer import Deserializer
 from couchbase_analytics.common.options import QueryOptions
+from couchbase_analytics.common.request import RequestURL
 from couchbase_analytics.protocol.options import QueryOptionsTransformedKwargs
 from couchbase_analytics.query import QueryScanConsistency
 
 if TYPE_CHECKING:
-    from httpx import Response as HttpCoreResponse
-
-    from acouchbase_analytics.protocol.core.client_adapter import _AsyncClientAdapter as AsyncClientAdapter
-    from couchbase_analytics.protocol.core.client_adapter import _ClientAdapter as BlockingClientAdapter
+    from acouchbase_analytics.protocol._core.client_adapter import _AsyncClientAdapter as AsyncClientAdapter
+    from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter as BlockingClientAdapter
 
 class RequestTimeoutExtensions(TypedDict, total=False):
     pool: Optional[float]  # Timeout for acquiring a connection from the pool
@@ -54,60 +43,45 @@ class RequestExtensions(TypedDict, total=False):
 
 @dataclass
 class QueryRequest:
-    scheme: str
-    host: str
-    port: int
+    url: RequestURL
     deserializer: Deserializer
     body: Dict[str, Union[str, object]]
     extensions: RequestExtensions
     method: str = 'POST'
-    url: Optional[str] = None
     
     options: Optional[QueryOptionsTransformedKwargs] = None
-    client_addr: Optional[Tuple[str, int]] = None
-    server_addr: Optional[Tuple[str, int]] = None
     previous_ips: Optional[Set[str]] = None
-    response_status_code: Optional[int] = None
     enable_cancel: Optional[bool] = None
 
-    def get_request_timeouts(self) -> Optional[RequestTimeoutExtensions]:
+    def add_trace_to_extensions(self, handler: Callable[[str, str],
+                                                        Union[None, Coroutine[Any, Any, None]]]) -> QueryRequest:
         """
         **INTERNAL**
-        Get the request timeouts from the extensions.
-        Returns:
-            Dict[str, int]: The request timeouts.
-        """
-        if self.extensions is None or 'timeout' not in self.extensions:
-            return {}
-        return self.extensions['timeout']
-
-    def set_client_server_addrs(self, response: HttpCoreResponse) -> None:
-        network_stream = response.extensions.get('network_stream', None)
-        # TODO: what if network_stream is None?
-        if network_stream is not None:
-            self.client_addr = network_stream.get_extra_info('client_addr')
-            self.server_addr = network_stream.get_extra_info('server_addr')
-        
-        self.response_status_code = response.status_code
-
-    def add_trace_to_extensions(self, handler: Callable[[str, str], Union[None, Coroutine[Any, Any, None]]]) -> QueryRequest:
-        """
-        **INTERNAL**
-        Update the extensions of the request.
-        Args:
-            new_extensions (Dict[str, str]): The new extension(s) to add.
         """
         if self.extensions is None:
             self.extensions = {}
         self.extensions['trace'] = handler
         return self
 
+    def get_request_statement(self) -> Optional[str]:
+        """
+        **INTERNAL**
+        """
+        if 'statement' in self.body:
+            return cast(str, self.body['statement'])
+        return None
+
+    def get_request_timeouts(self) -> Optional[RequestTimeoutExtensions]:
+        """
+        **INTERNAL**
+        """
+        if self.extensions is None or 'timeout' not in self.extensions:
+            return {}
+        return self.extensions['timeout']
+
     def update_previous_ips(self, ip: str) -> QueryRequest:
         """
         **INTERNAL**
-        Update the previous IPs of the request.
-        Args:
-            ip (str): The new IP to add to the previous IPs.
         """
         if self.previous_ips is None:
             self.previous_ips = set()
@@ -117,11 +91,9 @@ class QueryRequest:
     def update_url(self, ip: str, path: str) -> QueryRequest:
         """
         **INTERNAL**
-        Update the URL of the request.
-        Args:
-            new_url (str): The new URL to set.
         """
-        self.url = f'{self.scheme}://{ip}:{self.port}{path}'
+        self.url.host = ip
+        self.url.path = path
         return self
 
 
@@ -221,7 +193,7 @@ class _RequestBuilder:
                 for k, v in opt_val.items():  # type: ignore[attr-defined]
                     body[k] = v
             elif opt_key == 'positional_parameters':
-                body['args'] = [arg for arg in opt_val]  # type: ignore[attr-defined]
+                body['args'] = list(opt_val)  # type: ignore[call-overload]
             elif opt_key == 'named_parameters':
                 for k, v in opt_val.items():  # type: ignore[attr-defined]
                     key = f'${k}' if not k.startswith('$') else k
@@ -234,10 +206,7 @@ class _RequestBuilder:
                 else:
                     body['scan_consistency'] = opt_val
 
-        scheme, host, port = self._conn_details.get_scheme_host_and_port()
-        return QueryRequest(scheme,
-                            host,
-                            port,
+        return QueryRequest(self._conn_details.url,
                             deserializer,
                             body,
                             extensions=extensions,

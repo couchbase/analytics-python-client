@@ -15,8 +15,8 @@
 
 from concurrent.futures import ThreadPoolExecutor
 
+from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter
 from couchbase_analytics.protocol.cluster import Cluster as Cluster
-from couchbase_analytics.protocol.core.client_adapter import _ClientAdapter
 from couchbase_analytics.protocol.scope import Scope
 
 class Database:

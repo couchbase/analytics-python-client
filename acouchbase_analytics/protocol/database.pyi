@@ -13,8 +13,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+from acouchbase_analytics.protocol._core.client_adapter import _AsyncClientAdapter
 from acouchbase_analytics.protocol.cluster import AsyncCluster as AsyncCluster
-from acouchbase_analytics.protocol.core.client_adapter import _AsyncClientAdapter
 from couchbase_analytics.protocol.scope import Scope
 
 class AsyncDatabase:

@@ -20,18 +20,84 @@ from __future__ import annotations
 import os
 import pathlib
 import random
-
 from collections.abc import AsyncIterator as PyAsyncIterator
 from collections.abc import Iterator
-from typing import (Any,
-                    Dict,
-                    List,
-                    Optional,
-                    Tuple,
-                    Union)
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 from urllib.parse import quote
 
 import anyio
+
+
+class AsyncInfiniteBytesIterator(PyAsyncIterator[bytes]):
+
+    def __init__(self,
+                 data_generator: Generator[bytes, None, None],
+                 initial_data: Optional[Union[bytes, str]] = None,
+                 chunk_size: Optional[int] = 100,
+                 simulate_delay: Optional[bool] = False,
+                 simulate_delay_range: Optional[Tuple[float, float]] = (0.01, 0.1)) -> None:
+        self._data_generator = data_generator
+        self._initial_data = bytearray()
+        if initial_data is not None:
+            self._initial_data = bytearray(initial_data)[:-1] if isinstance(initial_data, bytes) else bytearray(initial_data, 'utf-8')[:-1]
+        self._initial_data += b',"results":['
+        self._end_data = bytearray()
+
+        self._data = bytearray() if self._initial_data is None else bytearray(self._initial_data)
+        self._chunk_size = chunk_size or 100
+        self._simulate_delay = simulate_delay or False
+        self._simulate_delay_range = simulate_delay_range or (0.01, 0.1)
+        self._start = 0
+        self._stop = self._chunk_size
+        self._stop_iterating = False
+        self._data_count = 0
+
+    def get_data_count(self) -> int:
+        return self._data_count
+
+    def stop_iterating(self, end_data: Optional[Union[bytes, str]] = None) -> None:
+        self._stop_iterating = True
+        if end_data is not None:
+            self._end_data = bytearray(end_data)[1:-1] if isinstance(end_data, bytes) else bytearray(end_data, 'utf-8')[1:-1]
+
+    def __aiter__(self) -> AsyncInfiniteBytesIterator:
+        return self
+    
+    async def __anext__(self) -> bytes:
+        if self._simulate_delay:
+            delay = random.uniform(*self._simulate_delay_range)
+            await anyio.sleep(delay)
+
+        while True:
+            await anyio.sleep(0.5)
+            if len(self._data) == 0:
+                if self._stop_iterating:
+                    if len(self._end_data) == 0:
+                        raise StopAsyncIteration
+                    self._data += b'],'
+                    self._data += bytearray(self._end_data)
+                    self._data += b'}'
+                    self._end_data = bytearray()
+                else:
+                    self._stop = self._chunk_size
+                    while len(self._data) < (2 * self._chunk_size):
+                        self._data += b','
+                        self._data += next(self._data_generator)
+                        self._data_count += 1
+
+            # if self._start >= len(self._data):
+            #     self._start = 0
+            #     self._stop = self._chunk_size
+            #     self._data += next(self._data_generator)
+
+            if self._stop >= len(self._data):
+                self._stop = len(self._data)
+
+            chunk = bytes(self._data[:self._stop])
+            del self._data[:self._stop]
+            self._stop += self._chunk_size
+            
+            return chunk
 
 class AsyncBytesIterator(PyAsyncIterator[bytes]):
 

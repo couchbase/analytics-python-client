@@ -20,11 +20,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from couchbase_analytics.common.core import (JsonParsingError,
-                                             JsonStreamConfig,
-                                             ParsedResult,
-                                             ParsedResultType)
-from couchbase_analytics.common.core.json_stream import JsonStream
+from couchbase_analytics.common._core import JsonParsingError, JsonStreamConfig, ParsedResult, ParsedResultType
+from couchbase_analytics.protocol._core.json_stream import JsonStream
 from tests.environments.simple_environment import JsonDataType
 from tests.utils import BytesIterator
 
@@ -38,6 +35,7 @@ class JsonParsingTestSuite:
         'test_analytics_error',
         'test_analytics_error_mid_stream',
         'test_analytics_many_rows',
+        'test_analytics_many_rows_raw',
         'test_analytics_multiple_errors',
         'test_analytics_simple_result',
 
@@ -128,6 +126,41 @@ class JsonParsingTestSuite:
         assert isinstance(final_result.value, bytes)
         # if we are not buffering the entire result, the final result will exclude the results key
         json_object.pop('results')
+        assert json.loads(final_result.value.decode('utf-8')) == json_object
+        assert parser.get_result(0.01) is None
+
+    @pytest.mark.parametrize('buffered_result', [True, False])
+    def test_analytics_many_rows_raw(self,
+                                     test_env: SimpleEnvironment,
+                                     buffered_result: bool) -> None:
+        json_object, bytes_data = test_env.get_json_data(JsonDataType.MULTIPLE_RESULTS_RAW)
+        if buffered_result:
+            parser = JsonStream(BytesIterator(bytes_data),
+                                stream_config=JsonStreamConfig(buffer_entire_result=True))
+        else:
+            parser = JsonStream(BytesIterator(bytes_data))
+
+        parser.start_parsing()
+        if not buffered_result:
+            row_idx = 0
+            while row_idx < 10:
+                result = parser.get_result(0.01)
+                if result is None and not parser.token_stream_exhausted:
+                    parser.continue_parsing()
+                    continue
+                assert isinstance(result, ParsedResult)
+                assert result.result_type == ParsedResultType.ROW
+                assert isinstance(result.value, bytes)
+                assert json.loads(result.value.decode('utf-8')) == json_object['results'][row_idx]
+                row_idx += 1
+
+        final_result = parser.get_result(0.01)
+        assert isinstance(final_result, ParsedResult)
+        assert final_result.result_type == ParsedResultType.END
+        assert isinstance(final_result.value, bytes)
+        if not buffered_result:
+            # if we are not buffering the entire result, the final result will exclude the results key
+            json_object.pop('results')
         assert json.loads(final_result.value.decode('utf-8')) == json_object
         assert parser.get_result(0.01) is None
 

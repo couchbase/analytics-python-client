@@ -136,7 +136,7 @@ def get_git_describe() -> str:
             ("git", "describe", "--tags", "--long", "--always"),
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     except OSError as e:
-        raise CantInvokeGit(e)
+        raise CantInvokeGit(e) from None
 
     stdout, stderr = po.communicate()
     if po.returncode != 0:
@@ -166,7 +166,7 @@ def gen_version(do_write: Optional[bool] = True, txt: Optional[str] = None) -> N
         info = VersionInfo(txt)
         vstr = info.package_version
     except MalformedGitTag:
-        warnings.warn("Malformed input '{0}'".format(txt))
+        warnings.warn("Malformed input '{0}'".format(txt), stacklevel=2)
         vstr = '0.0.0' + txt
 
     if not do_write:

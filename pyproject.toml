@@ -7,6 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "couchbase-analytics"
+version = "0.0.1"
 dependencies = [
   "anyio~=4.9.0",
   "httpx~=0.28.1",
@@ -53,7 +54,9 @@ Repository = "https://github.com/couchbase/analytics-python-client"
 [dependency-groups]
 dev = [
   "aiohttp~=3.11.10",
-  "pytest~=8.3.5"
+  "mypy>=1.16.1",
+  "pytest~=8.3.5",
+  "ruff>=0.12.0",
 ]
 sphinx = [
   "Sphinx~=7.4.7",
@@ -66,7 +69,6 @@ sphinx = [
 [tool.pytest.ini_options]
 minversion = "8.0"
 log_cli = true
-#addopts = "-ra -q"
 testpaths = [
     "tests",
     "acouchbase_analytics/tests",
@@ -84,3 +86,14 @@ markers = [
     "pycbac_unit: marks a test as a unit test",
     "pycbac_integration: marks a test as an integration test",
 ]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["tests/test_config.ini", "test*.py", "*_tests.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "C", "I"]
+
+[tool.ruff.format]
+quote-style = "single"
+docstring-code-format = false

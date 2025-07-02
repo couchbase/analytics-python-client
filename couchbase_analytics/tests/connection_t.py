@@ -15,15 +15,15 @@
 
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Dict
 from urllib.parse import urlparse
 
 import pytest
 
 from couchbase_analytics.cluster import Cluster
 from couchbase_analytics.credential import Credential
-from couchbase_analytics.protocol.core.client_adapter import _ClientAdapter
-from couchbase_analytics.protocol.core.request import _RequestBuilder
+from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter
+from couchbase_analytics.protocol._core.request import _RequestBuilder
 from tests.utils import get_test_cert_path, to_query_str
 
 TEST_CERT_PATH = get_test_cert_path()
@@ -81,7 +81,7 @@ class ConnectionTestSuite:
                                      expected_seconds: str) -> None:
         opt_keys = ['timeout.connect_timeout',
                     'timeout.query_timeout']
-        opts = {k: duration for k in opt_keys}
+        opts = dict.fromkeys(opt_keys, duration)
         cred = Credential.from_username_and_password('Administrator', 'password')
         connstr = f'https://localhost?{to_query_str(opts)}'
         client = _ClientAdapter(connstr, cred)
@@ -212,8 +212,8 @@ class ConnectionTestSuite:
         assert {} == client.connection_details.cluster_options
         parsed_connstr = urlparse(connstr)
         parsed_port = parsed_connstr.port or (80 if parsed_connstr.scheme == 'http' else 443)
-        scheme, host, port = client.connection_details.get_scheme_host_and_port()
-        assert f'{parsed_connstr.scheme}://{parsed_connstr.hostname}:{parsed_port}' == f'{scheme}://{host}:{port}'
+        url = client.connection_details.url.get_formatted_url()
+        assert f'{parsed_connstr.scheme}://{parsed_connstr.hostname}:{parsed_port}' == url
 
 
 class ConnectionTests(ConnectionTestSuite):

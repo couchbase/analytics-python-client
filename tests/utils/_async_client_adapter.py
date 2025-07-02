@@ -1,11 +1,11 @@
 import socket
 from typing import Dict
 
-from httpx import BasicAuth, AsyncClient, Response
+from httpx import URL, Response
 
-from acouchbase_analytics.protocol.core.client_adapter import _AsyncClientAdapter
-from couchbase_analytics.protocol.core.request import QueryRequest
-    
+from acouchbase_analytics.protocol._core.client_adapter import _AsyncClientAdapter
+from couchbase_analytics.protocol._core.request import QueryRequest
+
 
 def client_adapter_init_override(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
     if not hasattr(self, 'PYCBAC_TESTING'):
@@ -15,7 +15,9 @@ def client_adapter_init_override(self, *args, **kwargs) -> None:  # type: ignore
         raise RuntimeError('http_transport_cls must be a test transport')
     adapter: _AsyncClientAdapter = kwargs.pop('adapter', None)
     # adapter.close_client()
+    print(f'current client_id={adapter._client_id}')
     self._client_id = adapter._client_id
+    print(f'client_id={self._client_id}')
     self._opts_builder = adapter._opts_builder
     self._conn_details = adapter._conn_details
     if self._http_transport_cls is None:
@@ -41,8 +43,8 @@ async def send_request_override(self: _AsyncClientAdapter, request: QueryRequest
     if not hasattr(self, '_client'):
         raise RuntimeError('Client not created yet')
     
-    if request.url is None:
-        raise ValueError('Request URL cannot be None')
+    # if request.url is None:
+    #     raise ValueError('Request URL cannot be None')
 
     print(f'Sending request: {request.method} {request.url}')
     request_json = request.body
@@ -59,14 +61,19 @@ async def send_request_override(self: _AsyncClientAdapter, request: QueryRequest
 
     print(f'{request_extensions=}')
 
+    url = URL(scheme=request.url.scheme,
+                host=request.url.host,
+                port=request.url.port,
+                path=request.url.path)
     req = self._client.build_request(request.method,
-                                     request.url,
+                                     url,
                                      json=request_json,
                                      extensions=request_extensions)
     try:
         return await self._client.send(req, stream=True)
     except socket.gaierror as err:
-        raise RuntimeError(f'Unable to connect to {self._conn_details.get_scheme_host_and_port()}') from err
+        req_url = self._conn_details.url.get_formatted_url()
+        raise RuntimeError(f'Unable to connect to {req_url}') from err
 
 
 def set_request_path(self: _AsyncClientAdapter, path: str) -> None:
@@ -78,14 +85,15 @@ def update_request_json(self: _AsyncClientAdapter, json: Dict[str, object]) -> N
 def update_request_extensions(self: _AsyncClientAdapter, extensions: Dict[str, str]) -> None:
     self._request_extensions = extensions  # type: ignore[attr-defined]
 
-_AsyncClientAdapter.__init__ = client_adapter_init_override  # type: ignore[method-assign]
-# _AsyncClientAdapter.create_client = create_client_override  # type: ignore[method-assign]
-_AsyncClientAdapter.send_request = send_request_override  # type: ignore[method-assign]
-setattr(_AsyncClientAdapter, 'set_request_path', set_request_path)
-setattr(_AsyncClientAdapter, 'update_request_json', update_request_json)
-setattr(_AsyncClientAdapter, 'update_request_extensions', update_request_extensions)
-setattr(_AsyncClientAdapter, 'PYCBAC_TESTING', True)
+class _TestAsyncClientAdapter(_AsyncClientAdapter):
+    pass
 
-_TestAsyncClientAdapter = _AsyncClientAdapter
+_TestAsyncClientAdapter.__init__ = client_adapter_init_override  # type: ignore[method-assign]
+# _TestAsyncClientAdapter.create_client = create_client_override  # type: ignore[method-assign]
+_TestAsyncClientAdapter.send_request = send_request_override  # type: ignore[method-assign]
+setattr(_TestAsyncClientAdapter, 'set_request_path', set_request_path)
+setattr(_TestAsyncClientAdapter, 'update_request_json', update_request_json)
+setattr(_TestAsyncClientAdapter, 'update_request_extensions', update_request_extensions)
+setattr(_TestAsyncClientAdapter, 'PYCBAC_TESTING', True)
 
 __all__ = ["_TestAsyncClientAdapter"]

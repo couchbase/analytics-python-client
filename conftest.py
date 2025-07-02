@@ -29,12 +29,16 @@ _UNIT_TESTS = [
     'acouchbase_analytics/tests/options_t.py::ClusterOptionsTests',
     'acouchbase_analytics/tests/query_options_t.py::ClusterQueryOptionsTests',
     'acouchbase_analytics/tests/query_options_t.py::ScopeQueryOptionsTests',
+    'acouchbase_analytics/tests/test_server_t.py::ClusterTestServerTests',
+    'acouchbase_analytics/tests/test_server_t.py::ScopeTestServerTests',
     'couchbase_analytics/tests/connection_t.py::ConnectionTests',
     'couchbase_analytics/tests/duration_parsing_t.py::DurationParsingTests',
     'couchbase_analytics/tests/json_parsing_t.py::JsonParsingTests',
     'couchbase_analytics/tests/options_t.py::ClusterOptionsTests',
     'couchbase_analytics/tests/query_options_t.py::ClusterQueryOptionsTests',
     'couchbase_analytics/tests/query_options_t.py::ScopeQueryOptionsTests',
+    'couchbase_analytics/tests/test_server_t.py::ClusterTestServerTests',
+    'couchbase_analytics/tests/test_server_t.py::ScopeTestServerTests',
 ]
 
 _INTEGRATRION_TESTS = [

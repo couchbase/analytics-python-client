@@ -24,7 +24,7 @@ else:
     from typing import TypeAlias
 
 
-from acouchbase_analytics.protocol.core.client_adapter import _AsyncClientAdapter
+from acouchbase_analytics.protocol._core.client_adapter import _AsyncClientAdapter
 from acouchbase_analytics.protocol.scope import AsyncScope
 
 if TYPE_CHECKING:

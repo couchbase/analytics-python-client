@@ -1,35 +1,24 @@
 
 import ssl
 import time
-
-from typing import (Iterable,
-                    Optional,
-                    TypeVar,
-                    Union)
 from types import TracebackType
+from typing import Iterable, Optional, TypeVar, Union
 
-from httpx import (BaseTransport,
-                   HTTPTransport,
-                   Limits,
-                   Proxy,
-                   Response,
-                   SyncByteStream,
-                   URL,
-                   create_ssl_context)
-from httpx._transports.default import (map_httpcore_exceptions,
-                                       ResponseStream,
-                                       SOCKET_OPTION)
-from httpx._types import CertTypes, ProxyTypes
-from httpcore import (ConnectionPool,
-                      ConnectionInterface,
-                      HTTP11Connection,
-                      HTTP2Connection,
-                      HTTPConnection,
-                      Origin,
-                      Request,
-                      Response as CoreResponse)
-from httpcore._sync.connection_pool import PoolRequest, PoolByteStream
+from httpcore import (
+    ConnectionInterface,
+    ConnectionPool,
+    HTTP2Connection,
+    HTTP11Connection,
+    HTTPConnection,
+    Origin,
+    Request,
+)
+from httpcore import Response as CoreResponse
 from httpcore._exceptions import ConnectionNotAvailable, UnsupportedProtocol
+from httpcore._sync.connection_pool import PoolByteStream, PoolRequest
+from httpx import URL, BaseTransport, HTTPTransport, Limits, Proxy, Response, SyncByteStream, create_ssl_context
+from httpx._transports.default import SOCKET_OPTION, ResponseStream, map_httpcore_exceptions
+from httpx._types import CertTypes, ProxyTypes
 
 # httpx._transports.default.py
 T = TypeVar("T", bound="HTTPTransport")

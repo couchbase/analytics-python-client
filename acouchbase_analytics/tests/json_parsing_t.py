@@ -17,16 +17,12 @@ from __future__ import annotations
 
 import json
 from time import time
-from typing import Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 
 import pytest
 
-from couchbase_analytics.common.core import (JsonParsingError,
-                                             JsonStreamConfig,
-                                             ParsedResult,
-                                             ParsedResultType)
-
-from couchbase_analytics.common.core.async_json_stream import AsyncJsonStream
+from acouchbase_analytics.protocol._core.async_json_stream import AsyncJsonStream
+from couchbase_analytics.common._core import JsonParsingError, JsonStreamConfig, ParsedResult, ParsedResultType
 from couchbase_analytics.common.errors import AnalyticsError
 from tests.environments.simple_environment import JsonDataType
 from tests.utils import AsyncBytesIterator
@@ -41,6 +37,7 @@ class JsonParsingTestSuite:
         'test_analytics_error',
         'test_analytics_error_mid_stream',
         'test_analytics_many_rows',
+        'test_analytics_many_rows_raw',
         'test_analytics_multiple_errors',
         'test_analytics_parses_async',
         'test_analytics_simple_result',
@@ -139,6 +136,42 @@ class JsonParsingTestSuite:
             await parser.get_result()
 
     @pytest.mark.parametrize('buffered_result', [True, False])
+    async def test_analytics_many_rows_raw(self,
+                                           async_test_env: AsyncSimpleEnvironment,
+                                           buffered_result: bool) -> None:
+        json_object, bytes_data = async_test_env.get_json_data(JsonDataType.MULTIPLE_RESULTS_RAW)
+        if buffered_result:
+            parser = AsyncJsonStream(AsyncBytesIterator(bytes_data),
+                                     stream_config=JsonStreamConfig(buffer_entire_result=True))
+        else:
+            parser = AsyncJsonStream(AsyncBytesIterator(bytes_data))
+
+        await parser.start_parsing()
+        if not buffered_result:
+            row_idx = 0
+            while row_idx < 10:
+                result = await parser.get_result()
+                if result is None and not parser.token_stream_exhausted:
+                    await parser.continue_parsing()
+                    continue
+                assert isinstance(result, ParsedResult)
+                assert result.result_type == ParsedResultType.ROW
+                assert isinstance(result.value, bytes)
+                assert json.loads(result.value.decode('utf-8')) == json_object['results'][row_idx]
+                row_idx += 1
+
+        final_result = await parser.get_result()
+        assert isinstance(final_result, ParsedResult)
+        assert final_result.result_type == ParsedResultType.END
+        assert isinstance(final_result.value, bytes)
+        if not buffered_result:
+            # if we are not buffering the entire result, the final result will exclude the results key
+            json_object.pop('results')
+        assert json.loads(final_result.value.decode('utf-8')) == json_object
+        with pytest.raises(AnalyticsError):
+            await parser.get_result()
+
+    @pytest.mark.parametrize('buffered_result', [True, False])
     async def test_analytics_multiple_errors(self,
                                              async_test_env: AsyncSimpleEnvironment,
                                              buffered_result: bool) -> None:
@@ -182,7 +215,7 @@ class JsonParsingTestSuite:
             for idx in range(10):
                 tg.start_soon(_run_async, idx)
         ordered_results = dict(sorted({k: v for r in tg.results for k, v in r.items()}.items()))
-        assert list(ordered_results.values()) != list(i for i in range(10))
+        assert list(ordered_results.values()) != list(range(10))
 
     @pytest.mark.parametrize('buffered_result', [True, False])
     async def test_analytics_simple_result(self,

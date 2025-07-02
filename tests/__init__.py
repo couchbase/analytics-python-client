@@ -13,15 +13,18 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from typing import (AsyncGenerator,
-                    Generator,
-                    Optional,
-                    TypeVar)
+from enum import Enum
+from typing import AsyncGenerator, Generator, Optional, TypeVar
 
 T = TypeVar('T')
 AsyncYieldFixture = AsyncGenerator[T, None]
 YieldFixture = Generator[T, None, None]
 
+
+class SyncQueryType(Enum):
+    NORMAL = 'normal'
+    LAZY = 'lazy'
+    CANCELLABLE = 'cancellable'
 
 class AnalyticsTestEnvironmentError(Exception):
     """Raised when something with the test environment is incorrect."""

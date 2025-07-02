@@ -4,9 +4,11 @@ from typing import Any, Tuple
 
 import pytest
 
+
 class JsonDataType(Enum):
     SIMPLE_REQUEST = 'simple_request'
     MULTIPLE_RESULTS = 'multiple_results'
+    MULTIPLE_RESULTS_RAW = 'multiple_results_raw'
     FAILED_REQUEST = 'failed_request'
     FAILED_REQUEST_MULTI_ERRORS = 'failed_request_multi_errors'
     FAILED_REQUEST_MID_STREAM = 'failed_request_mid_stream'
@@ -78,6 +80,37 @@ JSON_DATA = {
     {"id": 34, "name": "Harper Emerald", "age": 25, "city": "Virginia Beach"},
     {"id": 35, "name": "Ella Amethyst", "age": 22, "city": "Atlanta"},
     {"id": 36, "name": "Liam Diamond", "age": 28, "city": "Colorado Springs"}
+  ],
+  "plans": {},
+  "status": "success",
+  "metrics": {
+    "elapsedTime": "14.927542ms",
+    "executionTime": "12.875792ms",
+    "compileTime": "4.178042ms",
+    "queueWaitTime": "0ns",
+    "resultCount": 2,
+    "resultSize": 300,
+    "processedObjects": 2,
+    "bufferCacheHitRatio": "100.00%"
+  }
+}""".strip(),
+'multiple_results_raw':"""
+{
+  "requestID": "94c7f89f-92b6-4aba-a90d-be715ca47309",
+  "signature": {
+    "*": "*"
+  },
+  "results": [
+    "airline_19433",
+    "airline_137",
+    "airline_18239",
+    "airline_10123",
+    "airline_19290",
+    "airline_19774",
+    "airline_4738",
+    "airline_4816",
+    "airline_18178",
+    "airline_10226"
   ],
   "plans": {},
   "status": "success",

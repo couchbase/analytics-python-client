@@ -3,6 +3,8 @@ include couchbase-sdk-analytics-python-black-duck-manifest.yaml
 include couchbase_analytics/common/core/_nonprod_certificates/*.pem
 include couchbase_analytics/common/core/_capella_certificates/*.pem
 recursive-include couchbase_analytics *.py
+exclude couchbase_analytics/tests/*.py
 recursive-include acouchbase_analytics *.py
+exclude acouchbase_analytics/tests/*.py
 global-exclude *.py[cod] *.DS_Store
 exclude .git .gitignore .gitmodules gocaves* *.jar .clang* .cmake* .pre* .flake* MANIFEST.in

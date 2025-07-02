@@ -17,17 +17,14 @@ from __future__ import annotations
 
 import atexit
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import (TYPE_CHECKING,
-                    Optional,
-                    Union)
+from typing import TYPE_CHECKING, Optional, Union
 from uuid import uuid4
 
 from couchbase_analytics.common.result import BlockingQueryResult
-from couchbase_analytics.protocol.core._request_context import RequestContext
-from couchbase_analytics.protocol.core.client_adapter import _ClientAdapter
-from couchbase_analytics.protocol.core.request import _RequestBuilder
+from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter
+from couchbase_analytics.protocol._core.request import _RequestBuilder
+from couchbase_analytics.protocol._core.request_context import RequestContext
 from couchbase_analytics.protocol.streaming import HttpStreamingResponse
-
 
 if TYPE_CHECKING:
     from couchbase_analytics.common.credential import Credential
@@ -122,16 +119,15 @@ class Cluster:
                       statement: str,
                       *args: object,
                       **kwargs: object) -> Union[BlockingQueryResult, Future[BlockingQueryResult]]:
-        from threading import get_ident
         base_req = self._request_builder.build_base_query_request(statement, *args, **kwargs)
         lazy_execute = base_req.options.pop('lazy_execute', None)
         stream_config = base_req.options.pop('stream_config', None)
         request_context = RequestContext(self.client_adapter,
                                          base_req,
-                                         self.threadpool_executor)
+                                         self.threadpool_executor,
+                                         stream_config=stream_config)
         resp = HttpStreamingResponse(request_context,
-                                     lazy_execute=lazy_execute,
-                                     stream_config=stream_config)
+                                     lazy_execute=lazy_execute)
 
         def _execute_query(http_response: HttpStreamingResponse) -> BlockingQueryResult:
             http_response.send_request()

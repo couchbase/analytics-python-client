@@ -15,146 +15,58 @@
 
 from __future__ import annotations
 
-import json
-import sys
-
-from asyncio import CancelledError
-from functools import wraps
-from typing import (Any,
-                    Callable,
-                    Coroutine,
-                    Optional)
-
-if sys.version_info < (3, 10):
-    from typing_extensions import TypeAlias
-else:
-    from typing import TypeAlias
+from typing import Any, Optional
 
 from httpx import Response as HttpCoreResponse
 
-# TODO: errors?
-from couchbase_analytics.common.errors import (AnalyticsError,
-                                               InternalSDKError,
-                                               TimeoutError)
-from acouchbase_analytics.protocol.core._request_context import AsyncRequestContext
-from couchbase_analytics.common.core import (JsonStreamConfig,
-                                             ParsedResult,
-                                             ParsedResultType)
-from couchbase_analytics.common.core.async_json_stream import AsyncJsonStream
-from couchbase_analytics.common.core.query import build_query_metadata
+from acouchbase_analytics.protocol._core.request_context import AsyncRequestContext
+from acouchbase_analytics.protocol._core.retries import AsyncRetryHandler
+from couchbase_analytics.common._core import ParsedResult, ParsedResultType
+from couchbase_analytics.common._core.query import build_query_metadata
+from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError, TimeoutError
 from couchbase_analytics.common.query import QueryMetadata
-from couchbase_analytics.common.streaming import StreamingState
 
-
-
-
-class RequestWrapper:
-    """
-        **INTERNAL**
-    """
-
-    @classmethod
-    def handle_retries(cls) -> Callable[[SendRequestFunc], WrappedSendRequestFunc]:  # noqa: C901
-        """
-            **INTERNAL**
-        """
-
-        def decorator(fn: SendRequestFunc) -> WrappedSendRequestFunc:  # noqa: C901
-            @wraps(fn)
-            async def wrapped_fn(self: AsyncHttpStreamingResponse) -> None:
-                try:
-                    await fn(self)
-                except AnalyticsError:
-                    # if an AnalyticsError is raised, we have already shut down the request context
-                    raise
-                except RuntimeError as ex:
-                    await self._request_context.shutdown(type(ex), ex, ex.__traceback__)
-                    raise ex
-                except BaseException as ex:
-                    await self._request_context.shutdown(type(ex), ex, ex.__traceback__)
-                    if self._request_context.timed_out:
-                        raise TimeoutError(cause=self._request_context.request_error,
-                                           message='Request timed out.') from None
-                    if self._request_context.cancelled:
-                        raise CancelledError('Request was cancelled.') from None
-                    if self._request_context.request_error is not None:
-                        raise self._request_context.request_error from None
-                    raise InternalSDKError(ex) from None
-                finally:
-                    if not StreamingState.is_okay(self._request_context.request_state):
-                        await self.close()
-                    
-
-            return wrapped_fn
-        return decorator
 
 class AsyncHttpStreamingResponse:
-    def __init__(self,
-                 request_context: AsyncRequestContext,
-                 stream_config: Optional[JsonStreamConfig]=None) -> None:
+    def __init__(self, request_context: AsyncRequestContext) -> None:
         self._metadata: Optional[QueryMetadata] = None
         self._core_response: HttpCoreResponse
-        self._stream_config = stream_config or JsonStreamConfig()
-        self._json_stream: AsyncJsonStream
         # Goal is to treat the AsyncHttpStreamingResponse as a "task group"
         self._request_context = request_context
 
-    async def _finish_processing_stream(self) -> None:
-        if not self._request_context.has_stage_completed:
-            await self._request_context.wait_for_stage_to_complete()
-        
-        while not self._json_stream.token_stream_exhausted:
-            self._request_context.start_next_stage(self._json_stream.continue_parsing, reset_previous_stage=True)
-            await self._request_context.wait_for_stage_to_complete()
-
-    async def _handle_iteration_abort(self) -> None:
-        await self.close()
-        if self._request_context.cancelled:
-            raise StopAsyncIteration
-        elif self._request_context.timed_out:
-            raise TimeoutError(message='Request timeout.')
-        else:
-            raise StopAsyncIteration
-
-    def _maybe_continue_to_process_stream(self) -> None:
-        if not self._request_context.has_stage_completed:
-            return
-
-        if self._json_stream.token_stream_exhausted:
-            return
-        
-        self._request_context.start_next_stage(self._json_stream.continue_parsing, reset_previous_stage=True)
-
-    async def _process_response(self, raw_response: Optional[ParsedResult]=None) -> None:
-        if raw_response is None:
-            raw_response = await self._json_stream.get_result()
-            if raw_response is None:
-                raise AnalyticsError(message='Received unexpected empty result from JsonStream.')
-                
-        if raw_response.value is None:
-            raise AnalyticsError(message='Received unexpected empty result from JsonStream.')
-
-        # we have all the data, close the core response/stream
-        await self.close()
-
-        json_response = json.loads(raw_response.value)
-        if 'errors' in json_response:
-            await self._request_context.process_error(json_response['errors'])
-        self.set_metadata(json_data=json_response)
-
-    def _start(self) -> None:
+    async def _close_in_background(self) -> None:
         """
         **INTERNAL**
         """
-        if hasattr(self, '_json_stream'):
-            # TODO: logging; I don't think this is an error...
-            return
-        
-        self._json_stream = AsyncJsonStream(self._core_response.aiter_bytes(), stream_config=self._stream_config)
-        self._request_context.start_next_stage(self._json_stream.start_parsing)
-
-    async def _close_in_background(self) -> None:
         await self.close()
+
+    async def _handle_iteration_abort(self) -> None:
+        """
+        **INTERNAL**
+        """
+        await self.close()
+        if self._request_context.cancelled:
+            await self._request_context.shutdown()
+            raise StopAsyncIteration
+        elif self._request_context.timed_out:
+            err = TimeoutError(message='Unable to complete iteration. Request timed out.',
+                               context=str(self._request_context.error_context))
+            await self._request_context.reraise_after_shutdown(err)
+        else:
+            await self._request_context.shutdown()
+            raise StopAsyncIteration
+        
+
+    async def _process_response(self,
+                                raw_response: Optional[ParsedResult]=None,
+                                handle_context_shutdown: Optional[bool]=False) -> None:
+        """
+        **INTERNAL**
+        """
+        json_response = await self._request_context.process_response(self.close,
+                                                                     raw_response=raw_response,
+                                                                     handle_context_shutdown=handle_context_shutdown)
+        await self.set_metadata(json_data=json_response)
 
     async def close(self) -> None:
         """
@@ -179,71 +91,78 @@ class AsyncHttpStreamingResponse:
         await self._request_context.shutdown()
 
     def get_metadata(self) -> QueryMetadata:
+        """
+        **INTERNAL**
+        """
         if self._metadata is None:
-            if self._request_context.cancelled:
-                raise CancelledError('Request was cancelled.')
-            elif self._request_context.timed_out:
-                raise TimeoutError(message='Request timeout.')
             raise RuntimeError('Query metadata is only available after all rows have been iterated.')
         return self._metadata
 
-    def set_metadata(self,
-                     json_data: Optional[Any]=None,
-                     raw_metadata: Optional[bytes]=None) -> None:
+    async def set_metadata(self,
+                           json_data: Optional[Any]=None,
+                           raw_metadata: Optional[bytes]=None) -> None:
+        """
+        **INTERNAL**
+        """
         try:
             self._metadata = QueryMetadata(build_query_metadata(json_data=json_data, raw_metadata=raw_metadata))
-        except AnalyticsError as err:
-            raise err
+            await self._request_context.shutdown()
+        except (AnalyticsError, ValueError) as err:
+            await self._request_context.reraise_after_shutdown(err)
         except Exception as ex:
-            raise InternalSDKError(str(ex))
+            internal_err = InternalSDKError(cause=ex,
+                                            message=str(ex),
+                                            context=str(self._request_context.error_context))
+            await self._request_context.reraise_after_shutdown(internal_err)
+        finally:
+            await self.close()
 
     async def get_next_row(self) -> Any:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         if not (hasattr(self, '_core_response')
                 and self._core_response is not None
                 and self._request_context.okay_to_iterate):
             await self._handle_iteration_abort()
         
-        self._maybe_continue_to_process_stream()
-        raw_response = await self._json_stream.get_result()
+        self._request_context.maybe_continue_to_process_stream()
+        raw_response = await self._request_context.get_result_from_stream()
         if raw_response.result_type == ParsedResultType.ROW:
             if raw_response.value is None:
-                raise AnalyticsError(message='Unexpected empty row response while streaming.')
-            return self._request_context.deserializer.deserialize(raw_response.value)
+                await self.close()
+                raise AnalyticsError(message='Unexpected empty row response while streaming.',
+                                     context=str(self._request_context.error_context))
+            return self._request_context.deserialize_result(raw_response.value)
         elif raw_response.result_type in [ParsedResultType.ERROR, ParsedResultType.UNKNOWN]:
-            await self._process_response(raw_response=raw_response)
+            await self._process_response(raw_response=raw_response, handle_context_shutdown=True)
         elif raw_response.result_type == ParsedResultType.END:
-            self.set_metadata(raw_metadata=raw_response.value)
-            await self.close()
+            await self.set_metadata(raw_metadata=raw_response.value)
             raise StopAsyncIteration
         else:
-            await self._process_response(raw_response=raw_response)
+            await self._process_response(raw_response=raw_response, handle_context_shutdown=True)
                 
-    @RequestWrapper.handle_retries()
+    @AsyncRetryHandler.with_retries
     async def send_request(self) -> None:
+        """
+        **INTERNAL**
+        """
         if not self._request_context.okay_to_stream:
             raise RuntimeError('Query has been canceled or previously executed.')
 
         # start cancel scope
         await self._request_context.initialize()
         self._core_response = await self._request_context.send_request(enable_trace_handling=True)
-        self._start()
+        self._request_context.start_stream(self._core_response)
         # block until we either know we have rows or we have an error
-        await self._json_stream.has_results_or_errors.wait()
-        if self._json_stream.has_results_or_errors_type == ParsedResultType.ROW:
-            # we move to iterating rows
-            self._request_context.set_state_to_streaming()
-        else:
-            await self._finish_processing_stream()
+        await self._request_context.wait_for_results_or_errors()
+        if not self._request_context.okay_to_iterate:
+            await self._request_context.finish_processing_stream()
             await self._process_response()
 
     async def shutdown(self) -> None:
+        """
+        **INTERNAL**
+        """
         await self.close()
         await self._request_context.shutdown()
-
-SendRequestFunc: TypeAlias = Callable[[AsyncHttpStreamingResponse], Coroutine[Any, Any, None]]
-# Although, SendRequestFunc is the same type as WrappedSendRequestFunc, keep separate for clarity and indicate
-# WrappedSendRequestFunc is a decorator
-WrappedSendRequestFunc: TypeAlias = Callable[[AsyncHttpStreamingResponse], Coroutine[Any, Any, None]]
