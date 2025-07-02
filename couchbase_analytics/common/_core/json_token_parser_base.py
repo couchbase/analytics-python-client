@@ -17,9 +17,8 @@ from __future__ import annotations
 
 from collections import deque
 from enum import Enum
-from typing import (Deque,
-                    Optional,
-                    NamedTuple)
+from typing import Deque, NamedTuple, Optional
+
 
 class ParsingState(Enum):
     PROCESSING = 'processing'
@@ -30,6 +29,16 @@ class ParsingState(Enum):
     PROCESSING_ERRORS = 'processing_errors'
     PROCESSING_ERROR = 'processing_error'
     UNDEFINED = 'undefined'
+
+    @staticmethod
+    def okay_to_emit(state: ParsingState, previous_state: ParsingState) -> bool:
+        if state == ParsingState.PROCESSING_RESULTS:
+            return True
+        return previous_state == ParsingState.PROCESSING_RESULTS and state == ParsingState.PROCESSING
+
+    @staticmethod
+    def should_pop_results_key(state: ParsingState, previous_state: ParsingState) -> bool:
+        return previous_state == ParsingState.PROCESSING_RESULTS and state == ParsingState.PROCESSING
 
     def __str__(self) -> str:
         return self.value
@@ -60,13 +69,14 @@ class TokenType(Enum):
     PAIR = 'pair'
     VALUE = 'value'
     OBJECT = 'object'
+    UNKNOWN = 'unknown'
 
     @classmethod
     def from_str(cls, value: str) -> TokenType:
         try:
             return cls[value.upper()]
         except KeyError:
-            raise ValueError(f'Invalid token type: {value}')
+            raise ValueError(f'Invalid token type: {value}') from None
 
     def __str__(self) -> str:
         return self.value
@@ -104,11 +114,26 @@ class JsonTokenParserBase:
         self._state = ParsingState.PROCESSING
         self._previous_state = ParsingState.UNDEFINED
         self._emit_results_enabled = emit_results_enabled
+        self._results_type = TokenType.UNKNOWN
         self._has_errors = False
 
     @property
     def has_errors(self) -> bool:
         return self._has_errors
+    
+    @property
+    def results_type(self) -> TokenType:
+        return self._results_type
+    
+    def _check_results_in_raw_array(self) -> None:
+        if self._results_type != TokenType.UNKNOWN:
+            return
+        if self._state == ParsingState.PROCESSING:
+            return
+        if self._state == ParsingState.PROCESSING_RESULTS:
+            self._results_type = TokenType.VALUE
+        else:
+            self._results_type = TokenType.OBJECT
 
     def _get_matching_token(self, token_type: TokenType) -> Token:
         if token_type == TokenType.END_ARRAY:
@@ -169,7 +194,8 @@ class JsonTokenParserBase:
 
         self._push(token_type, EVENT_TOKENS[token_type].value, transition)
 
-    def _handle_value_token(self, token_type: TokenType, value: str) -> None:
+    def _handle_value_token(self, token_type: TokenType, value: str) -> Optional[str]:
+        self._check_results_in_raw_array()
         pair_key = val = None
         if len(self._stack) > 0 and self._stack[-1].type == TokenType.MAP_KEY:
             # no state transitions for a map_key token
@@ -181,15 +207,20 @@ class JsonTokenParserBase:
                 value = value.replace("\\'", "\\\\'")
             val = f'"{value}"'
         elif token_type == TokenType.NULL:
-            val = f'null'
+            val = 'null'
         elif token_type == TokenType.BOOLEAN:
             val = f'{value}'.lower()
         else:
             val = f'{value}'
         if pair_key is not None:
+            if self.results_type == TokenType.VALUE and self._state != ParsingState.PROCESSING:
+                raise RuntimeError('JsonTokenParser: Cannot return value when pair key is present.')
             self._push(TokenType.PAIR, f'{pair_key}:{val}')
         else:
+            if self._emit_results_enabled is True and self.results_type == TokenType.VALUE:
+                return val
             self._push(TokenType.VALUE, val)
+        return None
 
     def _push(self, token_type: TokenType, value: str, transition: Optional[bool]=False) -> None:
         token_state = None

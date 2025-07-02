@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 import sys
-from typing import Awaitable, TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Awaitable, Optional
 from uuid import uuid4
 
 if sys.version_info < (3, 10):
@@ -24,13 +24,12 @@ if sys.version_info < (3, 10):
 else:
     from typing import TypeAlias
 
-from acouchbase_analytics.protocol.core.client_adapter import _AsyncClientAdapter
-from acouchbase_analytics.protocol.core._anyio_utils import current_async_library
-from acouchbase_analytics.protocol.core._request_context import AsyncRequestContext
+from acouchbase_analytics.protocol._core.anyio_utils import current_async_library
+from acouchbase_analytics.protocol._core.client_adapter import _AsyncClientAdapter
+from acouchbase_analytics.protocol._core.request_context import AsyncRequestContext
 from acouchbase_analytics.protocol.streaming import AsyncHttpStreamingResponse
 from couchbase_analytics.common.result import AsyncQueryResult
-from couchbase_analytics.protocol.core.request import _RequestBuilder
-
+from couchbase_analytics.protocol._core.request import _RequestBuilder
 
 if TYPE_CHECKING:
     from couchbase_analytics.common.credential import Credential
@@ -44,6 +43,7 @@ class AsyncCluster:
                  credential: Credential,
                  options: Optional[ClusterOptions] = None,
                  **kwargs: object) -> None:
+        print(f'Adapter module: {_AsyncClientAdapter.__module__}')
         self._client_adapter = _AsyncClientAdapter(connstr, credential, options, **kwargs)
         self._cluster_id = str(uuid4())
         self._request_builder = _RequestBuilder(self._client_adapter)
@@ -108,8 +108,11 @@ class AsyncCluster:
     def execute_query(self, statement: str, *args: object, **kwargs: object) -> Awaitable[AsyncQueryResult]:
         base_req = self._request_builder.build_base_query_request(statement, *args, is_async=True, **kwargs)
         stream_config = base_req.options.pop('stream_config', None)
-        request_context = AsyncRequestContext(client_adapter=self.client_adapter, request=base_req, backend=self._backend)
-        resp = AsyncHttpStreamingResponse(request_context, stream_config=stream_config)
+        request_context = AsyncRequestContext(client_adapter=self.client_adapter,
+                                              request=base_req,
+                                              stream_config=stream_config,
+                                              backend=self._backend)
+        resp = AsyncHttpStreamingResponse(request_context)
         if self._backend.backend_lib == 'asyncio':
             return request_context.create_response_task(self._execute_query, resp)
         return self._execute_query(resp)

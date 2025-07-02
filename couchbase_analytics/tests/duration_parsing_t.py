@@ -15,12 +15,9 @@
 
 from __future__ import annotations
 
-import json
-from typing import TYPE_CHECKING
-
 import pytest
 
-from couchbase_analytics.common.core.duration_str_utils import parse_duration_str
+from couchbase_analytics.common._core.duration_str_utils import parse_duration_str
 
 
 class DurationParsingTestSuite:
@@ -59,7 +56,8 @@ class DurationParsingTestSuite:
                               ('1.234h', 1.234 * 3.6e6),
                               ('1h30m0s', 5.4e6),
                               ('0.1h10m', 9.6e5),
-                              ('.1h10m', 9.6e5), # TODO: apparently this is invalid in Go, but was okay w/ C++ implementation
+                              # TODO: apparently this is invalid in Go, but was okay w/ C++ implementation
+                              ('.1h10m', 9.6e5),
                               ('0001h00010m', 4.2e6),                              
                               ('100ns', 1e-4),
                               ('100us', 0.1),

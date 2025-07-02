@@ -1,0 +1,378 @@
+from __future__ import annotations
+
+import json
+from asyncio import CancelledError, Task
+from types import TracebackType
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Coroutine, Dict, List, Optional, Type, Union
+from uuid import uuid4
+
+import anyio
+from httpx import Response as HttpCoreResponse
+from httpx import TimeoutException
+
+from acouchbase_analytics.protocol._core.anyio_utils import AsyncBackend, current_async_library, get_time
+from acouchbase_analytics.protocol._core.async_json_stream import AsyncJsonStream
+from acouchbase_analytics.protocol._core.net_utils import get_request_ip_async
+from couchbase_analytics.common._core import JsonStreamConfig, ParsedResult, ParsedResultType
+from couchbase_analytics.common._core.error_context import ErrorContext
+from couchbase_analytics.common.errors import AnalyticsError, InvalidCredentialError
+from couchbase_analytics.common.streaming import StreamingState
+from couchbase_analytics.protocol.connection import DEFAULT_TIMEOUTS
+from couchbase_analytics.protocol.errors import ErrorMapper
+
+if TYPE_CHECKING:
+    from acouchbase_analytics.protocol._core.client_adapter import _AsyncClientAdapter
+    from couchbase_analytics.protocol._core.request import QueryRequest
+
+class AsyncRequestContext:
+    # TODO: AsyncExitStack??
+    # https://anyio.readthedocs.io/en/stable/cancellation.html
+
+    def __init__(self,
+                 client_adapter: _AsyncClientAdapter,
+                 request: QueryRequest,
+                 stream_config: Optional[JsonStreamConfig]=None,
+                 backend: Optional[AsyncBackend]=None) -> None:
+        self._id = str(uuid4())
+        self._client_adapter = client_adapter
+        self._request = request
+        self._backend = backend or current_async_library()
+        self._error_ctx = ErrorContext(num_attempts=0,
+                                       method=request.method,
+                                       statement=request.get_request_statement())
+        self._request_state = StreamingState.NotStarted
+        self._stream_config = stream_config or JsonStreamConfig()
+        self._json_stream: AsyncJsonStream
+        self._stage_completed: Optional[anyio.Event] = None
+        self._request_error: Optional[Union[BaseException, Exception]] = None
+        connect_timeout = self._client_adapter.connection_details.get_connect_timeout()
+        self._connect_deadline = get_time() + connect_timeout
+        self._cancel_scope_deadline_updated = False
+        self._shutdown = False
+
+    @property
+    def cancelled(self) -> bool:
+        self._check_cancelled_or_timed_out()
+        return self._request_state in [StreamingState.Cancelled, StreamingState.AsyncCancelledPriorToTimeout]
+
+    @property
+    def error_context(self) -> ErrorContext:
+        return self._error_ctx
+
+    @property
+    def has_stage_completed(self) -> bool:
+        return self._stage_completed is not None and self._stage_completed.is_set()
+
+    @property
+    def is_shutdown(self) -> bool:
+        return self._shutdown
+
+    @property
+    def okay_to_iterate(self) -> bool:
+        self._check_cancelled_or_timed_out()
+        return StreamingState.okay_to_iterate(self._request_state)
+    
+    @property
+    def okay_to_stream(self) -> bool:
+        self._check_cancelled_or_timed_out()
+        return StreamingState.okay_to_stream(self._request_state)
+
+    @property
+    def request_error(self) -> Optional[Union[BaseException, Exception]]:
+        return self._request_error
+
+    @property
+    def request_state(self) -> StreamingState:
+        return self._request_state
+
+    @property
+    def results_or_errors_type(self) -> ParsedResultType:
+        return self._json_stream.results_or_errors_type
+
+    @property
+    def timed_out(self) -> bool:
+        self._check_cancelled_or_timed_out()
+        return self._request_state == StreamingState.Timeout
+
+    def _check_cancelled_or_timed_out(self) -> None:
+        if self._request_state in [StreamingState.Timeout, StreamingState.Cancelled, StreamingState.Error]:
+            return
+        
+        if hasattr(self, '_request_deadline') is False:
+            return
+
+        current_time = get_time()
+        if self._cancel_scope_deadline_updated is False:
+            timed_out = current_time >= self._connect_deadline
+        else:
+            timed_out = current_time >= self._request_deadline
+
+        if timed_out:
+            if self._request_state == StreamingState.Cancelled:
+                self._request_state = StreamingState.AsyncCancelledPriorToTimeout
+            else:
+                self._request_state = StreamingState.Timeout
+
+    async def _execute(self, fn: Callable[..., Awaitable[Any]], *args: object) -> None:
+        await fn(*args)
+        if self._stage_completed is not None:
+            self._stage_completed.set()
+
+    def _maybe_set_request_error(self,
+                                 exc_type: Optional[Type[BaseException]]=None,
+                                 exc_val: Optional[BaseException]=None) -> None:
+        self._check_cancelled_or_timed_out()
+        if exc_val is None:
+            return
+        if not StreamingState.is_timeout_or_cancelled(self._request_state):
+            # This handles httpx timeouts
+            if exc_type is not None and issubclass(exc_type, TimeoutException):
+                self._request_state = StreamingState.Timeout
+            elif issubclass(type(exc_val), TimeoutException):
+                self._request_state = StreamingState.Timeout
+            elif isinstance(exc_val, CancelledError):
+                self._request_state = StreamingState.Cancelled
+            else:
+                self._request_state = StreamingState.Error
+            self._request_error = exc_val
+
+    async def _process_error(self,
+                            json_data: List[Dict[str, Any]],
+                            handle_context_shutdown: Optional[bool]=False) -> None:
+        self._request_state = StreamingState.Error
+        if not isinstance(json_data, list):
+            self._request_error = AnalyticsError('Cannot parse error response; expected JSON array',
+                                                 context=str(self._error_ctx))
+        else:
+            self._request_error = ErrorMapper.build_error_from_json(json_data, self._error_ctx)
+        if handle_context_shutdown is True:
+            await self.reraise_after_shutdown(self._request_error)
+
+        raise self._request_error
+
+    def _reset_stream(self) -> None:
+        if hasattr(self, '_json_stream'):
+            del self._json_stream
+        self._request_state = StreamingState.ResetAndNotStarted
+        self._request.previous_ips = set()
+        self._stage_completed = None
+        self._cancel_scope_deadline_updated = False
+
+    def _start_next_stage(self,
+                         fn: Callable[..., Awaitable[Any]],
+                         *args: object,
+                         reset_previous_stage: Optional[bool]=False) -> None:
+        if self._stage_completed is not None:
+            if reset_previous_stage is True:
+                self._stage_completed = None
+            else:
+                raise RuntimeError('Task already running in this context.')
+
+        self._stage_completed = anyio.Event()
+        self._taskgroup.start_soon(self._execute, fn, *args)
+
+    async def _trace_handler(self, event_name: str, _: str) -> None:
+        if event_name == 'connection.connect_tcp.complete':
+            # after connection is established, we need to update the cancel_scope deadline to match the query_timeout
+            self._update_cancel_scope_deadline(self._request_deadline, is_absolute=True)
+            self._cancel_scope_deadline_updated = True
+        elif self._cancel_scope_deadline_updated is False and event_name.endswith('send_request_headers.started'):
+            # if the socket is reused, we won't get the connect_tcp.complete event,
+            # so the deadline at the next closest event
+            self._update_cancel_scope_deadline(self._request_deadline, is_absolute=True)
+            self._cancel_scope_deadline_updated = True
+
+    def _update_cancel_scope_deadline(self, deadline: float, is_absolute: Optional[bool]=False) -> None:
+        # TODO:  confirm scenario of get_time() < self._taskgroup.cancel_scope.deadline is handled by anyio
+        new_deadline = deadline if is_absolute else get_time() + deadline
+        # TODO:  Useful debug log message
+        # print(f'Updating cancel scope deadline: {self._taskgroup.cancel_scope.deadline} -> {new_deadline}')
+        if get_time() >= new_deadline:
+            self._taskgroup.cancel_scope.cancel()
+        else:
+            self._taskgroup.cancel_scope.deadline = new_deadline
+
+    async def _wait_for_stage_to_complete(self) -> None:
+        if self._stage_completed is None:
+            return
+        await self._stage_completed.wait()
+
+    def cancel_request(self,
+                       fn: Optional[Callable[..., Awaitable[Any]]]=None,
+                       *args: object) -> None:
+        if fn is not None:
+            self._taskgroup.start_soon(fn, *args)
+        if self._request_state == StreamingState.Timeout:
+            return
+        self._taskgroup.cancel_scope.cancel()
+        self._request_state = StreamingState.Cancelled
+
+    def create_response_task(self, fn: Callable[..., Coroutine[Any, Any, Any]], *args: object) -> Task[Any]:
+        if self._backend is None or self._backend.backend_lib != 'asyncio':
+            raise RuntimeError('Must use the asyncio backend to create a response task.')
+        if self._backend.loop is None:
+            raise RuntimeError('Async backend loop is not initialized.')
+        task_name = f'{self._id}-response-task'
+        task: Task[Any] = self._backend.loop.create_task(fn(*args), name=task_name)
+        # TODO: Confirm if callback is useful/necessary;
+        # def task_done(t: Task[Any]) -> None:
+        #     print(f'Task done callback task=({t.get_name()}); done: {t.done()}, cancelled: {t.cancelled()}')
+        # task.add_done_callback(task_done)
+        self._response_task = task
+        return task
+    
+    def deserialize_result(self, result: bytes) -> Any:
+        return self._request.deserializer.deserialize(result)
+
+    async def finish_processing_stream(self) -> None:
+        if not self.has_stage_completed:
+            await self._wait_for_stage_to_complete()
+        
+        while not self._json_stream.token_stream_exhausted:
+            self._start_next_stage(self._json_stream.continue_parsing, reset_previous_stage=True)
+            await self._wait_for_stage_to_complete()
+
+    async def get_result_from_stream(self) -> ParsedResult:
+        return await self._json_stream.get_result()
+    
+    async def initialize(self) -> None:
+        # TODO: Add useful logging messages
+        if self._request_state == StreamingState.ResetAndNotStarted:
+            self._update_cancel_scope_deadline(self._connect_deadline, is_absolute=True)
+            # print('Skipping initialization as request is a retry')
+            return
+        await self.__aenter__()
+        self._request_state = StreamingState.Started
+        # we set the request timeout once the context is initialized in order to create the deadline 
+        # closer to when the upstream logic will begin to use the request context
+        timeouts = self._request.get_request_timeouts() or {}
+        current_time = get_time()
+        self._request_deadline = current_time + (timeouts.get('read', None) or DEFAULT_TIMEOUTS['query_timeout'])
+        self._update_cancel_scope_deadline(self._connect_deadline, is_absolute=True)
+        # print(f'initialize request ctx: {current_time=}; req_deadline={self._request_deadline}')
+
+    def maybe_continue_to_process_stream(self) -> None:
+        if not self.has_stage_completed:
+            return
+
+        if self._json_stream.token_stream_exhausted:
+            return
+        
+        self._start_next_stage(self._json_stream.continue_parsing, reset_previous_stage=True)
+
+    def okay_to_delay_and_retry(self, delay: float) -> bool:
+        # TODO: Add useful logging messages
+        self._check_cancelled_or_timed_out()
+        if self._request_state in [StreamingState.Timeout, StreamingState.Cancelled]:
+            return False
+        
+        current_time = get_time()
+        delay_time = current_time + delay
+        will_time_out = self._request_deadline < delay_time
+        # print(f'{current_time=}; {delay_time=}; req_deadline={self._request_deadline}; {will_time_out=}')
+        if will_time_out:
+            self._request_state = StreamingState.Timeout
+            return False
+        else:
+            self._reset_stream()
+            return True
+
+    async def process_response(self,
+                               close_handler: Callable[[], Coroutine[Any, Any, None]],
+                               raw_response: Optional[ParsedResult]=None,
+                               handle_context_shutdown: Optional[bool]=False) -> Any:
+        if raw_response is None:
+            raw_response = await self._json_stream.get_result()
+            if raw_response is None:
+                await close_handler()
+                raise AnalyticsError(message='Received unexpected empty result from JsonStream.',
+                                     context=str(self._error_ctx))
+                
+        if raw_response.value is None:
+            await close_handler()
+            raise AnalyticsError(message='Received unexpected empty result from JsonStream.',
+                                 context=str(self._error_ctx))
+
+        # we have all the data, close the core response/stream
+        await close_handler()
+
+        json_response = json.loads(raw_response.value)
+        if 'errors' in json_response:
+            await self._process_error(json_response['errors'], handle_context_shutdown=handle_context_shutdown)
+        return json_response
+    
+    async def reraise_after_shutdown(self, err: Exception) -> None:
+        try:    
+            raise err
+        except Exception as ex:
+            await self.shutdown(type(ex), ex, ex.__traceback__)
+            raise ex from None
+
+    async def send_request(self, enable_trace_handling: Optional[bool]=False) -> HttpCoreResponse:
+        ip = await get_request_ip_async(self._request.url.host, self._request.url.port, self._request.previous_ips)
+        if ip is None:
+            attempted_ips = ', '.join(self._request.previous_ips or [])
+            raise AnalyticsError(message=f'Connect failure.  Unable to connect to any resolved IPs: {attempted_ips}.',
+                                 context=str(self._error_ctx))
+        
+        if enable_trace_handling is True:
+            (self._request.update_url(ip, self._client_adapter.analytics_path)
+                          .add_trace_to_extensions(self._trace_handler)
+                          .update_previous_ips(ip))
+        else:
+            self._request.update_url(ip, self._client_adapter.analytics_path).update_previous_ips(ip)
+        # TODO:  add logging; provide request details (to/from, deadlines, etc.)
+        self._error_ctx.update_request_context(self._request)
+        response = await self._client_adapter.send_request(self._request)
+        self._error_ctx.update_response_context(response)
+        if response.status_code == 401:
+            raise InvalidCredentialError(context=str(self._error_ctx))
+        return response
+
+    async def shutdown(self,
+                       exc_type: Optional[Type[BaseException]]=None,
+                       exc_val: Optional[BaseException]=None,
+                       exc_tb: Optional[TracebackType]=None) -> None:
+        if self.is_shutdown:
+            return
+        if hasattr(self, '_taskgroup'):
+            await self.__aexit__(exc_type, exc_val, exc_tb)
+        else:
+            self._maybe_set_request_error(exc_type, exc_val)
+
+        if StreamingState.is_okay(self._request_state):
+            self._request_state = StreamingState.Completed
+        self._shutdown = True
+
+    def start_stream(self, core_response: HttpCoreResponse) -> None:
+        if hasattr(self, '_json_stream'):
+            # TODO: logging; I don't think this is an error...
+            return
+        
+        self._json_stream = AsyncJsonStream(core_response.aiter_bytes(), stream_config=self._stream_config)
+        self._start_next_stage(self._json_stream.start_parsing)
+
+    async def wait_for_results_or_errors(self) -> None:
+        await self._json_stream.has_results_or_errors.wait()
+        if self._json_stream.results_or_errors_type == ParsedResultType.ROW:
+            # we move to iterating rows
+            self._request_state = StreamingState.StreamingResults
+
+    async def __aenter__(self) -> AsyncRequestContext:
+        self._taskgroup = anyio.create_task_group()
+        await self._taskgroup.__aenter__()
+        return self
+
+    async def __aexit__(self,
+                        exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
+        try:
+            await self._taskgroup.__aexit__(exc_type, exc_val, exc_tb)
+        except BaseException:
+            pass # we handle the error when the context is shutdown (which is what calls __aexit__())
+        finally:
+            self._maybe_set_request_error(exc_type, exc_val)
+            del self._taskgroup
+            # TODO:  should we suppress here (e.g., return True)
+            return None  # noqa: B012

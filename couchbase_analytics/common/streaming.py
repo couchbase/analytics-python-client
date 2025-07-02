@@ -18,11 +18,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator as PyAsyncIterator
 from collections.abc import Iterator
 from enum import IntEnum
-
-from typing import (Any,
-                    List,
-                    NamedTuple,
-                    TYPE_CHECKING)
+from typing import TYPE_CHECKING, Any, List, NamedTuple
 
 from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError
 
@@ -36,21 +32,22 @@ class StreamingState(IntEnum):
     **INTERNAL
     """
     NotStarted = 0
-    Started = 1
-    Cancelled = 2
-    Completed = 3
-    StreamingResults = 4
-    Error = 5
-    Timeout = 6
-    AsyncCancelledPriorToTimeout = 7
-    SyncCancelledPriorToTimeout = 8
+    ResetAndNotStarted = 1
+    Started = 2
+    Cancelled = 3
+    Completed = 4
+    StreamingResults = 5
+    Error = 6
+    Timeout = 7
+    AsyncCancelledPriorToTimeout = 8
+    SyncCancelledPriorToTimeout = 9
 
     @staticmethod
     def okay_to_stream(state: StreamingState) -> bool:
         """
         **INTERNAL
         """
-        return state == StreamingState.NotStarted
+        return state in [StreamingState.NotStarted, StreamingState.ResetAndNotStarted]
 
     @staticmethod
     def okay_to_iterate(state: StreamingState) -> bool:
@@ -91,7 +88,7 @@ class BlockingIterator(Iterator[Any]):
         """
         **INTERNAL
         """
-        return [r for r in list(self)]
+        return list(self)
 
     def __iter__(self) -> BlockingIterator:
         """
@@ -109,13 +106,11 @@ class BlockingIterator(Iterator[Any]):
         try:
             return self._http_response.get_next_row()
         except StopIteration:
-            # TODO:  get metadata automatically?
-            # self._executor.set_metadata()
             raise
         except AnalyticsError as err:
             raise err
         except Exception as ex:
-            raise InternalSDKError(str(ex))
+            raise InternalSDKError(cause=ex, message='Error attempting to obtain next row.') from None
 
 class AsyncIterator(PyAsyncIterator[Any]):
     """
@@ -148,7 +143,7 @@ class AsyncIterator(PyAsyncIterator[Any]):
         except AnalyticsError as err:
             raise err
         except Exception as ex:
-            raise InternalSDKError(str(ex))
+            raise InternalSDKError(cause=ex, message='Error attempting to obtain next row.') from None
 
 class HttpResponseType(IntEnum):
     """

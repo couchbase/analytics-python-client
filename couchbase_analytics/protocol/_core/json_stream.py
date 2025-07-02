@@ -16,23 +16,23 @@
 from __future__ import annotations
 
 from concurrent.futures import Future
-from queue import (Queue,
-                   Full as QueueFull,
-                   Empty as QueueEmpty)
-from threading import get_ident
-from typing import (Iterator,
-                    Optional)
+from queue import Empty as QueueEmpty
+from queue import Full as QueueFull
+from queue import Queue
+from typing import TYPE_CHECKING, Iterator, Optional
 
 import ijson
 
+from couchbase_analytics.common._core.json_parsing import (
+    JsonParsingError,
+    JsonStreamConfig,
+    ParsedResult,
+    ParsedResultType,
+)
+from couchbase_analytics.protocol._core.json_token_parser import JsonTokenParser
 
-from couchbase_analytics.common.core.json_token_parser import JsonTokenParser
-
-from couchbase_analytics.common.core.json_parsing import (JsonParsingError,
-                                                          JsonStreamConfig,
-                                                          ParsedResult,
-                                                          ParsedResultType)
-from couchbase_analytics.protocol.core._request_context import RequestContext, ThreadSafeBytesIterator
+if TYPE_CHECKING:
+    from couchbase_analytics.protocol._core.request_context import RequestContext
 
 class JsonStream:
     DEFAULT_HTTP_STREAM_BUFFER_SIZE = 2**16
@@ -109,6 +109,7 @@ class JsonStream:
         """
         if self._notify_on_results_or_error is not None and not self._notify_on_results_or_error.done():
             self._handle_notification(ParsedResultType.ROW)
+        
         self._put(ParsedResult(row, ParsedResultType.ROW))
 
     def _handle_notification(self, result_type: ParsedResultType) -> None:
@@ -128,7 +129,7 @@ class JsonStream:
             try:
                 _, event, value = next(self._json_stream_parser)  # type: ignore[call-overload]
                 self._json_token_parser.parse_token(event, value)
-            except StopIteration as ex:
+            except StopIteration:
                 self._token_stream_exhausted = True
             except ijson.common.IncompleteJSONError as ex:
                 raise JsonParsingError(cause=ex) from None

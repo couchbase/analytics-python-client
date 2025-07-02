@@ -17,20 +17,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import (Any,
-                    Dict,
-                    List,
-                    Optional,
-                    Union)
+from typing import Any, Dict, List, Optional, Union
 
 import pytest
 
 from couchbase_analytics import JSONType
 from couchbase_analytics.credential import Credential
 from couchbase_analytics.options import QueryOptions, QueryOptionsKwargs
-from couchbase_analytics.protocol.core.client_adapter import _ClientAdapter
+from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter
+from couchbase_analytics.protocol._core.request import _RequestBuilder
 from couchbase_analytics.protocol.options import QueryOptionsTransformedKwargs
-from couchbase_analytics.protocol.core.request import _RequestBuilder
 
 
 @dataclass

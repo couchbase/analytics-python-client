@@ -5,11 +5,15 @@ from typing import Optional
 
 import anyio
 
+
 def get_time() -> float:
     """
     Get the current time in seconds since the epoch.
     """
     return anyio.current_time()
+
+async def sleep(delay: float) -> None:
+    await anyio.sleep(delay)
 
 class AsyncBackend:
     def __init__(self, backend_lib: str) -> None:

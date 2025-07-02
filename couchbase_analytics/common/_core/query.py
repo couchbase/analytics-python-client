@@ -16,12 +16,9 @@
 from __future__ import annotations
 
 import json
-from typing import (Any,
-                    List,
-                    TypedDict,
-                    Optional)
+from typing import Any, List, Optional, TypedDict
 
-from couchbase_analytics.common.core.duration_str_utils import parse_duration_str
+from couchbase_analytics.common._core.duration_str_utils import parse_duration_str
 
 
 class QueryMetricsCore(TypedDict, total=False):

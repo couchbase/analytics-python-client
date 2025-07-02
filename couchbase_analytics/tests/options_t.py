@@ -21,18 +21,16 @@ from typing import Dict, Type
 import pytest
 
 from couchbase_analytics.credential import Credential
-from couchbase_analytics.deserializer import (Deserializer,
-                                              DefaultJsonDeserializer,
-                                              PassthroughDeserializer)
-from couchbase_analytics.options import (ClusterOptions,
-                                         SecurityOptions,
-                                         SecurityOptionsKwargs,
-                                         TimeoutOptions,
-                                         TimeoutOptionsKwargs)
-from couchbase_analytics.protocol.core.client_adapter import _ClientAdapter
-from tests.utils import (get_test_cert_path,
-                         get_test_cert_list,
-                         get_test_cert_str)
+from couchbase_analytics.deserializer import DefaultJsonDeserializer, Deserializer, PassthroughDeserializer
+from couchbase_analytics.options import (
+    ClusterOptions,
+    SecurityOptions,
+    SecurityOptionsKwargs,
+    TimeoutOptions,
+    TimeoutOptionsKwargs,
+)
+from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter
+from tests.utils import get_test_cert_list, get_test_cert_path, get_test_cert_str
 
 TEST_CERT_PATH = get_test_cert_path()
 TEST_CERT_LIST = get_test_cert_list()

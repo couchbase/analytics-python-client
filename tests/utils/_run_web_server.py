@@ -19,11 +19,10 @@ import pathlib
 import subprocess
 import sys
 import time
-
 from os import path
 from typing import Optional
 
-WEB_SERVER_PATH = path.join(pathlib.Path(__file__).parent, '_async_web_server.py')
+WEB_SERVER_PATH = path.join(pathlib.Path(__file__).parent.parent, 'test_server', 'web_server.py')
 
 print(f'Web server script path: {WEB_SERVER_PATH}')
 
@@ -36,7 +35,7 @@ class WebServerHandler:
     def __init__(self, host: Optional[str]='0.0.0.0', port:Optional[int]=8080) -> None:
         self._host = host or '0.0.0.0'
         self._port = port or 8080
-        self._server_process: Optional[subprocess.Popen[bytes]]
+        self._server_process: Optional[subprocess.Popen[bytes]] = None
         atexit.register(self.stop_server)
 
     @property

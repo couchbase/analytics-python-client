@@ -21,14 +21,11 @@ if sys.version_info < (3, 11):
 else:
     from typing import Unpack
 
-from acouchbase_analytics.protocol.core.client_adapter import _AsyncClientAdapter
+from acouchbase_analytics.protocol._core.client_adapter import _AsyncClientAdapter
 from acouchbase_analytics.protocol.database import AsyncDatabase
 from couchbase_analytics.common.credential import Credential
 from couchbase_analytics.common.result import AsyncQueryResult
-from couchbase_analytics.options import (ClusterOptions,
-                                        ClusterOptionsKwargs,
-                                        QueryOptions,
-                                        QueryOptionsKwargs)
+from couchbase_analytics.options import ClusterOptions, ClusterOptionsKwargs, QueryOptions, QueryOptionsKwargs
 
 class AsyncCluster:
     @overload

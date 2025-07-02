@@ -25,10 +25,7 @@ else:
 from couchbase_analytics import JSONType
 from couchbase_analytics.credential import Credential
 from couchbase_analytics.database import Database
-from couchbase_analytics.options import (ClusterOptions,
-                                         ClusterOptionsKwargs,
-                                         QueryOptions,
-                                         QueryOptionsKwargs)
+from couchbase_analytics.options import ClusterOptions, ClusterOptionsKwargs, QueryOptions, QueryOptionsKwargs
 from couchbase_analytics.result import BlockingQueryResult
 
 class Cluster:

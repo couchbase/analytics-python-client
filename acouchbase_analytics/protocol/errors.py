@@ -1,0 +1,42 @@
+#  Copyright 2016-2024. Couchbase, Inc.
+#  All Rights Reserved.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
+from __future__ import annotations
+
+import socket
+from functools import wraps
+from typing import Any, Callable, Coroutine, Optional, Set
+
+from couchbase_analytics.common.errors import AnalyticsError
+from couchbase_analytics.protocol.errors import _NON_RETRYABLE_SOCKET_ERRORS, WrappedError
+
+
+class ErrorMapper:
+    @staticmethod
+    def handle_socket_error_async(fn: Callable[[str, int, Optional[Set[str]]], Coroutine[Any, Any, Optional[str]]]
+                                  ) -> Callable[[str, int, Optional[Set[str]]], Coroutine[Any, Any, Optional[str]]]:
+        @wraps(fn)
+        async def wrapped_fn(host: str,
+                            port: int,
+                            previous_ips: Optional[Set[str]]=None) -> Optional[str]:
+            try:
+                return await fn(host, port, previous_ips)
+            except socket.gaierror as ex:
+                # print(f'getaddrinfo failed for {host}:{port} with error: {ex}')
+                msg='Connection error occurred while sending request.'
+                raise WrappedError(AnalyticsError(cause=ex, message=msg),
+                                   retriable=(ex.errno not in _NON_RETRYABLE_SOCKET_ERRORS)) from None
+                
+        return wrapped_fn

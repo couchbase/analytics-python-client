@@ -18,7 +18,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
-from couchbase_analytics.protocol.core.client_adapter import _ClientAdapter
+from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter
 from couchbase_analytics.protocol.scope import Scope
 
 if TYPE_CHECKING:

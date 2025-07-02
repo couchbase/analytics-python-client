@@ -21,7 +21,7 @@ if sys.version_info < (3, 11):
 else:
     from typing import Unpack
 
-from acouchbase_analytics.protocol.core.client_adapter import _AsyncClientAdapter
+from acouchbase_analytics.protocol._core.client_adapter import _AsyncClientAdapter
 from acouchbase_analytics.protocol.database import AsyncDatabase as AsyncDatabase
 from couchbase_analytics.options import QueryOptions, QueryOptionsKwargs
 from couchbase_analytics.result import AsyncQueryResult

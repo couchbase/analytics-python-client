@@ -16,14 +16,10 @@
 from __future__ import annotations
 
 from types import TracebackType
-from typing import (Any,
-                    Callable,
-                    List,
-                    Optional,
-                    Type)
-
+from typing import Any, Callable, List, Optional, Type
 
 import anyio
+
 
 class TaskGroupResultCollector:
 

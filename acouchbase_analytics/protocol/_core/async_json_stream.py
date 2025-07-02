@@ -15,21 +15,20 @@
 
 from __future__ import annotations
 
-from typing import (AsyncIterator,
-                    Optional)
+from typing import AsyncIterator, Optional
 
 import ijson
-from anyio import (create_memory_object_stream,
-                   Event,
-                   EndOfStream)
+from anyio import EndOfStream, Event, create_memory_object_stream
 
-
-from couchbase_analytics.common.core.async_json_token_parser import AsyncJsonTokenParser
-from couchbase_analytics.common.core.json_parsing import (JsonParsingError,
-                                                          JsonStreamConfig,
-                                                          ParsedResult,
-                                                          ParsedResultType)
+from acouchbase_analytics.protocol._core.async_json_token_parser import AsyncJsonTokenParser
+from couchbase_analytics.common._core.json_parsing import (
+    JsonParsingError,
+    JsonStreamConfig,
+    ParsedResult,
+    ParsedResultType,
+)
 from couchbase_analytics.common.errors import AnalyticsError
+
 
 class AsyncJsonStream:
     def __init__(self,
@@ -46,14 +45,14 @@ class AsyncJsonStream:
         self._http_stream_exhausted = False
 
         # results handling
-        self._send_stream, self._receive_stream = create_memory_object_stream[ParsedResult](max_buffer_size=stream_config.buffered_row_max)
+        self._send_stream, self._receive_stream = create_memory_object_stream[ParsedResult](max_buffer_size=stream_config.buffered_row_max) # noqa: E501
         self._json_stream_parser = None
         self._buffer_entire_result = stream_config.buffer_entire_result
         handler = None if self._buffer_entire_result is True else self._handle_json_result
         self._json_token_parser = AsyncJsonTokenParser(handler)
         self._token_stream_exhausted = False
         self._has_results_or_errors_evt = Event()
-        self._has_results_or_errors_type = ParsedResultType.UNKNOWN
+        self._results_or_errors_type = ParsedResultType.UNKNOWN
 
     @property
     def has_results_or_errors(self) -> Event:
@@ -63,11 +62,11 @@ class AsyncJsonStream:
         return self._has_results_or_errors_evt
     
     @property
-    def has_results_or_errors_type(self) -> ParsedResultType:
+    def results_or_errors_type(self) -> ParsedResultType:
         """
         **INTERNAL**
         """
-        return self._has_results_or_errors_type
+        return self._results_or_errors_type
 
     @property
     def token_stream_exhausted(self) -> bool:
@@ -111,11 +110,11 @@ class AsyncJsonStream:
             return
         
         if result_type is None:
-            self._has_results_or_errors_type = ParsedResultType.END
+            self._results_or_errors_type = ParsedResultType.END
             self._has_results_or_errors_evt.set()
             return
 
-        self._has_results_or_errors_type = result_type
+        self._results_or_errors_type = result_type
         self._has_results_or_errors_evt.set()
 
     async def _process_token_stream(self) -> None:
@@ -131,7 +130,7 @@ class AsyncJsonStream:
                 # this is a hack b/c the ijson.parse_async iterator does not yield to the event loop
                 # TODO:  create PYCO to either build custom JSON parsing, or dig into ijson root cause
                 await self._json_token_parser.parse_token(event, value)
-            except StopAsyncIteration as ex:
+            except StopAsyncIteration:
                 self._token_stream_exhausted = True
             except ijson.common.IncompleteJSONError as ex:
                 raise JsonParsingError(cause=ex) from None
