@@ -42,7 +42,7 @@ class ParsingState(Enum):
 
     def __str__(self) -> str:
         return self.value
-    
+
 
 class TokenState(Enum):
     RESULTS_START = 'results_start'
@@ -120,11 +120,11 @@ class JsonTokenParserBase:
     @property
     def has_errors(self) -> bool:
         return self._has_errors
-    
+
     @property
     def results_type(self) -> TokenType:
         return self._results_type
-    
+
     def _check_results_in_raw_array(self) -> None:
         if self._results_type != TokenType.UNKNOWN:
             return
@@ -167,7 +167,7 @@ class JsonTokenParserBase:
                 self._state = ParsingState.PROCESSING_RESULTS
                 return True
         return False
-    
+
     def _handle_push_transition(self) -> Optional[TokenState]:
         if self._state == ParsingState.START_RESULTS_PROCESSING:
             self._previous_state = self._state
@@ -233,7 +233,7 @@ class JsonTokenParserBase:
         if self._stack:
             return self._stack.pop()
         raise ValueError('Stack is empty')
-    
+
     def _should_push_pair(self, token: Token) -> bool:
         # when a results object is complete, the state will have transactioned back to PROCESSING
         # if we are not emitting rows or errors, we want to keep the results/errors object on the stack

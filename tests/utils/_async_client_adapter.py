@@ -42,7 +42,7 @@ def client_adapter_init_override(self, *args, **kwargs) -> None:  # type: ignore
 async def send_request_override(self: _AsyncClientAdapter, request: QueryRequest) -> Response:
     if not hasattr(self, '_client'):
         raise RuntimeError('Client not created yet')
-    
+
     # if request.url is None:
     #     raise ValueError('Request URL cannot be None')
 

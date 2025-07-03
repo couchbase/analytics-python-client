@@ -60,7 +60,7 @@ class AsyncJsonStream:
         **INTERNAL**
         """
         return self._has_results_or_errors_evt
-    
+
     @property
     def results_or_errors_type(self) -> ParsedResultType:
         """
@@ -74,7 +74,7 @@ class AsyncJsonStream:
         **INTERNAL**
         """
         return self._token_stream_exhausted
-    
+
     def _continue_processing(self) -> bool:
         """
         **INTERNAL**
@@ -108,7 +108,7 @@ class AsyncJsonStream:
     def _handle_notification(self, result_type: Optional[ParsedResultType]=None) -> None:
         if self._has_results_or_errors_evt.is_set():
             return
-        
+
         if result_type is None:
             self._results_or_errors_type = ParsedResultType.END
             self._has_results_or_errors_evt.set()
@@ -140,14 +140,14 @@ class AsyncJsonStream:
             result_type = ParsedResultType.ERROR if self._json_token_parser.has_errors else ParsedResultType.END
             await self._send_to_stream(ParsedResult(self._json_token_parser.get_result(), result_type), close=True)
             self._handle_notification(result_type)
-    
+
     async def read(self, size: Optional[int]=-1) -> bytes:
         """
         **INTERNAL**
         """
         if size is None or size == 0 or self._http_stream_exhausted:
             return b''
-        
+
         while not self._http_stream_exhausted:
             if size >= 0 and len(self._http_response_buffer) > size:
                 break

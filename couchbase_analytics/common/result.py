@@ -134,7 +134,7 @@ class AsyncQueryResult(QueryResult):
             An async iterator for iterating over query results.
         """
         return AsyncIterator(self._http_response)
-    
+
     async def shutdown(self) -> None:
         """Shutdown the streaming connection."""
         await self._http_response.shutdown()

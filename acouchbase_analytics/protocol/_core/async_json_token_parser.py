@@ -40,7 +40,7 @@ class AsyncJsonTokenParser(JsonTokenParserBase):
             await self._results_handler(bytes(obj, 'utf-8'))
             return True
         return False
-    
+
     async def _handle_pop_event(self, token_type: TokenType) -> None:
         matching_token = self._get_matching_token(token_type)
         obj_pairs: List[str] = []
@@ -53,7 +53,7 @@ class AsyncJsonTokenParser(JsonTokenParserBase):
                     obj = f'[{",".join(reversed(obj_pairs))}]'
                 else:
                     obj = f'{{{",".join(reversed(obj_pairs))}}}'
-            
+
                 if should_emit:
                     object_emitted = await self._handle_obj_emit(obj)
                     if object_emitted:
@@ -61,8 +61,8 @@ class AsyncJsonTokenParser(JsonTokenParserBase):
 
                 if len(self._stack) > 0 and self._stack[-1].type == TokenType.MAP_KEY:
                     map_key = self._pop()
-                    # If we are emitting rows and/or errors, 
-                    # we don't keep them in the stack and therefore don't need to return the results           
+                    # If we are emitting rows and/or errors,
+                    # we don't keep them in the stack and therefore don't need to return the results
                     if self._should_push_pair(next_token):
                         self._push(TokenType.PAIR, f'{map_key.value}:{obj}')
                 else:

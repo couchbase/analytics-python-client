@@ -48,7 +48,7 @@ class QueryRequest:
     body: Dict[str, Union[str, object]]
     extensions: RequestExtensions
     method: str = 'POST'
-    
+
     options: Optional[QueryOptionsTransformedKwargs] = None
     previous_ips: Optional[Set[str]] = None
     enable_cancel: Optional[bool] = None
@@ -108,7 +108,7 @@ class _RequestBuilder:
         self._opts_builder = client.options_builder
         self._database_name = database_name
         self._scope_name = scope_name
-        
+
         connect_timeout = self._conn_details.get_connect_timeout()
         self._default_query_timeout = self._conn_details.get_query_timeout()
         self._extensions: RequestExtensions = {
@@ -132,7 +132,7 @@ class _RequestBuilder:
         cancel_kwarg_token = kwargs.pop('enable_cancel', None)
         if isinstance(cancel_kwarg_token, bool):
             enable_cancel = cancel_kwarg_token
-        
+
         # default if no options provided
         opts = QueryOptions()
         args_list = list(args)
@@ -168,7 +168,7 @@ class _RequestBuilder:
             'statement': statement,
             'client_context_id': q_opts.get('client_context_id', None) or str(uuid4())
         }
-        
+
         if self._database_name is not None and self._scope_name is not None:
             body['query_context'] = f'default:`{self._database_name}`.`{self._scope_name}`'
 
@@ -199,7 +199,7 @@ class _RequestBuilder:
                     key = f'${k}' if not k.startswith('$') else k
                     body[key] = v
             elif opt_key == 'readonly':
-                body['readonly'] = opt_val 
+                body['readonly'] = opt_val
             elif opt_key == 'scan_consistency':
                 if isinstance(opt_val, QueryScanConsistency):
                     body['scan_consistency'] = opt_val.value

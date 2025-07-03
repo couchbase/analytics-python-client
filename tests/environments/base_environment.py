@@ -74,7 +74,7 @@ class TestEnvironment:
     @property
     def config(self) -> AnalyticsConfig:
         return self._config
-    
+
     @property
     def fqdn(self) -> str:
         return self.config.fqdn
@@ -130,7 +130,7 @@ class TestEnvironment:
         if limit is not None and len(json_data) > limit:
             return json_data[:limit]
         return json_data
-    
+
 class BlockingTestEnvironment(TestEnvironment):
     def __init__(self, config: AnalyticsConfig, **kwargs: Unpack[TestEnvironmentOptionsKwargs]) -> None:
         super().__init__(config, **kwargs)
@@ -140,7 +140,7 @@ class BlockingTestEnvironment(TestEnvironment):
         if self._cluster is None:
             raise AnalyticsTestEnvironmentError('No cluster available.')
         return self._cluster
-    
+
     @property
     def scope(self) -> Scope:
         if self._scope is None:
@@ -169,7 +169,7 @@ class BlockingTestEnvironment(TestEnvironment):
         self._scope = None
         self._use_scope = False
         return self
-    
+
     def disable_test_server(self) -> BlockingTestEnvironment:
         if self._server_handler is not None:
             self._server_handler.stop_server()
@@ -208,7 +208,7 @@ class BlockingTestEnvironment(TestEnvironment):
         print(f'Connecting to test server at {url}')
         self._server_handler.start_server()
         return self
-    
+
     def setup(self) -> None:
         if self.config.create_keyspace is False:
             return
@@ -318,9 +318,9 @@ class BlockingTestEnvironment(TestEnvironment):
         env_opts['scope_name'] = config.scope_name
         env_opts['collection_name'] = config.collection_name
         return cls(config, **env_opts)
-    
 
-    
+
+
 class AsyncTestEnvironment(TestEnvironment):
     def __init__(self, config: AnalyticsConfig, **kwargs: Unpack[TestEnvironmentOptionsKwargs]) -> None:
         self._backend = kwargs.pop('backend', None)
@@ -337,7 +337,7 @@ class AsyncTestEnvironment(TestEnvironment):
         if self._async_scope is not None:
             return self.scope
         return self.cluster
-    
+
     @property
     def scope(self) -> AsyncScope:
         if self._async_scope is None:
@@ -360,7 +360,7 @@ class AsyncTestEnvironment(TestEnvironment):
         self._async_scope = None
         self._use_scope = False
         return self
-    
+
     def disable_test_server(self) -> AsyncTestEnvironment:
         if self._server_handler is not None:
             self._server_handler.stop_server()
@@ -399,7 +399,7 @@ class AsyncTestEnvironment(TestEnvironment):
         print(f'Connecting to test server at {url}')
         self._server_handler.start_server()
         return self
-    
+
     async def setup(self) -> None:
         if self.config.create_keyspace is False:
             return
@@ -433,7 +433,7 @@ class AsyncTestEnvironment(TestEnvironment):
             await self.cluster.execute_query(statement)
         except Exception as ex:
             raise AnalyticsTestEnvironmentError(f'Unable to load collection data. Error: {ex}')
-    
+
     def set_url_path(self, url_path: str) -> None:
         if self._server_handler is None:
             raise AnalyticsTestEnvironmentError('No server handler provided, cannot set URL path.')
@@ -516,7 +516,7 @@ class AsyncTestEnvironment(TestEnvironment):
         env_opts['scope_name'] = config.scope_name
         env_opts['collection_name'] = config.collection_name
         return cls(config, **env_opts)
-    
+
 @pytest.fixture(scope='class', name='sync_test_env')
 def base_test_environment(analytics_config: AnalyticsConfig) -> BlockingTestEnvironment:
     print("Creating sync test environment")

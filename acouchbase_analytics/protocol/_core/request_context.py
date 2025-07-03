@@ -71,7 +71,7 @@ class AsyncRequestContext:
     def okay_to_iterate(self) -> bool:
         self._check_cancelled_or_timed_out()
         return StreamingState.okay_to_iterate(self._request_state)
-    
+
     @property
     def okay_to_stream(self) -> bool:
         self._check_cancelled_or_timed_out()
@@ -97,7 +97,7 @@ class AsyncRequestContext:
     def _check_cancelled_or_timed_out(self) -> None:
         if self._request_state in [StreamingState.Timeout, StreamingState.Cancelled, StreamingState.Error]:
             return
-        
+
         if hasattr(self, '_request_deadline') is False:
             return
 
@@ -220,21 +220,21 @@ class AsyncRequestContext:
         # task.add_done_callback(task_done)
         self._response_task = task
         return task
-    
+
     def deserialize_result(self, result: bytes) -> Any:
         return self._request.deserializer.deserialize(result)
 
     async def finish_processing_stream(self) -> None:
         if not self.has_stage_completed:
             await self._wait_for_stage_to_complete()
-        
+
         while not self._json_stream.token_stream_exhausted:
             self._start_next_stage(self._json_stream.continue_parsing, reset_previous_stage=True)
             await self._wait_for_stage_to_complete()
 
     async def get_result_from_stream(self) -> ParsedResult:
         return await self._json_stream.get_result()
-    
+
     async def initialize(self) -> None:
         # TODO: Add useful logging messages
         if self._request_state == StreamingState.ResetAndNotStarted:
@@ -243,7 +243,7 @@ class AsyncRequestContext:
             return
         await self.__aenter__()
         self._request_state = StreamingState.Started
-        # we set the request timeout once the context is initialized in order to create the deadline 
+        # we set the request timeout once the context is initialized in order to create the deadline
         # closer to when the upstream logic will begin to use the request context
         timeouts = self._request.get_request_timeouts() or {}
         current_time = get_time()
@@ -257,7 +257,7 @@ class AsyncRequestContext:
 
         if self._json_stream.token_stream_exhausted:
             return
-        
+
         self._start_next_stage(self._json_stream.continue_parsing, reset_previous_stage=True)
 
     def okay_to_delay_and_retry(self, delay: float) -> bool:
@@ -265,7 +265,7 @@ class AsyncRequestContext:
         self._check_cancelled_or_timed_out()
         if self._request_state in [StreamingState.Timeout, StreamingState.Cancelled]:
             return False
-        
+
         current_time = get_time()
         delay_time = current_time + delay
         will_time_out = self._request_deadline < delay_time
@@ -287,7 +287,7 @@ class AsyncRequestContext:
                 await close_handler()
                 raise AnalyticsError(message='Received unexpected empty result from JsonStream.',
                                      context=str(self._error_ctx))
-                
+
         if raw_response.value is None:
             await close_handler()
             raise AnalyticsError(message='Received unexpected empty result from JsonStream.',
@@ -300,9 +300,9 @@ class AsyncRequestContext:
         if 'errors' in json_response:
             await self._process_error(json_response['errors'], handle_context_shutdown=handle_context_shutdown)
         return json_response
-    
+
     async def reraise_after_shutdown(self, err: Exception) -> None:
-        try:    
+        try:
             raise err
         except Exception as ex:
             await self.shutdown(type(ex), ex, ex.__traceback__)
@@ -314,7 +314,7 @@ class AsyncRequestContext:
             attempted_ips = ', '.join(self._request.previous_ips or [])
             raise AnalyticsError(message=f'Connect failure.  Unable to connect to any resolved IPs: {attempted_ips}.',
                                  context=str(self._error_ctx))
-        
+
         if enable_trace_handling is True:
             (self._request.update_url(ip, self._client_adapter.analytics_path)
                           .add_trace_to_extensions(self._trace_handler)
@@ -348,7 +348,7 @@ class AsyncRequestContext:
         if hasattr(self, '_json_stream'):
             # TODO: logging; I don't think this is an error...
             return
-        
+
         self._json_stream = AsyncJsonStream(core_response.aiter_bytes(), stream_config=self._stream_config)
         self._start_next_stage(self._json_stream.start_parsing)
 

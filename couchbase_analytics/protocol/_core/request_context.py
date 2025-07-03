@@ -53,11 +53,11 @@ class BackgroundRequest:
         self._cancel_event = cancel_event
         self._background_work_ft.add_done_callback(self._background_work_done)
         self._user_ft.add_done_callback(self._user_done)
-    
+
     @property
     def user_cancelled(self) -> bool:
         return self._user_ft.cancelled()
-    
+
     def _background_work_done(self, ft: Future[BlockingQueryResult]) -> None:
         """
         Callback to handle when the background work future is done.
@@ -85,7 +85,7 @@ class BackgroundRequest:
             self._background_work_ft.cancel()
             return
 
-    
+
 
 class RequestContext:
 
@@ -115,7 +115,7 @@ class RequestContext:
     @property
     def cancel_enabled(self) -> Optional[bool]:
         return self._request.enable_cancel
-    
+
     @property
     def cancelled(self) -> bool:
         self._check_cancelled_or_timed_out()
@@ -128,7 +128,7 @@ class RequestContext:
     @property
     def has_stage_completed(self) -> bool:
         return self._stage_completed_ft is not None and self._stage_completed_ft.done()
-     
+
     @property
     def is_shutdown(self) -> bool:
         return self._shutdown
@@ -138,7 +138,7 @@ class RequestContext:
         # NOTE: Called prior to upstream logic attempting to iterate over results from HTTP client
         self._check_cancelled_or_timed_out()
         return StreamingState.okay_to_iterate(self._request_state)
-    
+
     @property
     def okay_to_stream(self) -> bool:
         # NOTE: Called prior to upstream logic attempting to send request to HTTP client
@@ -152,7 +152,7 @@ class RequestContext:
     @property
     def request_state(self) -> StreamingState:
         return self._request_state
-    
+
     @property
     def timed_out(self) -> bool:
         self._check_cancelled_or_timed_out()
@@ -161,7 +161,7 @@ class RequestContext:
     def _check_cancelled_or_timed_out(self) -> None:
         if self._request_state in [StreamingState.Timeout, StreamingState.Cancelled, StreamingState.Error]:
             return
-        
+
         if (self._cancel_event.is_set()
             or (self._background_request is not None
                 and self._background_request.user_cancelled)):
@@ -212,7 +212,7 @@ class RequestContext:
                 self._stage_completed_ft = None
         elif self._stage_completed_ft is not None and not self._stage_completed_ft.done():
             raise RuntimeError('Future already running in this context.')
-        
+
         kwargs: Dict[str, Union[RequestContext, Future[ParsedResultType]]] = {'request_context': self}
         if create_notification is True:
             self._create_stage_notification_future()
@@ -242,7 +242,7 @@ class RequestContext:
     def finish_processing_stream(self) -> None:
         if not self.has_stage_completed:
             self._wait_for_stage_completed()
-        
+
         if self.cancelled:
             return
 
@@ -266,10 +266,10 @@ class RequestContext:
     def maybe_continue_to_process_stream(self) -> None:
         if not self.has_stage_completed:
             return
-        
+
         if self._json_stream.token_stream_exhausted:
             return
-        
+
         if self.cancelled:
             return
 
@@ -280,7 +280,7 @@ class RequestContext:
         self._check_cancelled_or_timed_out()
         if self._request_state in [StreamingState.Timeout, StreamingState.Cancelled]:
             return False
-        
+
         current_time = time.monotonic()
         delay_time = current_time + delay
         will_time_out = self._request_deadline < delay_time
@@ -291,7 +291,7 @@ class RequestContext:
         else:
             self._reset_stream()
             return True
-    
+
     def process_response(self,
                          close_handler: Callable[[], None],
                          raw_response: Optional[ParsedResult]=None,
@@ -302,7 +302,7 @@ class RequestContext:
                 close_handler()
                 raise AnalyticsError(message='Received unexpected empty result from JsonStream.',
                                      context=str(self._error_ctx))
-                
+
         if raw_response.value is None:
             close_handler()
             raise AnalyticsError(message='Received unexpected empty response value from JsonStream.',
@@ -321,7 +321,7 @@ class RequestContext:
             attempted_ips = ', '.join(self._request.previous_ips or [])
             raise AnalyticsError(message=f'Connect failure.  Unable to connect to any resolved IPs: {attempted_ips}.',
                                  context=str(self._error_ctx))
-        
+
         if enable_trace_handling is True:
             (self._request.update_url(ip, self._client_adapter.analytics_path)
                           .add_trace_to_extensions(self._trace_handler)
@@ -334,13 +334,13 @@ class RequestContext:
         # print(f'Response received: {response.status_code} for request {self._id}, body={self._request.body}.')
         if response.status_code == 401:
             raise InvalidCredentialError(context=str(self._error_ctx))
-        
+
         return response
-    
+
     def send_request_in_background(self,
                                    fn: Callable[..., BlockingQueryResult],
                                    *args: object,) -> Future[BlockingQueryResult]:
-        
+
         if self._background_request is not None:
             raise RuntimeError('Background reqeust already created for this context.')
         # TODO:  custom ThreadPoolExecutor, to get a "plain" future
@@ -372,7 +372,7 @@ class RequestContext:
         if hasattr(self, '_json_stream'):
             # TODO: logging; I don't think this is an error...
             return
-        
+
         # TODO: need to confirm if the httpx Response iterator is thread-safe
         self._json_stream = JsonStream(core_response.iter_bytes(), stream_config=self._stream_config)
         self._start_next_stage(self._json_stream.start_parsing, create_notification=True)

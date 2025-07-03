@@ -97,9 +97,9 @@ class Credential:
 
         """
         return Credential(**callback().asdict())
-    
+
     def __repr__(self) -> str:
         return f'Credential(username={self._username}, password=****)'
-    
+
     def __str__(self) -> str:
         return self.__repr__()

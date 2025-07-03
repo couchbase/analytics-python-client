@@ -20,7 +20,7 @@ import pytest
 pytest_plugins = [
     'tests.analytics_config',
     'tests.environments.base_environment',
-    'tests.environments.simple_environment'
+    'tests.environments.simple_environment',
 ]
 
 _UNIT_TESTS = [
@@ -48,14 +48,14 @@ _INTEGRATRION_TESTS = [
     'couchbase_analytics/tests/query_integration_t.py::ScopeQueryTests',
 ]
 
+
 @pytest.fixture(scope='class')
 def anyio_backend() -> str:
     return 'asyncio'
 
+
 # https://docs.pytest.org/en/stable/reference/reference.html#std-hook-pytest_collection_modifyitems
-def pytest_collection_modifyitems(session: pytest.Session,
-                                  config: pytest.Config,
-                                  items: List[pytest.Item]) -> None:  # noqa: C901
+def pytest_collection_modifyitems(session: pytest.Session, config: pytest.Config, items: List[pytest.Item]) -> None:  # noqa: C901
     for item in items:
         item_details = item.nodeid.split('::')
 

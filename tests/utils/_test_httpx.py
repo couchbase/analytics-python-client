@@ -149,7 +149,7 @@ class TestConnectionPool(ConnectionPool):
             network_backend=self._network_backend,
             socket_options=self._socket_options,
         )
-    
+
     def handle_request(self, request: Request) -> Response:
         """
         Send an HTTP request, and return an HTTP response.
@@ -238,7 +238,7 @@ class TestConnectionPool(ConnectionPool):
             ),
             extensions=response.extensions,
         )
-    
+
 def http_transport_init_override(self, *args, **kwargs) -> None:  # type: ignore
     verify = kwargs.get('verify')
     cert = kwargs.get('cert')

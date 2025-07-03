@@ -55,7 +55,7 @@ class AsyncHttpStreamingResponse:
         else:
             await self._request_context.shutdown()
             raise StopAsyncIteration
-        
+
 
     async def _process_response(self,
                                 raw_response: Optional[ParsedResult]=None,
@@ -75,7 +75,7 @@ class AsyncHttpStreamingResponse:
         if hasattr(self, '_core_response'):
             await self._core_response.aclose()
             del self._core_response
-    
+
     def cancel(self) -> None:
         """
         **INTERNAL**
@@ -125,7 +125,7 @@ class AsyncHttpStreamingResponse:
                 and self._core_response is not None
                 and self._request_context.okay_to_iterate):
             await self._handle_iteration_abort()
-        
+
         self._request_context.maybe_continue_to_process_stream()
         raw_response = await self._request_context.get_result_from_stream()
         if raw_response.result_type == ParsedResultType.ROW:
@@ -141,7 +141,7 @@ class AsyncHttpStreamingResponse:
             raise StopAsyncIteration
         else:
             await self._process_response(raw_response=raw_response, handle_context_shutdown=True)
-                
+
     @AsyncRetryHandler.with_retries
     async def send_request(self) -> None:
         """

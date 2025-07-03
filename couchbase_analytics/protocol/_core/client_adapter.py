@@ -61,15 +61,15 @@ class _ClientAdapter:
         """
             **INTERNAL**
         """
-        return self._ANALYTICS_PATH 
-    
+        return self._ANALYTICS_PATH
+
     @property
     def client(self) -> Client:
         """
             **INTERNAL**
         """
         return self._client
-    
+
     @property
     def client_id(self) -> str:
         """
@@ -90,7 +90,7 @@ class _ClientAdapter:
             **INTERNAL**
         """
         return self._conn_details.default_deserializer
-    
+
     @property
     def has_client(self) -> bool:
         """
@@ -141,10 +141,10 @@ class _ClientAdapter:
         """
         if not hasattr(self, '_client'):
             raise RuntimeError('Client not created yet')
-        
+
         # if request.url is None:
         #     raise ValueError('Request URL cannot be None')
-        
+
         url = URL(scheme=request.url.scheme,
                   host=request.url.host,
                   port=request.url.port,
@@ -165,4 +165,3 @@ class _ClientAdapter:
         """
         if hasattr(self, '_client'):
             del self._client
-

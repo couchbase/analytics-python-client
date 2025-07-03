@@ -47,7 +47,7 @@ def current_async_library() -> Optional[AsyncBackend]:
         import sniffio
     except ImportError:
         async_lib = 'asyncio'
-    
+
     # TODO: This helps make tests work.
     #       Should we work through the scenario when sniffio cannot find the async library?
     try:

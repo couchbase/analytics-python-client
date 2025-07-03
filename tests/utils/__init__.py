@@ -62,7 +62,7 @@ class AsyncInfiniteBytesIterator(PyAsyncIterator[bytes]):
 
     def __aiter__(self) -> AsyncInfiniteBytesIterator:
         return self
-    
+
     async def __anext__(self) -> bytes:
         if self._simulate_delay:
             delay = random.uniform(*self._simulate_delay_range)
@@ -96,7 +96,7 @@ class AsyncInfiniteBytesIterator(PyAsyncIterator[bytes]):
             chunk = bytes(self._data[:self._stop])
             del self._data[:self._stop]
             self._stop += self._chunk_size
-            
+
             return chunk
 
 class AsyncBytesIterator(PyAsyncIterator[bytes]):
@@ -115,7 +115,7 @@ class AsyncBytesIterator(PyAsyncIterator[bytes]):
 
     def __aiter__(self) -> AsyncBytesIterator:
         return self
-    
+
     async def __anext__(self) -> bytes:
         if self._simulate_delay:
             delay = random.uniform(*self._simulate_delay_range)
@@ -147,7 +147,7 @@ class BytesIterator(Iterator[bytes]):
 
     def __iter__(self) -> BytesIterator:
         return self
-    
+
     def __next__(self) -> bytes:
         if not self._data:
             raise StopIteration
@@ -165,7 +165,7 @@ class BytesIterator(Iterator[bytes]):
             self._start = self._stop
             self._stop += self._chunk_size
             return chunk
-        
+
 
 def get_test_cert_path() -> str:
     return os.path.join(pathlib.Path(__file__).parent, 'certs', 'dinocluster.pem')

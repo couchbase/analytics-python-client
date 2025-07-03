@@ -59,7 +59,7 @@ class QueryTestSuite:
         'test_query_timeout_while_streaming',
         'test_simple_query',
         'test_query_with_lazy_execution',
-        'test_query_with_lazy_execution_raises_exception',        
+        'test_query_with_lazy_execution_raises_exception',
     ]
 
     @pytest.fixture(scope='class')
@@ -112,7 +112,7 @@ class QueryTestSuite:
 
             assert isinstance(res, BlockingQueryResult)
             assert res._http_response._request_context.request_state == StreamingState.Cancelled
-            
+
             for row in res.rows():
                 rows.append(row)
 
@@ -147,7 +147,7 @@ class QueryTestSuite:
 
             assert isinstance(res, BlockingQueryResult)
             assert res._http_response._request_context.request_state == StreamingState.Cancelled
-            
+
             for row in res.rows():
                 rows.append(row)
 
@@ -182,13 +182,13 @@ class QueryTestSuite:
 
             assert isinstance(res, BlockingQueryResult)
             assert res._http_response._request_context.request_state == StreamingState.Cancelled
-            
+
             for row in res.rows():
                 rows.append(row)
 
             with pytest.raises(RuntimeError):
                 res.metadata()
-            
+
             test_env.assert_streaming_response_state(res)
 
     @pytest.mark.parametrize('cancel_via_future', [False, True])
@@ -217,7 +217,7 @@ class QueryTestSuite:
 
             assert isinstance(res, BlockingQueryResult)
             assert res._http_response._request_context.request_state == StreamingState.Cancelled
-            
+
             for row in res.rows():
                 rows.append(row)
 
@@ -252,7 +252,7 @@ class QueryTestSuite:
 
             assert isinstance(res, BlockingQueryResult)
             assert res._http_response._request_context.request_state == StreamingState.Cancelled
-            
+
             for row in res.rows():
                 rows.append(row)
 
@@ -452,7 +452,7 @@ class QueryTestSuite:
                                             query_type: SyncQueryType) -> None:
         statement = 'FROM range(0, 10) AS num SELECT *'
 
-        
+
         if query_type == SyncQueryType.NORMAL:
             result = test_env.cluster_or_scope.execute_query(statement,
                                                              QueryOptions(deserializer=PassthroughDeserializer()))
@@ -498,7 +498,7 @@ class QueryTestSuite:
                                                test_env: BlockingTestEnvironment,
                                                query_statement_pos_params_limit2: str,
                                                query_type: SyncQueryType) -> None:
-        
+
         if query_type == SyncQueryType.NORMAL:
             result = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2, 'United States')
         elif query_type == SyncQueryType.LAZY:
@@ -570,7 +570,7 @@ class QueryTestSuite:
         else:
             statement = f'SELECT * FROM {test_env.fqdn} WHERE country = $country LIMIT $1;'
 
-        
+
         if query_type == SyncQueryType.NORMAL:
             result = test_env.cluster_or_scope.execute_query(statement,
                                                              QueryOptions(raw={'$country': 'United States',
@@ -589,7 +589,7 @@ class QueryTestSuite:
             result = res.result()
 
         test_env.assert_rows(result, 2)
-        
+
         if query_type == SyncQueryType.NORMAL:
             result = test_env.cluster_or_scope.execute_query(query_statement_pos_params_limit2,
                                                              QueryOptions(raw={'args': ['United States']}))
@@ -609,7 +609,7 @@ class QueryTestSuite:
     @pytest.mark.parametrize('query_type', [SyncQueryType.NORMAL, SyncQueryType.LAZY, SyncQueryType.CANCELLABLE])
     def test_query_timeout(self, test_env: BlockingTestEnvironment, query_type: SyncQueryType) -> None:
         statement = 'SELECT sleep("some value", 10000) AS some_field;'
-        
+
         if query_type == SyncQueryType.NORMAL:
             with pytest.raises(TimeoutError):
                 result = test_env.cluster_or_scope.execute_query(statement,
@@ -657,7 +657,7 @@ class QueryTestSuite:
                           test_env: BlockingTestEnvironment,
                           query_statement_limit2: str,
                           query_type: SyncQueryType) -> None:
-        
+
         if query_type == SyncQueryType.NORMAL:
             result = test_env.cluster_or_scope.execute_query(query_statement_limit2)
         elif query_type == SyncQueryType.LAZY:

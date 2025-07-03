@@ -90,7 +90,7 @@ class AsyncRetryHandler:
                         await self.close()
 
         return wrapped_fn
-    
+
 def calc_backoff(retry_count: int) -> float:
     min_ms = 100
     max_ms = 60000

@@ -20,7 +20,7 @@ def client_adapter_init_override(self, *args, **kwargs) -> None:  # type: ignore
     self._conn_details = adapter._conn_details
     if self._http_transport_cls is None:
         self._http_transport_cls = adapter._http_transport_cls
-    
+
 
 # def create_client_override(self) -> None:
 #     if not hasattr(self, '_client'):
@@ -37,11 +37,11 @@ def client_adapter_init_override(self, *args, **kwargs) -> None:  # type: ignore
 #                 transport = self._http_transport_cls()
 #             self._client = Client(auth=BasicAuth(*self._conn_details.credential),
 #                                     transport=transport)
-            
+
 def send_request_override(self: _ClientAdapter, request: QueryRequest) -> Response:
     if not hasattr(self, '_client'):
         raise RuntimeError('Client not created yet')
-    
+
     # if request.url is None:
     #     raise ValueError('Request URL cannot be None')
 
@@ -73,7 +73,7 @@ def send_request_override(self: _ClientAdapter, request: QueryRequest) -> Respon
     except socket.gaierror as err:
         req_url = self._conn_details.url.get_formatted_url()
         raise RuntimeError(f'Unable to connect to {req_url}') from err
-    
+
 def set_request_path(self: _ClientAdapter, path: str) -> None:
     self._ANALYTICS_PATH = path
 

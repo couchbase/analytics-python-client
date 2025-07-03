@@ -109,7 +109,7 @@ class JsonStream:
         """
         if self._notify_on_results_or_error is not None and not self._notify_on_results_or_error.done():
             self._handle_notification(ParsedResultType.ROW)
-        
+
         self._put(ParsedResult(row, ParsedResultType.ROW))
 
     def _handle_notification(self, result_type: ParsedResultType) -> None:
@@ -145,7 +145,7 @@ class JsonStream:
         """
         if size is None or size == 0 or self._http_stream_exhausted:
             return b''
-        
+
         while not self._http_stream_exhausted:
             if size >= 0 and len(self._http_response_buffer) > size:
                 break
@@ -164,14 +164,14 @@ class JsonStream:
             data = bytes(self._http_response_buffer[:end])
             del self._http_response_buffer[:end]
         return data
-    
+
     def get_result(self, timeout: float) -> Optional[ParsedResult]:
         try:
             return self._results_queue.get(timeout=timeout)
         except QueueEmpty:
             # TODO:  log a message here as indication the stream is slow
             return None
-    
+
     def start_parsing(self,
                       request_context: Optional[RequestContext]=None,
                       notify_on_results_or_error: Optional[Future[ParsedResultType]]=None) -> None:

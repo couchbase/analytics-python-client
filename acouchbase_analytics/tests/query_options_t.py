@@ -65,7 +65,7 @@ class QueryOptionsTestSuite:
     @pytest.fixture(scope='class')
     def query_statment(self) -> str:
         return 'SELECT * FROM default'
-    
+
     def test_options_deserializer(self,
                                   query_statment: str,
                                   request_builder: _RequestBuilder,
@@ -250,7 +250,7 @@ class QueryOptionsTestSuite:
         with pytest.raises(ValueError):
             request_builder.build_base_query_request(query_statment, **kwargs)
 
-    
+
 class ClusterQueryOptionsTests(QueryOptionsTestSuite):
 
     @pytest.fixture(scope='class', autouse=True)

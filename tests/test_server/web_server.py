@@ -39,7 +39,7 @@ from tests.test_server.response import (ServerResponse,
 from tests.utils import AsyncBytesIterator, AsyncInfiniteBytesIterator
 
 logging.basicConfig(level=logging.INFO,
-                    stream=sys.stderr, 
+                    stream=sys.stderr,
                     format='%(asctime)s - %(levelname)s - (PID:%(process)d) - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class AsyncWebServer:
         self._app.add_routes([web.post('/test_error', self.handle_error_request),
                               web.post('/test_results', self.handle_results_request),
                               web.post('/test_slow_results', self.handle_slow_results_request)])
-        
+
     async def _handle_timeout_error_request(self, request: ServerTimeoutRequest) -> web.Response:
         timeout = request.timeout
         start = perf_counter()
@@ -71,7 +71,7 @@ class AsyncWebServer:
             'elapsedTime': f'{elapsed}s',
             'message': f'Request timed out after {timeout} seconds.'
         })
-    
+
     def _handle_auth_error_request(self, error_type: ErrorType) -> web.Response:
         start = perf_counter()
         resp = ServerResponse.create()
@@ -80,7 +80,7 @@ class AsyncWebServer:
         elapsed = end - start
         resp.update_elapsed_time(elapsed)
         return web.json_response(resp.to_json_repr())
-    
+
     async def _handle_retry_error_request(self, request: ServerErrorRequest) -> web.Response:
         start = perf_counter()
         resp = ServerResponse.create()
@@ -94,7 +94,7 @@ class AsyncWebServer:
         resp.update_elapsed_time(elapsed)
         res = resp.to_json_repr()
         return web.json_response(resp.to_json_repr())
-    
+
     async def _handle_results_request(self, request: ServerResultsRequest, web_request: web.Request) -> Union[web.Response, web.StreamResponse]:
         resp = ServerResponse.create()
         start = perf_counter()
@@ -122,7 +122,7 @@ class AsyncWebServer:
                 await response.write(chunk)
             await response.write_eof()
             return response
-        
+
         if request.row_count is None:
             raise ValueError('Missing "row_count" in JSON data.')
 
@@ -148,7 +148,7 @@ class AsyncWebServer:
             received_json = await request.json()
             if 'error_type' not in received_json:
                 raise ValueError('Missing "error_type" in JSON data.')
-            
+
             error_req = ServerErrorRequest.from_json(received_json)
             if error_req.error_type == ErrorType.Timeout:
                 timeout_req = ServerTimeoutRequest.from_json(received_json)
@@ -171,7 +171,7 @@ class AsyncWebServer:
         except Exception as e:
             logger.error(f'An error occurred: {e}', exc_info=True)
             return web.Response(status=400, text="Bad Request")
-        
+
     async def handle_results_request(self, request: web.Request) -> Union[web.Response, web.StreamResponse]:
         try:
             received_json = await request.json()
@@ -186,13 +186,13 @@ class AsyncWebServer:
         except Exception as e:
             logger.error(f'An error occurred: {e}', exc_info=True)
             return web.Response(status=400, text="Bad Request")
-        
+
     async def handle_slow_results_request(self, request: web.Request) -> web.StreamResponse:
         try:
             received_json = await request.json()
             if 'request_type' not in received_json:
                 raise ValueError('Missing "request_type" in JSON data.')
-            
+
             logger.info(f"Received JSON: {received_json}")
             return web.json_response({
                 'status': 'success',

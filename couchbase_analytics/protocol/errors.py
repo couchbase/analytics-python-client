@@ -64,7 +64,7 @@ class ServerQueryError(NamedTuple):
 
     def __repr__(self) -> str:
         return f'ServerQueryError(code={self.code}, message={self.message}, retriable={self.retriable})'
-    
+
     @classmethod
     def from_json(cls, json_data: Dict[str, Any]) -> ServerQueryError:
         """
@@ -86,7 +86,7 @@ class WrappedError(Exception):
     @property
     def retriable(self) -> bool:
         return self._retriable
-    
+
     @retriable.setter
     def retriable(self, value: bool) -> None:
         self._retriable = value
@@ -94,7 +94,7 @@ class WrappedError(Exception):
     def maybe_set_cause_context(self, context: ErrorContext) -> None:
         if not isinstance(self._cause, (AnalyticsError, InvalidCredentialError, QueryError, TimeoutError)):
             return
-        
+
         if hasattr(self._cause, '_context') and self._cause._context is None:
             self._cause._context = str(context)
 
@@ -106,7 +106,7 @@ class WrappedError(Exception):
 
     def __repr__(self) -> str:
         return f'{type(self).__name__}(cause={self._cause!r}, retriable={self._retriable})'
-    
+
     def __str__(self) -> str:
         return self.__repr__()
 
@@ -124,7 +124,7 @@ _NON_RETRYABLE_SOCKET_ERRORS: List[int] = [
     socket.EAI_SYSTEM,
     socket.EAI_BADHINTS,
     socket.EAI_PROTOCOL,
-    socket.EAI_MAX  
+    socket.EAI_MAX
 ]
 
 
@@ -136,7 +136,7 @@ class ErrorMapper:
             return WrappedError(AnalyticsError(context=str(context), message='Unknown error occurred.'))
         if context.status_code == 401:
             return WrappedError(InvalidCredentialError(context=str(context), message='Invalid credentials provided.'))
-        
+
         first_non_retriable_error: Optional[ServerQueryError] = None
         first_retriable_error: Optional[ServerQueryError] = None
         errs: List[ServerQueryError] = []
@@ -146,7 +146,7 @@ class ErrorMapper:
             retriable = bool(err_data.get('retriable', False)) or False
             if not retriable and first_non_retriable_error is None:
                 first_non_retriable_error = err
-            
+
             if retriable and first_retriable_error is None:
                 first_retriable_error = err
 
@@ -155,19 +155,19 @@ class ErrorMapper:
         if first_err is None:
             err_msg = 'Could not parse errors from server response (expected JSON array).'
             return WrappedError(AnalyticsError(context=str(context), message=err_msg))
-        
+
         if first_err.code == 20000:
             return WrappedError(InvalidCredentialError(context=str(context)))
         if first_err.code == 21002:
             return WrappedError(TimeoutError(context=str(context), message='Received timeout error from server.'))
-        
+
         retriable = first_non_retriable_error is None and first_retriable_error is not None
         return WrappedError(QueryError(code=first_err.code,
                                        server_message=first_err.message,
                                        context=str(context)),
                                        retriable=retriable)
 
-    @staticmethod    
+    @staticmethod
     def handle_socket_error(fn: Callable[[str, int, Optional[Set[str]]], Optional[str]]
                             ) -> Callable[[str, int, Optional[Set[str]]], Optional[str]]:
         @wraps(fn)
@@ -181,10 +181,5 @@ class ErrorMapper:
                 msg='Connection error occurred while sending request.'
                 raise WrappedError(AnalyticsError(cause=ex, message=msg),
                                    retriable=(ex.errno not in _NON_RETRYABLE_SOCKET_ERRORS)) from None
-                
+
         return wrapped_fn
-        
-
-
-
-

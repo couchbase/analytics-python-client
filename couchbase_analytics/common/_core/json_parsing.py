@@ -31,10 +31,10 @@ class JsonParsingError(Exception):
 
     def __repr__(self) -> str:
         return f'JsonParsingError(cause={self._cause})'
-        
+
     def __str__(self) -> str:
         return self.__repr__()
-    
+
 
 # buffer size in httpcore is 2 ** 16 (65kiB) which matches the default buffer size in ijson
 # passing in a chunk_size is only applying an abstraction over the httpcore stream

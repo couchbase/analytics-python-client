@@ -36,7 +36,7 @@ class TaskGroupResultCollector:
 
     def start_soon(self, fn: Callable[..., Any], *args: object) -> None:
         self._taskgroup.start_soon(self._execute, fn, *args)
-    
+
     async def __aenter__(self) -> TaskGroupResultCollector:
         self._taskgroup = anyio.create_task_group()
         await self._taskgroup.__aenter__()

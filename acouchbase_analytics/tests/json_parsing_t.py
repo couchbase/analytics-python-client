@@ -210,7 +210,7 @@ class JsonParsingTestSuite:
                 row_idx += 1
 
             return {time(): idx}
-        
+
         async with TaskGroupResultCollector() as tg:
             for idx in range(10):
                 tg.start_soon(_run_async, idx)

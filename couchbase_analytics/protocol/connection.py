@@ -84,7 +84,7 @@ def parse_http_endpoint(http_endpoint: str) -> Tuple[RequestURL, Dict[str, List[
 
     if port is None:
         raise ValueError('The URL must have a port specified.')
-    
+
     if not is_null_or_empty(parsed_endpoint.path):
         raise ValueError('The SDK does not currently support HTTP endpoint paths.')
 
@@ -131,7 +131,7 @@ def parse_query_str_options(query_str_opts: Dict[str, List[str]]) -> Dict[str, Q
             else:
                 print('Warning: Unrecognized query string option:', k)
                 # TODO:  exceptions -- this means the user passed in an invalid option
-                pass 
+                pass
         else:
             if k in SecurityOptions.VALID_OPTION_KEYS:
                 msg = f'Invalid query string option: {k}.'
@@ -156,7 +156,7 @@ class _ConnectionDetails:
     default_deserializer: Deserializer
     ssl_context: Optional[ssl.SSLContext] = None
     sni_hostname: Optional[str] = None
-    
+
     def get_connect_timeout(self) -> float:
         timeout_opts: Optional[TimeoutOptionsTransformedKwargs] = self.cluster_options.get('timeout_options')
         if timeout_opts is not None:
@@ -164,7 +164,7 @@ class _ConnectionDetails:
             if connect_timeout is not None:
                 return connect_timeout
         return DEFAULT_TIMEOUTS['connect_timeout']
-    
+
     def get_query_timeout(self) -> float:
         timeout_opts: Optional[TimeoutOptionsTransformedKwargs] = self.cluster_options.get('timeout_options')
         if timeout_opts is not None:
@@ -187,10 +187,10 @@ class _ConnectionDetails:
             if security_opt_count > 1 or (security_opt_count == 1 and trust_capella is True):
                 raise ValueError(('Can only set one of the following options: '
                                 f'[{", ".join(["trust_only_capella"] + solo_security_opts)}]'))
-        
+
         if not self.is_secure():
             return
-        
+
         self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         self.sni_hostname = self.url.host
 
@@ -219,7 +219,7 @@ class _ConnectionDetails:
         else:
             self.ssl_context.check_hostname = True
             self.ssl_context.verify_mode = ssl.CERT_REQUIRED
-            
+
 
     @classmethod
     def create(cls,

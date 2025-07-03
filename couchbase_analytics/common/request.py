@@ -40,6 +40,6 @@ class RequestURL:
             'path': self.path if self.path else ''
         }
         return f'{type(self).__name__}({details})'
-    
+
     def __str__(self) -> str:
         return self.__repr__()

@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "couchbase-analytics"
-version = "0.0.1"
+version = "1.0.0-dev.1"
 dependencies = [
   "anyio~=4.9.0",
   "httpx~=0.28.1",
@@ -54,9 +54,10 @@ Repository = "https://github.com/couchbase/analytics-python-client"
 [dependency-groups]
 dev = [
   "aiohttp~=3.11.10",
-  "mypy>=1.16.1",
+  "mypy~=1.16.1",
+  "pre-commit~=4.2.0",
   "pytest~=8.3.5",
-  "ruff>=0.12.0",
+  "ruff~=0.12.0",
 ]
 sphinx = [
   "Sphinx~=7.4.7",

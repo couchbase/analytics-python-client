@@ -82,9 +82,9 @@ class ErrorContext:
             errors = ', '.join(str(e) for e in self.errors)
             details['errors'] = f'[{errors}]'
         return details
-    
+
     def __repr__(self) -> str:
         return f'{type(self).__name__}({self._ctx_details()})'
-   
+
     def __str__(self) -> str:
         return str(self._ctx_details())
