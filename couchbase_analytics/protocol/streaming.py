@@ -68,7 +68,7 @@ class HttpStreamingResponse:
                                                                raw_response=raw_response,
                                                                handle_context_shutdown=handle_context_shutdown)
         self.set_metadata(json_data=json_response)
-    
+
     def close(self) -> None:
         """
         **INTERNAL**
@@ -76,7 +76,7 @@ class HttpStreamingResponse:
         if hasattr(self,'_core_response'):
             self._core_response.close()
             del self._core_response
-    
+
     def cancel(self) -> None:
         """
         **INTERNAL**
@@ -84,7 +84,7 @@ class HttpStreamingResponse:
         self.close()
         self._request_context.cancel_request()
         self._request_context.shutdown()
-        
+
 
     def get_metadata(self) -> QueryMetadata:
         if self._metadata is None:
@@ -116,7 +116,7 @@ class HttpStreamingResponse:
                 and self._core_response is not None
                 and self._request_context.okay_to_iterate):
             self._handle_iteration_abort()
-        
+
         self._request_context.maybe_continue_to_process_stream()
         check_state = False
         while True:
@@ -140,7 +140,7 @@ class HttpStreamingResponse:
             elif raw_response.result_type == ParsedResultType.END:
                 self.set_metadata(raw_metadata=raw_response.value)
                 raise StopIteration
-                
+
     @RetryHandler.with_retries
     def send_request(self) -> None:
         if not self._request_context.okay_to_stream:
@@ -156,4 +156,3 @@ class HttpStreamingResponse:
         if not self._request_context.okay_to_iterate:
             self._request_context.finish_processing_stream()
             self._process_response()
-

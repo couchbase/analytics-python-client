@@ -88,12 +88,10 @@ class RetryHandler:
                         self.close()
 
         return wrapped_fn
-    
+
 def calc_backoff(retry_count: int) -> float:
     min_ms = 100
     max_ms = 60000
     delay_ms = min_ms * pow(2, retry_count)
     capped_ms = min(max_ms, delay_ms)
     return uniform(0, capped_ms / 1000.0)
-
-

@@ -155,7 +155,7 @@ class ServerResponseMetrics:
             'bufferCachePageReadCount': self.buffer_cache_page_read_count,
             'errorCount': self.error_count
         }
-    
+
     @staticmethod
     def create() -> ServerResponseMetrics:
         return ServerResponseMetrics(0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0.0, 0, 0)
@@ -194,7 +194,7 @@ class ServerResponseError:
                     errors.append(ServerResponseError(24040, 'Some unknown error occurred'))
             else:
                 raise RuntimeError('Unrecognized retry specification type.')
-        
+
         return errors
 
     @staticmethod
@@ -207,7 +207,7 @@ class ServerResponseError:
             return [ServerResponseError(24045,
                                         'Some unknown retriable error occurred',
                                         True) for _ in range(err_count)]
-        
+
         if retry_specification is None:
             raise RuntimeError('No non-retriable specification type provided.')
         if group_type == RetriableGroupType.Zero:
@@ -220,7 +220,7 @@ class ServerResponseError:
             return ServerResponseError._build_retry_group(retry_specification, err_count, retriable_idx=err_count-1)
         else:
             raise RuntimeError('Unrecognized retriable group type.')
-                
+
 
     @staticmethod
     def build_errors(resp: ServerResponse,
@@ -264,7 +264,7 @@ class ServerResponseResults:
 
     def to_json_repr(self) -> Union[List[str], List[Dict[str, Any]]]:
         return self.results
-    
+
     @staticmethod
     def build_results(resp: ServerResponse,
                       row_count: int,
@@ -284,7 +284,7 @@ class ServerResponseResults:
             resp.metrics.result_size = row_count * 10
         else:
             raise RuntimeError(f'Unrecognized result type. Got type: {result_type}')
-        
+
     @staticmethod
     def get_result_genetaotr(result_type: ResultType) -> Callable[[], Union[Generator[bytes, None, None]]]:
         if result_type == ResultType.Object:
@@ -330,7 +330,7 @@ class ServerResponse:
         if self.errors is not None:
             output['errors'] = [e.to_json_repr() for e in self.errors]
         return output
-    
+
     def update_elapsed_time(self, t: float) -> None:
         self.metrics.elapsed_time = t
         self.metrics.execution_time = t

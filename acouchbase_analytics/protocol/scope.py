@@ -55,13 +55,13 @@ class AsyncScope:
             str: The name of this :class:`~acouchbase_analytics.protocol.scope.Scope` instance.
         """
         return self._scope_name
-    
+
     async def _create_client(self) -> None:
         """
             **INTERNAL**
         """
         await self.client_adapter.create_client()
-    
+
     async def _execute_query(self, http_resp: AsyncHttpStreamingResponse) -> AsyncQueryResult:
         if not self.client_adapter.has_client:
             # TODO: add log message??

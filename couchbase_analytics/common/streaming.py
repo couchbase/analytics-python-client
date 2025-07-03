@@ -64,7 +64,7 @@ class StreamingState(IntEnum):
         return state not in [StreamingState.Cancelled,
                              StreamingState.Error,
                              StreamingState.Timeout]
-    
+
     @staticmethod
     def is_timeout_or_cancelled(state: StreamingState) -> bool:
         """
@@ -159,7 +159,3 @@ class ParsedResult(NamedTuple):
     """
     result: str
     result_type: HttpResponseType
-
-        
-
-

@@ -180,3 +180,6 @@ CouchbaseMock*.jar
 gocaves*
 .pytest_cache/
 test_scripts/
+
+# rff
+.ruff_cache/

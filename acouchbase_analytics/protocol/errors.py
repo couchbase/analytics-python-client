@@ -38,5 +38,5 @@ class ErrorMapper:
                 msg='Connection error occurred while sending request.'
                 raise WrappedError(AnalyticsError(cause=ex, message=msg),
                                    retriable=(ex.errno not in _NON_RETRYABLE_SOCKET_ERRORS)) from None
-                
+
         return wrapped_fn

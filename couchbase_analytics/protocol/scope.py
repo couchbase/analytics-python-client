@@ -69,7 +69,7 @@ class Scope:
                                          stream_config=stream_config)
         resp = HttpStreamingResponse(request_context,
                                      lazy_execute=lazy_execute)
-        
+
         def _execute_query(http_response: HttpStreamingResponse) -> BlockingQueryResult:
             http_response.send_request()
             return BlockingQueryResult(http_response)

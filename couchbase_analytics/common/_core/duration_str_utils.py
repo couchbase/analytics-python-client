@@ -26,19 +26,19 @@ DURATION_PAIRS_PATTERN = re.compile(r'(\d*(?:\.\d*)?)(ns|us|ms|s|m|h)')
 def check_valid_duration_str(duration_str: str) -> None:
     """
     Validates if the given string is a valid duration string.
-    
+
     :param value: The duration string to validate.
     :return: True if valid, False otherwise.
     """
     if not isinstance(duration_str, str):
         raise ValueError(f'Expected a string, got {type(duration_str).__name__} instead.')
-    
+
     if is_null_or_empty(duration_str):
         raise ValueError('Duration string cannot be empty.')
-    
+
     if duration_str.startswith('-'):
         raise ValueError('Negative durations are not supported.')
-    
+
     # Special case: "0" duration
     if duration_str == '0':
         return
@@ -47,7 +47,7 @@ def check_valid_duration_str(duration_str: str) -> None:
 
     if not match:
         raise ValueError('Duration string has invalid format')
-    
+
 def parse_duration_str(duration_str: str, in_millis: Optional[bool]=False) -> float:
     check_valid_duration_str(duration_str)
 
@@ -82,7 +82,7 @@ def parse_duration_str(duration_str: str, in_millis: Optional[bool]=False) -> fl
                               f'Error details: {e}')) from None
         except KeyError:
             raise ValueError(f'Invalid duration.  Unknown unit "{unit_str}"') from None
-        
+
     if in_millis:
         total_seconds *= 1e3
     return total_seconds

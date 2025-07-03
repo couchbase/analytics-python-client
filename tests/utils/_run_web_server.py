@@ -27,7 +27,7 @@ WEB_SERVER_PATH = path.join(pathlib.Path(__file__).parent.parent, 'test_server',
 print(f'Web server script path: {WEB_SERVER_PATH}')
 
 logging.basicConfig(level=logging.INFO,
-                    stream=sys.stderr, 
+                    stream=sys.stderr,
                     format='%(asctime)s - %(levelname)s - (PID:%(process)d) - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class WebServerHandler:
         if self._server_process and self._server_process.poll() is None:
             logger.info(f'Web server is already running (PID: {self._server_process.pid}).')
             return
-        
+
         if not path.exists(WEB_SERVER_PATH):
             msg = f'Web server script not found at {WEB_SERVER_PATH}.'
             logger.error(msg)
@@ -83,7 +83,7 @@ class WebServerHandler:
         if self._server_process.poll() is not None:
             self._server_process = None
             return
-        
+
         try:
             self._server_process.terminate()
             try:

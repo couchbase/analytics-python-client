@@ -38,7 +38,7 @@ class Cluster:
                  credential: Credential,
                  options: Optional[ClusterOptions] = None,
                  **kwargs: object) -> None:
-        
+
         self._client_adapter = _ClientAdapter(http_endpoint, credential, options, **kwargs)
         self._request_builder = _RequestBuilder(self._client_adapter)
         self._cluster_id = str(uuid4())
@@ -58,7 +58,7 @@ class Cluster:
             **INTERNAL**
         """
         return self._client_adapter
-    
+
     @property
     def cluster_id(self) -> str:
         """

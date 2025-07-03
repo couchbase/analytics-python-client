@@ -64,8 +64,8 @@ class VersionInfo:
             self.ver_extra = re.sub(r'^beta', 'b', self.ver_extra, count=1)
             m = re.search(r'^([ab]|dev|rc|post)\.?(\d+)?', self.ver_extra)
             if m is not None:
-                if m.group(1) in ["dev", "post"]:
-                    self.ver_extra = "." + self.ver_extra.replace('.', '')
+                if m.group(1) in ['dev', 'post']:
+                    self.ver_extra = '.' + self.ver_extra.replace('.', '')
                 if m.group(2) is None:
                     # No suffix, then add the number
                     first = self.ver_extra[0]
@@ -109,32 +109,32 @@ def get_version() -> str:
     loading it (and thus trying to load the extension module).
     """
     if not os.path.exists(VERSION_FILE):
-        raise VersionNotFound(VERSION_FILE + " does not exist")
-    fp = open(VERSION_FILE, "r")
+        raise VersionNotFound(VERSION_FILE + ' does not exist')
+    fp = open(VERSION_FILE, 'r')
     vline = None
     for x in fp.readlines():
         x = x.rstrip()
         if not x:
             continue
-        if not x.startswith("__version__"):
+        if not x.startswith('__version__'):
             continue
 
         vline = x.split('=')[1]
         break
     if not vline:
-        raise VersionNotFound("version file present but has no contents")
+        raise VersionNotFound('version file present but has no contents')
 
     return vline.strip().rstrip().replace("'", '')
 
 
 def get_git_describe() -> str:
-    if not os.path.exists(os.path.join(os.path.dirname(__file__), ".git")):
-        raise CantInvokeGit("Not a git build")
+    if not os.path.exists(os.path.join(os.path.dirname(__file__), '.git')):
+        raise CantInvokeGit('Not a git build')
 
     try:
         po = subprocess.Popen(
-            ("git", "describe", "--tags", "--long", "--always"),
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            ('git', 'describe', '--tags', '--long', '--always'), stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
     except OSError as e:
         raise CantInvokeGit(e) from None
 
@@ -179,18 +179,18 @@ def gen_version(do_write: Optional[bool] = True, txt: Optional[str] = None) -> N
         '# at',
         '#    {0}'.format(datetime.datetime.now().isoformat(' ')),
         "__version__ = '{0}'".format(vstr),
-        ""
+        '',
     )
-    with open(VERSION_FILE, "w") as fp:
-        fp.write("\n".join(lines))
+    with open(VERSION_FILE, 'w') as fp:
+        fp.write('\n'.join(lines))
 
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
+
     ap = ArgumentParser(description='Parse git version to PEP-440 version')
     ap.add_argument('-c', '--mode', choices=('show', 'make', 'parse'))
-    ap.add_argument('-i', '--input',
-                    help='Sample input string (instead of git)')
+    ap.add_argument('-i', '--input', help='Sample input string (instead of git)')
     options = ap.parse_args()
 
     cmd = options.mode

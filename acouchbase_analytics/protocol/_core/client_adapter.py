@@ -57,15 +57,15 @@ class _AsyncClientAdapter:
         """
             **INTERNAL**
         """
-        return self._ANALYTICS_PATH 
-    
+        return self._ANALYTICS_PATH
+
     @property
     def client(self) -> AsyncClient:
         """
             **INTERNAL**
         """
         return self._client
-    
+
     @property
     def client_id(self) -> str:
         """
@@ -86,7 +86,7 @@ class _AsyncClientAdapter:
             **INTERNAL**
         """
         return self._conn_details.default_deserializer
-    
+
     @property
     def has_client(self) -> bool:
         """
@@ -137,7 +137,7 @@ class _AsyncClientAdapter:
         """
         if not hasattr(self, '_client'):
             raise RuntimeError('Client not created yet')
-        
+
         # if request.url is None:
         #     raise ValueError('Request URL cannot be None')
 
@@ -161,4 +161,3 @@ class _AsyncClientAdapter:
         """
         if hasattr(self, '_client'):
             del self._client
-

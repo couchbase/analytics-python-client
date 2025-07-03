@@ -93,7 +93,7 @@ class TestServerTestSuite:
         statement = 'SELECT "Hello, data!" AS greeting'
         with pytest.raises(TimeoutError) as ex:
             test_env.cluster_or_scope.execute_query(statement, QueryOptions(timeout=timedelta(seconds=2)))
-        
+
         test_env.assert_error_context_num_attempts(4 , ex.value._context, exact=False)
         test_env.assert_error_context_contains_last_dispatch(ex.value._context)
 

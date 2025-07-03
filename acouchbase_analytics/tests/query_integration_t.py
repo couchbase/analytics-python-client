@@ -282,7 +282,7 @@ class QueryTestSuite:
 
     async def test_query_timeout(self, test_env: AsyncTestEnvironment) -> None:
         statement = 'SELECT sleep("some value", 10000) AS some_field;'
-        
+
         with pytest.raises(TimeoutError):
             await test_env.cluster_or_scope.execute_query(statement,
                                                           QueryOptions(timeout=timedelta(seconds=2)))

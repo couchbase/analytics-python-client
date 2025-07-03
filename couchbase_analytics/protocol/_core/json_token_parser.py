@@ -41,7 +41,7 @@ class JsonTokenParser(JsonTokenParserBase):
             self._result_handler(bytes(obj, 'utf-8'))
             return True
         return False
-    
+
     def _handle_pop_event(self, token_type: TokenType) -> None:
         matching_token = self._get_matching_token(token_type)
         obj_pairs: List[str] = []
@@ -60,7 +60,7 @@ class JsonTokenParser(JsonTokenParserBase):
                 if len(self._stack) > 0 and self._stack[-1].type == TokenType.MAP_KEY:
                     map_key = self._pop()
                     # If we are emitting rows and/or errors,
-                    # we don't keep them in the stack and therefore don't need to return the results         
+                    # we don't keep them in the stack and therefore don't need to return the results
                     if self._should_push_pair(next_token):
                         self._push(TokenType.PAIR, f'{map_key.value}:{obj}')
                 else:

@@ -8,13 +8,13 @@ from typing import (Any,
 from tests.test_server import ErrorType, NonRetriableSpecificationType, ResultType, RetriableGroupType
 
 
-@dataclass  
+@dataclass
 class ServerErrorRequest:
     error_type: ErrorType
     retry_group_type: Optional[RetriableGroupType] = None
     non_retriable_spec: Optional[NonRetriableSpecificationType] = None
     error_count: Optional[int] = None
-    
+
     @classmethod
     def from_json(cls, json_data: Dict[str, Any]) -> ServerErrorRequest:
         error_type = json_data.get('error_type', None)
@@ -34,7 +34,7 @@ class ServerErrorRequest:
                    non_retriable_spec=nrst,
                    error_count=json_data.get('error_count', None))
 
-@dataclass  
+@dataclass
 class ServerResultsRequest:
     result_type: ResultType
     row_count: Optional[int] = None
@@ -44,7 +44,7 @@ class ServerResultsRequest:
 
     @classmethod
     def from_json(cls, json_data: Dict[str, Any]) -> ServerResultsRequest:
-        
+
         until_raw = json_data.get('until', None)
         if until_raw is not None and not isinstance(until_raw, (float, int)):
             raise ValueError(f'Invalid "until" value: {until_raw}. Must be a number.')
@@ -63,14 +63,14 @@ class ServerResultsRequest:
         if chunk_raw is not None and not isinstance(chunk_raw, int):
             raise ValueError(f'Invalid "chunk_size" value: {chunk_raw}. Must be an integer.')
         chunk_size = int(chunk_raw) if chunk_raw is not None else None
-        
+
         return cls(result_type=result_type,
                    row_count=row_count,
                    chunk_size=chunk_size,
                    stream=json_data.get('stream', False),
                    until=until)
 
-@dataclass  
+@dataclass
 class ServerSlowResultsRequest:
     row_count: int
     result_type: Optional[ResultType] = ResultType.Object

@@ -55,7 +55,7 @@ class AsyncCluster:
             **INTERNAL**
         """
         return self._client_adapter
-    
+
     @property
     def cluster_id(self) -> str:
         """
