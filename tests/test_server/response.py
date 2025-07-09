@@ -18,10 +18,19 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from random import choice
-from typing import Any, Callable, Dict, Generator, List, Optional, Union
+from typing import (Any,
+                    Callable,
+                    Dict,
+                    Generator,
+                    List,
+                    Optional,
+                    Union)
 from uuid import uuid4
 
-from tests.test_server import ErrorType, NonRetriableSpecificationType, ResultType, RetriableGroupType
+from tests.test_server import (ErrorType,
+                               NonRetriableSpecificationType,
+                               ResultType,
+                               RetriableGroupType)
 
 US_CITIES = [
     "New York City",
@@ -233,6 +242,11 @@ class ServerResponseError:
             resp.status = 'timeout'
             resp.metrics.error_count = 1
             resp.errors = [ServerResponseError(21002, 'Request timed out and will be cancelled.', True)]
+        elif error_type == ErrorType.Http503:
+            resp.http_status = 503
+            resp.status = 'fatal'
+            resp.metrics.error_count = 1
+            resp.errors = [ServerResponseError(23000, 'Service is currently unavailable.')]
         elif error_type == ErrorType.InsufficientPermissions:
             resp.http_status = 403
             resp.status = 'fatal'

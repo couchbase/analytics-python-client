@@ -14,7 +14,10 @@
 #  limitations under the License.
 
 from enum import Enum
-from typing import AsyncGenerator, Generator, Optional, TypeVar
+from typing import (AsyncGenerator,
+                    Generator,
+                    Optional,
+                    TypeVar)
 
 T = TypeVar('T')
 AsyncYieldFixture = AsyncGenerator[T, None]

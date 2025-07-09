@@ -16,34 +16,38 @@
 from __future__ import annotations
 
 from copy import copy
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, TypedDict, TypeVar, Union
+from typing import (Any,
+                    Callable,
+                    Dict,
+                    List,
+                    Literal,
+                    Optional,
+                    Tuple,
+                    TypedDict,
+                    TypeVar,
+                    Union)
 
 from couchbase_analytics.common._core import JsonStreamConfig
-from couchbase_analytics.common._core.utils import (
-    VALIDATE_BOOL,
-    VALIDATE_DESERIALIZER,
-    VALIDATE_STR,
-    VALIDATE_STR_LIST,
-    EnumToStr,
-    to_seconds,
-    validate_path,
-    validate_raw_dict,
-)
+from couchbase_analytics.common._core.utils import (VALIDATE_BOOL,
+                                                    VALIDATE_DESERIALIZER,
+                                                    VALIDATE_INT,
+                                                    VALIDATE_STR,
+                                                    VALIDATE_STR_LIST,
+                                                    EnumToStr,
+                                                    to_seconds,
+                                                    validate_path,
+                                                    validate_raw_dict)
 from couchbase_analytics.common.deserializer import Deserializer
 from couchbase_analytics.common.enums import QueryScanConsistency
-from couchbase_analytics.common.options import (
-    ClusterOptions,
-    OptionsClass,
-    QueryOptions,
-    SecurityOptions,
-    TimeoutOptions,
-)
-from couchbase_analytics.common.options_base import (
-    ClusterOptionsValidKeys,
-    QueryOptionsValidKeys,
-    SecurityOptionsValidKeys,
-    TimeoutOptionsValidKeys,
-)
+from couchbase_analytics.common.options import (ClusterOptions,
+                                                OptionsClass,
+                                                QueryOptions,
+                                                SecurityOptions,
+                                                TimeoutOptions)
+from couchbase_analytics.common.options_base import (ClusterOptionsValidKeys,
+                                                     QueryOptionsValidKeys,
+                                                     SecurityOptionsValidKeys,
+                                                     TimeoutOptionsValidKeys)
 
 QUERY_CONSISTENCY_TO_STR = EnumToStr[QueryScanConsistency]()
 
@@ -52,12 +56,14 @@ QueryStrVal = Union[List[str], str, bool, int, float]
 
 class ClusterOptionsTransforms(TypedDict):
     deserializer: Dict[Literal['deserializer'], Callable[[Any], Deserializer]]
+    max_retries: Dict[Literal['max_retries'], Callable[[Any], int]]
     security_options: Dict[Literal['security_options'], Callable[[Any], Any]]
     timeout_options: Dict[Literal['timeout_options'], Callable[[Any], Any]]
 
 
 CLUSTER_OPTIONS_TRANSFORMS: ClusterOptionsTransforms = {
     'deserializer': {'deserializer': VALIDATE_DESERIALIZER},
+    'max_retries': {'max_retries': VALIDATE_INT},
     'security_options': {'security_options': lambda x: x},
     'timeout_options': {'timeout_options': lambda x: x},
 }
@@ -65,6 +71,7 @@ CLUSTER_OPTIONS_TRANSFORMS: ClusterOptionsTransforms = {
 
 class ClusterOptionsTransformedKwargs(TypedDict, total=False):
     deserializer: Optional[Deserializer]
+    max_retries: Optional[int]
     security_options: Optional[SecurityOptionsTransformedKwargs]
     timeout_options: Optional[TimeoutOptionsTransformedKwargs]
 
@@ -115,6 +122,7 @@ class QueryOptionsTransforms(TypedDict):
     client_context_id: Dict[Literal['client_context_id'], Callable[[Any], str]]
     deserializer: Dict[Literal['deserializer'], Callable[[Any], Deserializer]]
     lazy_execute: Dict[Literal['lazy_execute'], Callable[[Any], bool]]
+    max_retries: Dict[Literal['max_retries'], Callable[[Any], int]]
     named_parameters: Dict[Literal['named_parameters'], Callable[[Any], Any]]
     positional_parameters: Dict[Literal['positional_parameters'], Callable[[Any], Any]]
     query_context: Dict[Literal['query_context'], Callable[[Any], str]]
@@ -129,6 +137,7 @@ QUERY_OPTIONS_TRANSFORMS: QueryOptionsTransforms = {
     'client_context_id': {'client_context_id': VALIDATE_STR},
     'deserializer': {'deserializer': VALIDATE_DESERIALIZER},
     'lazy_execute': {'lazy_execute': VALIDATE_BOOL},
+    'max_retries': {'max_retries': VALIDATE_INT},
     'named_parameters':  {'named_parameters': lambda x: x},
     'positional_parameters':  {'positional_parameters': lambda x: x},
     'query_context': {'query_context': VALIDATE_STR},
@@ -144,6 +153,7 @@ class QueryOptionsTransformedKwargs(TypedDict, total=False):
     client_context_id: Optional[str]
     deserializer: Optional[Deserializer]
     lazy_execute: Optional[bool]
+    max_retries: Optional[int]
     named_parameters: Optional[Any]
     positional_parameters: Optional[Any]
     priority: Optional[bool]

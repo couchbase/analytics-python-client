@@ -18,7 +18,10 @@ from __future__ import annotations
 from collections.abc import AsyncIterator as PyAsyncIterator
 from collections.abc import Iterator
 from enum import IntEnum
-from typing import TYPE_CHECKING, Any, List, NamedTuple
+from typing import (TYPE_CHECKING,
+                    Any,
+                    List,
+                    NamedTuple)
 
 from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError
 

@@ -26,7 +26,7 @@ class BackoffCalculator(ABC):
 class DefaultBackoffCalculator(BackoffCalculator):
     MIN = 100
     MAX = 60 * 1000
-    EXPONENT_BASE = 2
+    EXPONENT_BASE = 1.5
 
     def __init__(self,
                  min: Optional[int]=None,
@@ -39,4 +39,4 @@ class DefaultBackoffCalculator(BackoffCalculator):
     def calculate_backoff(self, retry_count: int) -> float:
         delay_ms = self._min * self._exp ** (retry_count - 1)
         capped_ms = min(self._max, delay_ms)
-        return uniform(0, capped_ms)
+        return uniform(0, capped_ms)  # nosec B311

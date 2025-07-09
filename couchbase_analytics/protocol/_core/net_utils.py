@@ -16,17 +16,17 @@
 from __future__ import annotations
 
 import socket
-from ipaddress import IPv4Address, IPv6Address, ip_address
+from ipaddress import (IPv4Address,
+                       IPv6Address,
+                       ip_address)
 from random import choice
-from typing import Optional, Set, Union
+from typing import Optional, Union
 
 from couchbase_analytics.protocol.errors import ErrorMapper
 
 
 @ErrorMapper.handle_socket_error
-def get_request_ip(host: str,
-                   port: int,
-                   previous_ips: Optional[Set[str]]=None) -> Optional[str]:
+def get_request_ip(host: str, port: int) -> str:
     # Lets not call getaddrinfo, if the host is already an IP address
     try:
         ip: Optional[Union[IPv4Address, IPv6Address, str]] = ip_address(host)
@@ -38,17 +38,11 @@ def get_request_ip(host: str,
     if host == 'localhost':
         ip = '127.0.0.1'
 
-    if previous_ips is None:
-        previous_ips = set()
     if not ip:
         result = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM, family=socket.AF_UNSPEC)
-        try:
-            res_ip = choice([addr[4][0] for addr in result if addr[4][0] not in previous_ips])
-            ip = str(res_ip)
-        except IndexError:
-            ip = None
+        res_ip = choice([addr[4][0] for addr in result])  # nosec B311
+        ip = str(res_ip)
     else:
-        ip_str = str(ip) if not isinstance(ip, str) else ip
-        ip = None if ip_str in previous_ips else ip_str
+        ip = str(ip)
 
     return ip

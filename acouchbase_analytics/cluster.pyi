@@ -23,7 +23,10 @@ else:
 
 from acouchbase_analytics.database import AsyncDatabase
 from couchbase_analytics.credential import Credential
-from couchbase_analytics.options import ClusterOptions, ClusterOptionsKwargs, QueryOptions, QueryOptionsKwargs
+from couchbase_analytics.options import (ClusterOptions,
+                                         ClusterOptionsKwargs,
+                                         QueryOptions,
+                                         QueryOptionsKwargs)
 from couchbase_analytics.result import AsyncQueryResult
 
 class AsyncCluster:

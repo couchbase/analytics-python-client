@@ -16,21 +16,25 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import Dict, Type
+from typing import (Dict,
+                    Optional,
+                    Type)
 
 import pytest
 
 from couchbase_analytics.credential import Credential
-from couchbase_analytics.deserializer import DefaultJsonDeserializer, Deserializer, PassthroughDeserializer
-from couchbase_analytics.options import (
-    ClusterOptions,
-    SecurityOptions,
-    SecurityOptionsKwargs,
-    TimeoutOptions,
-    TimeoutOptionsKwargs,
-)
+from couchbase_analytics.deserializer import (DefaultJsonDeserializer,
+                                              Deserializer,
+                                              PassthroughDeserializer)
+from couchbase_analytics.options import (ClusterOptions,
+                                         SecurityOptions,
+                                         SecurityOptionsKwargs,
+                                         TimeoutOptions,
+                                         TimeoutOptionsKwargs)
 from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter
-from tests.utils import get_test_cert_list, get_test_cert_path, get_test_cert_str
+from tests.utils import (get_test_cert_list,
+                         get_test_cert_path,
+                         get_test_cert_str)
 
 TEST_CERT_PATH = get_test_cert_path()
 TEST_CERT_LIST = get_test_cert_list()
@@ -42,6 +46,8 @@ class ClusterOptionsTestSuite:
     TEST_MANIFEST = [
         'test_options_deserializer',
         'test_options_deserializer_kwargs',
+        'test_options_max_retries',
+        'test_options_max_retries_kwargs',
         'test_security_options',
         'test_security_options_classmethods',
         'test_security_options_kwargs',
@@ -54,18 +60,37 @@ class ClusterOptionsTestSuite:
     ]
 
     @pytest.mark.parametrize('deserializer_cls', [DefaultJsonDeserializer, PassthroughDeserializer])
-    def test_options_deserializer(self, deserializer_cls:Type[Deserializer]) -> None:
+    def test_options_deserializer(self, deserializer_cls: Type[Deserializer]) -> None:
         cred = Credential.from_username_and_password('Administrator', 'password')
         deserializer_instance = deserializer_cls()
         client = _ClientAdapter('https://localhost', cred, ClusterOptions(deserializer=deserializer_instance))
         assert isinstance(client.connection_details.default_deserializer, deserializer_cls)
 
     @pytest.mark.parametrize('deserializer_cls', [DefaultJsonDeserializer, PassthroughDeserializer])
-    def test_options_deserializer_kwargs(self, deserializer_cls:Type[Deserializer]) -> None:
+    def test_options_deserializer_kwargs(self, deserializer_cls: Type[Deserializer]) -> None:
         cred = Credential.from_username_and_password('Administrator', 'password')
         deserializer_instance = deserializer_cls()
         client = _ClientAdapter('https://localhost', cred, **{'deserializer': deserializer_instance})
         assert isinstance(client.connection_details.default_deserializer, deserializer_cls)
+
+    @pytest.mark.parametrize('max_retries', [5, 10, None])
+    def test_options_max_retries(self, max_retries: Optional[int]) -> None:
+        cred = Credential.from_username_and_password('Administrator', 'password')
+        client = _ClientAdapter('https://localhost', cred, ClusterOptions(max_retries=max_retries))
+        if max_retries is None:
+            assert client.connection_details.get_max_retries() == 7
+        else:
+          assert client.connection_details.get_max_retries() == max_retries
+
+    @pytest.mark.parametrize('max_retries', [5, 10, None])
+    def test_options_max_retries_kwargs(self, max_retries: Optional[int]) -> None:
+        cred = Credential.from_username_and_password('Administrator', 'password')
+        if max_retries is None:
+            client = _ClientAdapter('https://localhost', cred)
+            assert client.connection_details.get_max_retries() == 7
+        else:
+          client = _ClientAdapter('https://localhost', cred, **{'max_retries': max_retries})
+          assert client.connection_details.get_max_retries() == max_retries
 
     @pytest.mark.parametrize('opts, expected_opts',
                              [({}, None),

@@ -19,7 +19,13 @@ import json
 import pathlib
 import sys
 from os import path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict, Union
+from typing import (TYPE_CHECKING,
+                    Any,
+                    Dict,
+                    List,
+                    Optional,
+                    TypedDict,
+                    Union)
 
 if sys.version_info < (3, 11):
     from typing_extensions import Unpack
@@ -389,6 +395,7 @@ class AsyncTestEnvironment(TestEnvironment):
             raise AnalyticsTestEnvironmentError('No cluster available, cannot enable test server.')
         from tests.utils._async_client_adapter import _TestAsyncClientAdapter
         from tests.utils._test_async_httpx import TestAsyncHTTPTransport
+
         # close the adapter here b/c we need to await
         await self._async_cluster._impl._client_adapter.close_client()
         new_adapter = _TestAsyncClientAdapter(adapter=self._async_cluster._impl._client_adapter,  # type: ignore[call-arg]

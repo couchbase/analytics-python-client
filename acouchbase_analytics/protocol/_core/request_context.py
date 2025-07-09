@@ -3,19 +3,33 @@ from __future__ import annotations
 import json
 from asyncio import CancelledError, Task
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Coroutine, Dict, List, Optional, Type, Union
+from typing import (TYPE_CHECKING,
+                    Any,
+                    Awaitable,
+                    Callable,
+                    Coroutine,
+                    Dict,
+                    List,
+                    Optional,
+                    Type,
+                    Union)
 from uuid import uuid4
 
 import anyio
 from httpx import Response as HttpCoreResponse
 from httpx import TimeoutException
 
-from acouchbase_analytics.protocol._core.anyio_utils import AsyncBackend, current_async_library, get_time
+from acouchbase_analytics.protocol._core.anyio_utils import (AsyncBackend,
+                                                             current_async_library,
+                                                             get_time)
 from acouchbase_analytics.protocol._core.async_json_stream import AsyncJsonStream
 from acouchbase_analytics.protocol._core.net_utils import get_request_ip_async
-from couchbase_analytics.common._core import JsonStreamConfig, ParsedResult, ParsedResultType
+from couchbase_analytics.common._core import (JsonStreamConfig,
+                                              ParsedResult,
+                                              ParsedResultType)
 from couchbase_analytics.common._core.error_context import ErrorContext
-from couchbase_analytics.common.errors import AnalyticsError, InvalidCredentialError
+from couchbase_analytics.common.backoff_calculator import DefaultBackoffCalculator
+from couchbase_analytics.common.errors import AnalyticsError
 from couchbase_analytics.common.streaming import StreamingState
 from couchbase_analytics.protocol.connection import DEFAULT_TIMEOUTS
 from couchbase_analytics.protocol.errors import ErrorMapper
@@ -37,6 +51,7 @@ class AsyncRequestContext:
         self._client_adapter = client_adapter
         self._request = request
         self._backend = backend or current_async_library()
+        self._backoff_calc = DefaultBackoffCalculator()
         self._error_ctx = ErrorContext(num_attempts=0,
                                        method=request.method,
                                        statement=request.get_request_statement())
@@ -84,6 +99,10 @@ class AsyncRequestContext:
     @property
     def request_state(self) -> StreamingState:
         return self._request_state
+
+    @property
+    def retry_limit_exceeded(self) -> bool:
+        return self.error_context.num_attempts > self._request.max_retries
 
     @property
     def results_or_errors_type(self) -> ParsedResultType:
@@ -137,10 +156,12 @@ class AsyncRequestContext:
             self._request_error = exc_val
 
     async def _process_error(self,
-                            json_data: List[Dict[str, Any]],
+                            json_data: Union[str, List[Dict[str, Any]]],
                             handle_context_shutdown: Optional[bool]=False) -> None:
         self._request_state = StreamingState.Error
-        if not isinstance(json_data, list):
+        if isinstance(json_data, str):
+            self._request_error = ErrorMapper.build_error_from_http_status_code(json_data, self._error_ctx)
+        elif not isinstance(json_data, list):
             self._request_error = AnalyticsError('Cannot parse error response; expected JSON array',
                                                  context=str(self._error_ctx))
         else:
@@ -154,7 +175,6 @@ class AsyncRequestContext:
         if hasattr(self, '_json_stream'):
             del self._json_stream
         self._request_state = StreamingState.ResetAndNotStarted
-        self._request.previous_ips = set()
         self._stage_completed = None
         self._cancel_scope_deadline_updated = False
 
@@ -196,6 +216,9 @@ class AsyncRequestContext:
         if self._stage_completed is None:
             return
         await self._stage_completed.wait()
+
+    def calculate_backoff(self) -> float:
+        return self._backoff_calc.calculate_backoff(self._error_ctx.num_attempts) / 1000
 
     def cancel_request(self,
                        fn: Optional[Callable[..., Awaitable[Any]]]=None,
@@ -273,6 +296,9 @@ class AsyncRequestContext:
         if will_time_out:
             self._request_state = StreamingState.Timeout
             return False
+        elif self.retry_limit_exceeded:
+            self._request_state = StreamingState.Error
+            return False
         else:
             self._reset_stream()
             return True
@@ -296,10 +322,15 @@ class AsyncRequestContext:
         # we have all the data, close the core response/stream
         await close_handler()
 
-        json_response = json.loads(raw_response.value)
-        if 'errors' in json_response:
-            await self._process_error(json_response['errors'], handle_context_shutdown=handle_context_shutdown)
-        return json_response
+        try:
+            json_response = json.loads(raw_response.value)
+        except json.JSONDecodeError:
+            await self._process_error(str(raw_response.value),
+                                      handle_context_shutdown=handle_context_shutdown)
+        else:
+            if 'errors' in json_response:
+                await self._process_error(json_response['errors'], handle_context_shutdown=handle_context_shutdown)
+            return json_response
 
     async def reraise_after_shutdown(self, err: Exception) -> None:
         try:
@@ -309,24 +340,17 @@ class AsyncRequestContext:
             raise ex from None
 
     async def send_request(self, enable_trace_handling: Optional[bool]=False) -> HttpCoreResponse:
-        ip = await get_request_ip_async(self._request.url.host, self._request.url.port, self._request.previous_ips)
-        if ip is None:
-            attempted_ips = ', '.join(self._request.previous_ips or [])
-            raise AnalyticsError(message=f'Connect failure.  Unable to connect to any resolved IPs: {attempted_ips}.',
-                                 context=str(self._error_ctx))
-
+        self._error_ctx.update_num_attempts()
+        ip = await get_request_ip_async(self._request.url.host, self._request.url.port)
         if enable_trace_handling is True:
             (self._request.update_url(ip, self._client_adapter.analytics_path)
-                          .add_trace_to_extensions(self._trace_handler)
-                          .update_previous_ips(ip))
+                          .add_trace_to_extensions(self._trace_handler))
         else:
-            self._request.update_url(ip, self._client_adapter.analytics_path).update_previous_ips(ip)
+            self._request.update_url(ip, self._client_adapter.analytics_path)
         # TODO:  add logging; provide request details (to/from, deadlines, etc.)
         self._error_ctx.update_request_context(self._request)
         response = await self._client_adapter.send_request(self._request)
         self._error_ctx.update_response_context(response)
-        if response.status_code == 401:
-            raise InvalidCredentialError(context=str(self._error_ctx))
         return response
 
     async def shutdown(self,

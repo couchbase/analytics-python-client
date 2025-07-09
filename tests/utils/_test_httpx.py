@@ -1,15 +1,27 @@
 import time
 import typing
 
-from httpcore import ConnectionPool, Origin, Request, Response
+from httpcore import (ConnectionPool,
+                      Origin,
+                      Request,
+                      Response)
 from httpcore._backends.base import NetworkStream
-from httpcore._exceptions import ConnectError, ConnectionNotAvailable, ConnectTimeout, PoolTimeout, UnsupportedProtocol
+from httpcore._exceptions import (ConnectError,
+                                  ConnectionNotAvailable,
+                                  ConnectTimeout,
+                                  PoolTimeout,
+                                  UnsupportedProtocol)
 from httpcore._ssl import default_ssl_context
-from httpcore._sync.connection import RETRIES_BACKOFF_FACTOR, HTTPConnection, exponential_backoff, logger
+from httpcore._sync.connection import (RETRIES_BACKOFF_FACTOR,
+                                       HTTPConnection,
+                                       exponential_backoff,
+                                       logger)
 from httpcore._sync.connection_pool import PoolByteStream, PoolRequest
 from httpcore._sync.interfaces import ConnectionInterface
 from httpcore._trace import Trace
-from httpx import HTTPTransport, Limits, create_ssl_context
+from httpx import (HTTPTransport,
+                   Limits,
+                   create_ssl_context)
 
 
 class TestHTTPConnection(HTTPConnection):

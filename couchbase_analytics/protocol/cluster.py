@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import atexit
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import TYPE_CHECKING, Optional, Union
+from typing import (TYPE_CHECKING,
+                    Optional,
+                    Union)
 from uuid import uuid4
 
 from couchbase_analytics.common.result import BlockingQueryResult

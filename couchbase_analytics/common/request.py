@@ -24,13 +24,15 @@ class RequestURL:
     scheme: str
     host: str
     port: int
+    ip: Optional[str] = None
     path: Optional[str] = None
 
     def get_formatted_url(self) -> str:
         """Get the formatted URL for this request."""
         if self.path is None:
-            return f'{self.scheme}://{self.host}:{self.port}'
-        return f'{self.scheme}://{self.host}:{self.port}{self.path}'
+            host = self.ip if self.ip else self.host
+            return f'{self.scheme}://{host}:{self.port}'
+        return f'{self.scheme}://{host}:{self.port}{self.path}'
 
     def __repr__(self) -> str:
         details: Dict[str, str] = {

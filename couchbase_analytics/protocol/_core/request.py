@@ -17,7 +17,15 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Coroutine, Dict, Optional, Set, TypedDict, Union, cast
+from typing import (TYPE_CHECKING,
+                    Any,
+                    Callable,
+                    Coroutine,
+                    Dict,
+                    Optional,
+                    TypedDict,
+                    Union,
+                    cast)
 from uuid import uuid4
 
 from couchbase_analytics.common.deserializer import Deserializer
@@ -47,10 +55,10 @@ class QueryRequest:
     deserializer: Deserializer
     body: Dict[str, Union[str, object]]
     extensions: RequestExtensions
+    max_retries: int
     method: str = 'POST'
 
     options: Optional[QueryOptionsTransformedKwargs] = None
-    previous_ips: Optional[Set[str]] = None
     enable_cancel: Optional[bool] = None
 
     def add_trace_to_extensions(self, handler: Callable[[str, str],
@@ -79,20 +87,11 @@ class QueryRequest:
             return {}
         return self.extensions['timeout']
 
-    def update_previous_ips(self, ip: str) -> QueryRequest:
-        """
-        **INTERNAL**
-        """
-        if self.previous_ips is None:
-            self.previous_ips = set()
-        self.previous_ips.add(ip)
-        return self
-
     def update_url(self, ip: str, path: str) -> QueryRequest:
         """
         **INTERNAL**
         """
-        self.url.host = ip
+        self.url.ip = ip
         self.url.path = path
         return self
 
@@ -161,8 +160,9 @@ class _RequestBuilder:
             q_opts['positional_parameters'] = parsed_args_list
         if named_params and len(named_params) > 0:
             q_opts['named_parameters'] = named_params
-        # add the default serializer if one does not exist
+        # handle deserializer and max_retries
         deserializer = q_opts.pop('deserializer', None) or self._conn_details.default_deserializer
+        max_retries = q_opts.pop('max_retries', None) or self._conn_details.get_max_retries()
 
         body: Dict[str, Union[str, object]] = {
             'statement': statement,
@@ -210,5 +210,6 @@ class _RequestBuilder:
                             deserializer,
                             body,
                             extensions=extensions,
+                            max_retries=max_retries,
                             options=q_opts,
                             enable_cancel=enable_cancel)

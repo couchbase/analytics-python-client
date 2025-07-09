@@ -23,7 +23,6 @@ if sys.version_info < (3, 10):
 else:
     from typing import TypeAlias
 
-
 from acouchbase_analytics.scope import AsyncScope
 
 if TYPE_CHECKING:

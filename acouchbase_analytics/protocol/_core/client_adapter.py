@@ -19,7 +19,10 @@ import socket
 from typing import TYPE_CHECKING, Optional
 from uuid import uuid4
 
-from httpx import URL, AsyncClient, BasicAuth, Response
+from httpx import (URL,
+                   AsyncClient,
+                   BasicAuth,
+                   Response)
 
 from couchbase_analytics.common.credential import Credential
 from couchbase_analytics.common.deserializer import Deserializer
@@ -138,11 +141,8 @@ class _AsyncClientAdapter:
         if not hasattr(self, '_client'):
             raise RuntimeError('Client not created yet')
 
-        # if request.url is None:
-        #     raise ValueError('Request URL cannot be None')
-
         url = URL(scheme=request.url.scheme,
-                  host=request.url.host,
+                  host=request.url.ip,
                   port=request.url.port,
                   path=request.url.path,)
         req = self._client.build_request(request.method,

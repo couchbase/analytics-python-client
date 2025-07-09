@@ -15,7 +15,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import (TYPE_CHECKING,
+                    Any,
+                    List,
+                    Optional)
 
 from couchbase_analytics.common._core.result import QueryResult as QueryResult
 from couchbase_analytics.common.query import QueryMetadata

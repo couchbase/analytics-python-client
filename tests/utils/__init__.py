@@ -22,7 +22,13 @@ import pathlib
 import random
 from collections.abc import AsyncIterator as PyAsyncIterator
 from collections.abc import Iterator
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+from typing import (Any,
+                    Dict,
+                    Generator,
+                    List,
+                    Optional,
+                    Tuple,
+                    Union)
 from urllib.parse import quote
 
 import anyio

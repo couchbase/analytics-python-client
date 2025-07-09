@@ -17,23 +17,72 @@ from __future__ import annotations
 
 from concurrent.futures import CancelledError
 from functools import wraps
-from random import uniform
 from time import sleep
-from typing import TYPE_CHECKING, Callable
+from typing import (TYPE_CHECKING,
+                    Callable,
+                    Optional,
+                    Union)
 
 from httpx import ConnectError, ConnectTimeout
 
-from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError, TimeoutError
+from couchbase_analytics.common.errors import (AnalyticsError,
+                                               InternalSDKError,
+                                               TimeoutError)
 from couchbase_analytics.common.streaming import StreamingState
 from couchbase_analytics.protocol.errors import WrappedError
 
 if TYPE_CHECKING:
+    from couchbase_analytics.protocol._core.request_context import RequestContext
     from couchbase_analytics.protocol.streaming import HttpStreamingResponse
+
 
 class RetryHandler:
     """
         **INTERNAL**
     """
+
+    @staticmethod
+    def handle_httpx_retry(ex: Union[ConnectError, ConnectTimeout], ctx: RequestContext) -> Optional[Exception]:
+        err_str = str(ex)
+        if 'SSL:' in err_str:
+            message = 'TLS connection error occurred.'
+            return AnalyticsError(cause=ex, message=message, context=str(ctx.error_context))
+        delay = ctx.calculate_backoff()
+        err: Optional[Exception] = None
+        if not ctx.okay_to_delay_and_retry(delay):
+            if ctx.retry_limit_exceeded:
+                err = AnalyticsError(cause=ex, message='Retry limit exceeded.', context=str(ctx.error_context))
+            else:
+                err = TimeoutError(message='Request timed out during retry delay.', context=str(ctx.error_context))
+        if err:
+            return err
+        sleep(delay)
+        return None
+
+    @staticmethod
+    def handle_retry(ex: WrappedError, ctx: RequestContext) -> Optional[Union[BaseException, Exception]]:
+        if ex.retriable is True:
+            delay = ctx.calculate_backoff()
+            err: Optional[Union[BaseException, Exception]] = None
+            if not ctx.okay_to_delay_and_retry(delay):
+                if ctx.retry_limit_exceeded:
+                    if ex.is_cause_query_err:
+                        ex.maybe_set_cause_context(ctx.error_context)
+                        err = ex.unwrap()
+                    else:
+                        err = AnalyticsError(cause=ex.unwrap(),
+                                             message='Retry limit exceeded.',
+                                             context=str(ctx.error_context))
+                else:
+                    err = TimeoutError(message='Request timed out during retry delay.',
+                                       context=str(ctx.error_context))
+
+            if err:
+                return err
+            sleep(delay)
+            return None
+        ex.maybe_set_cause_context(ctx.error_context)
+        return ex.unwrap()
 
     @staticmethod
     def with_retries(fn: Callable[[HttpStreamingResponse], None]) -> Callable[[HttpStreamingResponse], None]:  # noqa: C901
@@ -44,37 +93,25 @@ class RetryHandler:
                     fn(self)
                     break
                 except WrappedError as ex:
-                    if ex.retriable is True:
-                        delay = calc_backoff(self._request_context.error_context.num_attempts)
-                        if not self._request_context.okay_to_delay_and_retry(delay):
-                            self._request_context.shutdown(ex)
-                            raise TimeoutError(message='Request timed out during retry delay.',
-                                               context=str(self._request_context.error_context)) from None
-                        sleep(delay)
+                    err = RetryHandler.handle_retry(ex, self._request_context)
+                    if err is None:
                         continue
                     self._request_context.shutdown(ex)
-                    ex.maybe_set_cause_context(self._request_context.error_context)
-                    raise ex.unwrap() from None
+                    raise err from None
+                except (ConnectError, ConnectTimeout) as ex:
+                    err = RetryHandler.handle_httpx_retry(ex, self._request_context)
+                    if err is None:
+                        continue
+                    self._request_context.shutdown(ex)
+                    raise err from None
                 except AnalyticsError:
                     # if an AnalyticsError is raised, we have already shut down the request context
                     raise
                 except RuntimeError as ex:
                     self._request_context.shutdown(ex)
                     raise ex
-                except ConnectError as ex:
-                    self._request_context.shutdown(ex)
-                    raise AnalyticsError(cause=ex,
-                                         message='Unable to establish connection for request.',
-                                         context=str(self._request_context.error_context)) from None
-                except ConnectTimeout as ex:
-                    self._request_context.shutdown(ex)
-                    raise TimeoutError(cause=ex,
-                                       message='Request timed out trying to establish connection.',
-                                       context=str(self._request_context.error_context)) from None
                 except BaseException as ex:
                     self._request_context.shutdown(ex)
-                    if self._request_context.request_error is not None:
-                        raise self._request_context.request_error from None
                     if self._request_context.timed_out:
                         raise TimeoutError(message='Request timeout.',
                                            context=str(self._request_context.error_context)) from None
@@ -88,10 +125,3 @@ class RetryHandler:
                         self.close()
 
         return wrapped_fn
-
-def calc_backoff(retry_count: int) -> float:
-    min_ms = 100
-    max_ms = 60000
-    delay_ms = min_ms * pow(2, retry_count)
-    capped_ms = min(max_ms, delay_ms)
-    return uniform(0, capped_ms / 1000.0)

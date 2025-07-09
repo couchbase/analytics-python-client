@@ -23,7 +23,9 @@ from acouchbase_analytics.protocol._core.request_context import AsyncRequestCont
 from acouchbase_analytics.protocol._core.retries import AsyncRetryHandler
 from couchbase_analytics.common._core import ParsedResult, ParsedResultType
 from couchbase_analytics.common._core.query import build_query_metadata
-from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError, TimeoutError
+from couchbase_analytics.common.errors import (AnalyticsError,
+                                               InternalSDKError,
+                                               TimeoutError)
 from couchbase_analytics.common.query import QueryMetadata
 
 

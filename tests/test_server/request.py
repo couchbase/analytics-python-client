@@ -5,7 +5,10 @@ from typing import (Any,
                     Dict,
                     Optional)
 
-from tests.test_server import ErrorType, NonRetriableSpecificationType, ResultType, RetriableGroupType
+from tests.test_server import (ErrorType,
+                               NonRetriableSpecificationType,
+                               ResultType,
+                               RetriableGroupType)
 
 
 @dataclass
@@ -94,3 +97,13 @@ class ServerTimeoutRequest:
         return cls(error_type=ErrorType.Timeout,
                    timeout=float(timeout),
                    server_side=json_data.get('server_side', False))
+
+@dataclass
+class ServerHttp503Request:
+    error_type: ErrorType
+    analytics_error: Optional[bool] = False
+
+    @classmethod
+    def from_json(cls, json_data: Dict[str, Any]) -> ServerHttp503Request:
+        return cls(error_type=ErrorType.Http503,
+                   analytics_error=json_data.get('analytics_error', False))

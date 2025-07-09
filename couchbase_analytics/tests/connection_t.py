@@ -32,6 +32,7 @@ TEST_CERT_PATH = get_test_cert_path()
 class ConnectionTestSuite:
     TEST_MANIFEST = [
         'test_connstr_options_fail',
+        'test_connstr_options_max_retries',
         'test_connstr_options_timeout',
         'test_connstr_options_timeout_fail',
         'test_connstr_options_timeout_invalid_duration',
@@ -56,6 +57,15 @@ class ConnectionTestSuite:
         connstr = f'https://localhost?{connstr_opt}'
         with pytest.raises(ValueError):
             _ClientAdapter(connstr, cred)
+
+    def test_connstr_options_max_retries(self) -> None:
+        cred = Credential.from_username_and_password('Administrator', 'password')
+        max_retries = 10
+        connstr = f'https://localhost?max_retries={max_retries}'
+        client = _ClientAdapter(connstr, cred)
+        req_builder = _RequestBuilder(client)
+        req = req_builder.build_base_query_request('SELECT 1=1')
+        assert req.max_retries == max_retries
 
     @pytest.mark.parametrize('duration, expected_seconds',
                              [('1h', '3600'),

@@ -23,6 +23,7 @@ class ErrorType(Enum):
     Unauthorized = 'unauthorized'
     InsufficientPermissions = 'insufficient_permissions'
     Retriable = 'retriable'
+    Http503 = 'http_503'
 
     @staticmethod
     def from_str(error_type: str) -> ErrorType:
