@@ -17,9 +17,7 @@ from __future__ import annotations
 
 from collections import deque
 from enum import Enum
-from typing import (Deque,
-                    NamedTuple,
-                    Optional)
+from typing import Deque, NamedTuple, Optional
 
 
 class ParsingState(Enum):
@@ -56,6 +54,7 @@ class TokenState(Enum):
     def __str__(self) -> str:
         return self.value
 
+
 class TokenType(Enum):
     START_MAP = 'start_map'
     END_MAP = 'end_map'
@@ -83,17 +82,21 @@ class TokenType(Enum):
     def __str__(self) -> str:
         return self.value
 
+
 class Token(NamedTuple):
     type: TokenType
     value: str
-    state: Optional[TokenState]=None
+    state: Optional[TokenState] = None
 
-VALUE_TOKENS = [TokenType.STRING,
-                TokenType.BOOLEAN,
-                TokenType.NULL,
-                TokenType.INTEGER,
-                TokenType.DOUBLE,
-                TokenType.NUMBER]
+
+VALUE_TOKENS = [
+    TokenType.STRING,
+    TokenType.BOOLEAN,
+    TokenType.NULL,
+    TokenType.INTEGER,
+    TokenType.DOUBLE,
+    TokenType.NUMBER,
+]
 
 EVENT_TOKENS = {
     TokenType.START_ARRAY: Token(TokenType.START_ARRAY, '['),
@@ -106,9 +109,12 @@ POP_EVENTS = [TokenType.END_ARRAY, TokenType.END_MAP]
 
 START_EVENTS = [TokenType.START_ARRAY, TokenType.START_MAP]
 
-START_EVENT_TRANSITION_STATES = [ParsingState.START_RESULTS_PROCESSING,
-                                 ParsingState.START_ERRORS_PROCESSING,
-                                 ParsingState.PROCESSING_RESULTS]
+START_EVENT_TRANSITION_STATES = [
+    ParsingState.START_RESULTS_PROCESSING,
+    ParsingState.START_ERRORS_PROCESSING,
+    ParsingState.PROCESSING_RESULTS,
+]
+
 
 class JsonTokenParserBase:
     def __init__(self, emit_results_enabled: bool) -> None:
@@ -156,7 +162,7 @@ class JsonTokenParserBase:
                 self._previous_state = ParsingState.PROCESSING
         self._push(TokenType.MAP_KEY, f'"{value}"')
 
-    def _handle_pop_transition(self, token_state: Optional[TokenState]=None) -> bool:
+    def _handle_pop_transition(self, token_state: Optional[TokenState] = None) -> bool:
         if token_state is not None:
             if token_state == TokenState.RESULTS_START:
                 self._previous_state = self._state
@@ -224,7 +230,7 @@ class JsonTokenParserBase:
             self._push(TokenType.VALUE, val)
         return None
 
-    def _push(self, token_type: TokenType, value: str, transition: Optional[bool]=False) -> None:
+    def _push(self, token_type: TokenType, value: str, transition: Optional[bool] = False) -> None:
         token_state = None
         if transition is True:
             token_state = self._handle_push_transition()
@@ -239,9 +245,11 @@ class JsonTokenParserBase:
     def _should_push_pair(self, token: Token) -> bool:
         # when a results object is complete, the state will have transactioned back to PROCESSING
         # if we are not emitting rows or errors, we want to keep the results/errors object on the stack
-        if (self._previous_state == ParsingState.PROCESSING_RESULTS
+        if (
+            self._previous_state == ParsingState.PROCESSING_RESULTS
             and self._state == ParsingState.PROCESSING
-            and self._emit_results_enabled is False):
+            and self._emit_results_enabled is False
+        ):
             return True
 
         # the initial results object token will have a state of RESULTS_START

@@ -20,24 +20,17 @@ from typing import TYPE_CHECKING, Union
 
 import pytest
 
-from acouchbase_analytics.errors import (AnalyticsError,
-                                         InvalidCredentialError,
-                                         QueryError,
-                                         TimeoutError)
+from acouchbase_analytics.errors import AnalyticsError, InvalidCredentialError, QueryError, TimeoutError
 from acouchbase_analytics.options import QueryOptions
 from acouchbase_analytics.result import AsyncQueryResult
 from tests import AsyncYieldFixture
-from tests.test_server import (ErrorType,
-                               NonRetriableSpecificationType,
-                               ResultType,
-                               RetriableGroupType)
+from tests.test_server import ErrorType, NonRetriableSpecificationType, ResultType, RetriableGroupType
 
 if TYPE_CHECKING:
     from tests.environments.base_environment import AsyncTestEnvironment
 
 
 class TestServerTestSuite:
-
     TEST_MANIFEST = [
         'test_auth_error_unauthorized',
         'test_auth_error_insufficient_permissions',
@@ -47,7 +40,7 @@ class TestServerTestSuite:
         'test_error_retriable_http503',
         'test_error_timeout',
         'test_results_object_values',
-        'test_results_raw_values'
+        'test_results_raw_values',
     ]
 
     async def test_auth_error_unauthorized(self, test_env: AsyncTestEnvironment) -> None:
@@ -70,23 +63,32 @@ class TestServerTestSuite:
         test_env.assert_error_context_num_attempts(1, ex.value._context)
         test_env.assert_error_context_contains_last_dispatch(ex.value._context)
 
-    @pytest.mark.parametrize('retry_group_type',
-                             [RetriableGroupType.Zero,
-                              RetriableGroupType.First,
-                              RetriableGroupType.Middle,
-                              RetriableGroupType.Last])
-    @pytest.mark.parametrize('non_retriable_spec',
-                             [NonRetriableSpecificationType.AllEmpty,
-                              NonRetriableSpecificationType.AllFalse,
-                              NonRetriableSpecificationType.Random])
-    async def test_error_non_retriable_response(self,
-                                          test_env: AsyncTestEnvironment,
-                                          retry_group_type: RetriableGroupType,
-                                          non_retriable_spec: NonRetriableSpecificationType) -> None:
+    @pytest.mark.parametrize(
+        'retry_group_type',
+        [RetriableGroupType.Zero, RetriableGroupType.First, RetriableGroupType.Middle, RetriableGroupType.Last],
+    )
+    @pytest.mark.parametrize(
+        'non_retriable_spec',
+        [
+            NonRetriableSpecificationType.AllEmpty,
+            NonRetriableSpecificationType.AllFalse,
+            NonRetriableSpecificationType.Random,
+        ],
+    )
+    async def test_error_non_retriable_response(
+        self,
+        test_env: AsyncTestEnvironment,
+        retry_group_type: RetriableGroupType,
+        non_retriable_spec: NonRetriableSpecificationType,
+    ) -> None:
         test_env.set_url_path('/test_error')
-        test_env.update_request_json({'error_type': ErrorType.Retriable.value,
-                                      'retry_group_type': retry_group_type.value,
-                                      'non_retriable_spec': non_retriable_spec.value})
+        test_env.update_request_json(
+            {
+                'error_type': ErrorType.Retriable.value,
+                'retry_group_type': retry_group_type.value,
+                'non_retriable_spec': non_retriable_spec.value,
+            }
+        )
         statement = 'SELECT "Hello, data!" AS greeting'
         with pytest.raises(QueryError) as ex:
             await test_env.cluster_or_scope.execute_query(statement)
@@ -95,20 +97,24 @@ class TestServerTestSuite:
 
     async def test_error_retriable_response_timeout(self, test_env: AsyncTestEnvironment) -> None:
         test_env.set_url_path('/test_error')
-        test_env.update_request_json({'error_type': ErrorType.Retriable.value,
-                                      'retry_group_type': RetriableGroupType.All.value})
+        test_env.update_request_json(
+            {'error_type': ErrorType.Retriable.value, 'retry_group_type': RetriableGroupType.All.value}
+        )
         statement = 'SELECT "Hello, data!" AS greeting'
         with pytest.raises(TimeoutError) as ex:
             # just-in-case, increase the max_retries to ensure we hit the timeout
-            await test_env.cluster_or_scope.execute_query(statement, QueryOptions(max_retries=10, timeout=timedelta(seconds=1.5)))
+            await test_env.cluster_or_scope.execute_query(
+                statement, QueryOptions(max_retries=10, timeout=timedelta(seconds=1.5))
+            )
 
-        test_env.assert_error_context_num_attempts(4 , ex.value._context, exact=False)
+        test_env.assert_error_context_num_attempts(4, ex.value._context, exact=False)
         test_env.assert_error_context_contains_last_dispatch(ex.value._context)
 
     async def test_error_retriable_response_retries_exceeded(self, test_env: AsyncTestEnvironment) -> None:
         test_env.set_url_path('/test_error')
-        test_env.update_request_json({'error_type': ErrorType.Retriable.value,
-                                      'retry_group_type': RetriableGroupType.All.value})
+        test_env.update_request_json(
+            {'error_type': ErrorType.Retriable.value, 'retry_group_type': RetriableGroupType.All.value}
+        )
         statement = 'SELECT "Hello, data!" AS greeting'
         allowed_retries = 5
         q_opts = QueryOptions(max_retries=allowed_retries, timeout=timedelta(seconds=10))
@@ -116,14 +122,13 @@ class TestServerTestSuite:
             await test_env.cluster_or_scope.execute_query(statement, q_opts)
 
         print(ex.value)
-        test_env.assert_error_context_num_attempts(allowed_retries+1 , ex.value._context)
+        test_env.assert_error_context_num_attempts(allowed_retries + 1, ex.value._context)
         test_env.assert_error_context_contains_last_dispatch(ex.value._context)
 
     @pytest.mark.parametrize('analytics_error', [False, True])
     async def test_error_retriable_http503(self, test_env: AsyncTestEnvironment, analytics_error: bool) -> None:
         test_env.set_url_path('/test_error')
-        test_env.update_request_json({'error_type': ErrorType.Http503.value,
-                                      'analytics_error': analytics_error})
+        test_env.update_request_json({'error_type': ErrorType.Http503.value, 'analytics_error': analytics_error})
         statement = 'SELECT "Hello, data!" AS greeting'
         allowed_retries = 5
         q_opts = QueryOptions(max_retries=allowed_retries, timeout=timedelta(seconds=10))
@@ -135,7 +140,7 @@ class TestServerTestSuite:
             with pytest.raises(AnalyticsError) as ex:
                 await test_env.cluster_or_scope.execute_query(statement, q_opts)
 
-        test_env.assert_error_context_num_attempts(allowed_retries+1 , ex.value._context)
+        test_env.assert_error_context_num_attempts(allowed_retries + 1, ex.value._context)
         test_env.assert_error_context_contains_last_dispatch(ex.value._context)
 
     @pytest.mark.parametrize('server_side', [False, True])
@@ -157,69 +162,67 @@ class TestServerTestSuite:
             test_env.assert_error_context_missing_last_dispatch(ex.value._context)
 
     @pytest.mark.parametrize('stream', [False, True])
-    async def test_results_object_values(self,
-                                         test_env: AsyncTestEnvironment,
-                                         stream: bool) -> None:
+    async def test_results_object_values(self, test_env: AsyncTestEnvironment, stream: bool) -> None:
         expected_rows = 50
         test_env.set_url_path('/test_results')
-        test_env.update_request_json({'result_type': ResultType.Object.value,
-                                      'row_count': expected_rows,
-                                      'stream': stream})
+        test_env.update_request_json(
+            {'result_type': ResultType.Object.value, 'row_count': expected_rows, 'stream': stream}
+        )
         statement = 'SELECT "Hello, data!" AS greeting'
         result = await test_env.cluster_or_scope.execute_query(statement)
         assert isinstance(result, AsyncQueryResult)
         await test_env.assert_rows(result, expected_rows)
 
     @pytest.mark.parametrize('stream', [False, True])
-    async def test_results_raw_values(self,
-                                      test_env: AsyncTestEnvironment,
-                                      stream: bool) -> None:
+    async def test_results_raw_values(self, test_env: AsyncTestEnvironment, stream: bool) -> None:
         expected_rows = 50
         test_env.set_url_path('/test_results')
-        test_env.update_request_json({'result_type': ResultType.Raw.value,
-                                      'row_count': expected_rows,
-                                      'stream': stream})
+        test_env.update_request_json(
+            {'result_type': ResultType.Raw.value, 'row_count': expected_rows, 'stream': stream}
+        )
         statement = 'SELECT "Hello, data!" AS greeting'
         result = await test_env.cluster_or_scope.execute_query(statement)
         assert isinstance(result, AsyncQueryResult)
         await test_env.assert_rows(result, expected_rows)
 
-class ClusterTestServerTests(TestServerTestSuite):
 
+class ClusterTestServerTests(TestServerTestSuite):
     @pytest.fixture(scope='class', autouse=True)
     def validate_test_manifest(self) -> None:
         def valid_test_method(meth: str) -> bool:
             attr = getattr(ClusterTestServerTests, meth)
             return callable(attr) and not meth.startswith('__') and meth.startswith('test')
+
         method_list = [meth for meth in dir(ClusterTestServerTests) if valid_test_method(meth)]
         test_list = set(TestServerTestSuite.TEST_MANIFEST).symmetric_difference(method_list)
         if test_list:
             pytest.fail(f'Test manifest invalid.  Missing/extra tests: {test_list}.')
 
     @pytest.fixture(scope='class', name='test_env')
-    async def couchbase_test_environment(self,
-                                         async_test_env_with_server: AsyncTestEnvironment
-                                         ) -> AsyncYieldFixture[AsyncTestEnvironment]:
+    async def couchbase_test_environment(
+        self, async_test_env_with_server: AsyncTestEnvironment
+    ) -> AsyncYieldFixture[AsyncTestEnvironment]:
         test_env = await async_test_env_with_server.enable_test_server()
         yield test_env
         test_env.disable_test_server()
 
-class ScopeTestServerTests(TestServerTestSuite):
 
+class ScopeTestServerTests(TestServerTestSuite):
     @pytest.fixture(scope='class', autouse=True)
     def validate_test_manifest(self) -> None:
         def valid_test_method(meth: str) -> bool:
             attr = getattr(ScopeTestServerTests, meth)
             return callable(attr) and not meth.startswith('__') and meth.startswith('test')
+
         method_list = [meth for meth in dir(ScopeTestServerTests) if valid_test_method(meth)]
         test_list = set(TestServerTestSuite.TEST_MANIFEST).symmetric_difference(method_list)
         if test_list:
             pytest.fail(f'Test manifest invalid.  Missing/extra tests: {test_list}.')
 
     @pytest.fixture(scope='class', name='test_env')
-    async def couchbase_test_environment(self,
-                                         async_test_env_with_server: AsyncTestEnvironment
-                                         ) -> AsyncYieldFixture[AsyncTestEnvironment]:
+    async def couchbase_test_environment(
+        self, async_test_env_with_server: AsyncTestEnvironment
+    ) -> AsyncYieldFixture[AsyncTestEnvironment]:
         test_env = await async_test_env_with_server.enable_test_server()
         test_env.enable_scope()
         yield test_env

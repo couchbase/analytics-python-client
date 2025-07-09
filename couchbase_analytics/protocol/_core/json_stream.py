@@ -19,28 +19,26 @@ from concurrent.futures import Future
 from queue import Empty as QueueEmpty
 from queue import Full as QueueFull
 from queue import Queue
-from typing import (TYPE_CHECKING,
-                    Iterator,
-                    Optional)
+from typing import TYPE_CHECKING, Iterator, Optional
 
 import ijson
 
-from couchbase_analytics.common._core.json_parsing import (JsonStreamConfig,
-                                                           ParsedResult,
-                                                           ParsedResultType)
+from couchbase_analytics.common._core.json_parsing import JsonStreamConfig, ParsedResult, ParsedResultType
 from couchbase_analytics.protocol._core.json_token_parser import JsonTokenParser
 
 if TYPE_CHECKING:
     from couchbase_analytics.protocol._core.request_context import RequestContext
 
+
 class JsonStream:
     DEFAULT_HTTP_STREAM_BUFFER_SIZE = 2**16
 
-    def __init__(self,
-                 http_stream_iter: Iterator[bytes],
-                 *,
-                 stream_config: Optional[JsonStreamConfig]=None,
-                 ) -> None:
+    def __init__(
+        self,
+        http_stream_iter: Iterator[bytes],
+        *,
+        stream_config: Optional[JsonStreamConfig] = None,
+    ) -> None:
         # HTTP stream handling
         if stream_config is None:
             stream_config = JsonStreamConfig()
@@ -75,7 +73,7 @@ class JsonStream:
         """
         return self._token_stream_exhausted
 
-    def _continue_processing(self, request_context: Optional[RequestContext]=None) -> bool:
+    def _continue_processing(self, request_context: Optional[RequestContext] = None) -> bool:
         """
         **INTERNAL**
         """
@@ -101,7 +99,6 @@ class JsonStream:
                 # TODO: log error as this is unexpected
                 pass
 
-
     def _handle_json_result(self, row: bytes) -> None:
         """
         **INTERNAL**
@@ -117,7 +114,7 @@ class JsonStream:
 
         self._notify_on_results_or_error.set_result(result_type)
 
-    def _process_token_stream(self, request_context: Optional[RequestContext]=None) -> None:
+    def _process_token_stream(self, request_context: Optional[RequestContext] = None) -> None:
         """
         **INTERNAL**
         """
@@ -142,7 +139,7 @@ class JsonStream:
             self._put(ParsedResult(self._json_token_parser.get_result(), result_type))
             self._handle_notification(result_type)
 
-    def read(self, size: Optional[int]=-1) -> bytes:
+    def read(self, size: Optional[int] = -1) -> bytes:
         """
         **INTERNAL**
         """
@@ -175,14 +172,19 @@ class JsonStream:
             # TODO:  log a message here as indication the stream is slow
             return None
 
-    def start_parsing(self,
-                      request_context: Optional[RequestContext]=None,
-                      notify_on_results_or_error: Optional[Future[ParsedResultType]]=None) -> None:
+    def start_parsing(
+        self,
+        request_context: Optional[RequestContext] = None,
+        notify_on_results_or_error: Optional[Future[ParsedResultType]] = None,
+    ) -> None:
         if self._json_stream_parser is not None:
             # TODO: logging; I don't think this is an error...
             return
         self._notify_on_results_or_error = notify_on_results_or_error
         self._process_token_stream(request_context=request_context)
 
-    def continue_parsing(self, request_context: Optional[RequestContext]=None,) -> None:
+    def continue_parsing(
+        self,
+        request_context: Optional[RequestContext] = None,
+    ) -> None:
         self._process_token_stream(request_context=request_context)

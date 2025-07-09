@@ -27,41 +27,25 @@ from couchbase_analytics.result import AsyncQueryResult
 
 class AsyncScope:
     def __init__(self, database: AsyncDatabase, scope_name: str) -> None: ...
-
     @property
     def name(self) -> str: ...
-
     @overload
     def execute_query(self, statement: str) -> Awaitable[AsyncQueryResult]: ...
-
     @overload
     def execute_query(self, statement: str, options: QueryOptions) -> Awaitable[AsyncQueryResult]: ...
-
     @overload
     def execute_query(self, statement: str, **kwargs: Unpack[QueryOptionsKwargs]) -> Awaitable[AsyncQueryResult]: ...
-
     @overload
-    def execute_query(self,
-                      statement: str,
-                      options: QueryOptions,
-                      **kwargs: Unpack[QueryOptionsKwargs]) -> Awaitable[AsyncQueryResult]: ...
-
+    def execute_query(
+        self, statement: str, options: QueryOptions, **kwargs: Unpack[QueryOptionsKwargs]
+    ) -> Awaitable[AsyncQueryResult]: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      options: QueryOptions,
-                      *args: str,
-                      **kwargs: Unpack[QueryOptionsKwargs]) -> Awaitable[AsyncQueryResult]: ...
-
+    def execute_query(
+        self, statement: str, options: QueryOptions, *args: str, **kwargs: Unpack[QueryOptionsKwargs]
+    ) -> Awaitable[AsyncQueryResult]: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      options: QueryOptions,
-                      *args: str,
-                      **kwargs: str) -> Awaitable[AsyncQueryResult]: ...
-
+    def execute_query(
+        self, statement: str, options: QueryOptions, *args: str, **kwargs: str
+    ) -> Awaitable[AsyncQueryResult]: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      *args: str,
-                      **kwargs: str) -> Awaitable[AsyncQueryResult]: ...
+    def execute_query(self, statement: str, *args: str, **kwargs: str) -> Awaitable[AsyncQueryResult]: ...

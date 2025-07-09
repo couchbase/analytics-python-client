@@ -29,123 +29,75 @@ from couchbase_analytics.result import BlockingQueryResult
 
 class Scope:
     def __init__(self, database: Database, scope_name: str) -> None: ...
-
     @property
     def name(self) -> str: ...
-
     @overload
     def execute_query(self, statement: str) -> BlockingQueryResult: ...
-
     @overload
-    def execute_query(self,
-                      statement: str,
-                      options: QueryOptions) -> BlockingQueryResult: ...
-
+    def execute_query(self, statement: str, options: QueryOptions) -> BlockingQueryResult: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      **kwargs: Unpack[QueryOptionsKwargs]) -> BlockingQueryResult: ...
-
+    def execute_query(self, statement: str, **kwargs: Unpack[QueryOptionsKwargs]) -> BlockingQueryResult: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      options: QueryOptions,
-                      **kwargs: Unpack[QueryOptionsKwargs]
-                      ) -> BlockingQueryResult: ...
-
+    def execute_query(
+        self, statement: str, options: QueryOptions, **kwargs: Unpack[QueryOptionsKwargs]
+    ) -> BlockingQueryResult: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      options: QueryOptions,
-                      *args: JSONType,
-                      **kwargs: Unpack[QueryOptionsKwargs]) -> BlockingQueryResult: ...
-
+    def execute_query(
+        self, statement: str, options: QueryOptions, *args: JSONType, **kwargs: Unpack[QueryOptionsKwargs]
+    ) -> BlockingQueryResult: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      options: QueryOptions,
-                      *args: JSONType,
-                      **kwargs: str) -> BlockingQueryResult: ...
-
+    def execute_query(
+        self, statement: str, options: QueryOptions, *args: JSONType, **kwargs: str
+    ) -> BlockingQueryResult: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      *args: JSONType,
-                      **kwargs: str) -> BlockingQueryResult: ...
-
+    def execute_query(self, statement: str, *args: JSONType, **kwargs: str) -> BlockingQueryResult: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      enable_cancel: bool) -> Future[BlockingQueryResult]: ...
-
+    def execute_query(self, statement: str, enable_cancel: bool) -> Future[BlockingQueryResult]: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      enable_cancel: bool,
-                      *args: JSONType) -> Future[BlockingQueryResult]: ...
-
+    def execute_query(self, statement: str, enable_cancel: bool, *args: JSONType) -> Future[BlockingQueryResult]: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      options: QueryOptions,
-                      enable_cancel: bool) -> Future[BlockingQueryResult]: ...
-
+    def execute_query(
+        self, statement: str, options: QueryOptions, enable_cancel: bool
+    ) -> Future[BlockingQueryResult]: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      enable_cancel: bool,
-                      **kwargs: Unpack[QueryOptionsKwargs]) -> Future[BlockingQueryResult]: ...
-
+    def execute_query(
+        self, statement: str, enable_cancel: bool, **kwargs: Unpack[QueryOptionsKwargs]
+    ) -> Future[BlockingQueryResult]: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      options: QueryOptions,
-                      enable_cancel: bool,
-                      **kwargs: Unpack[QueryOptionsKwargs]) -> Future[BlockingQueryResult]: ...
-
+    def execute_query(
+        self, statement: str, options: QueryOptions, enable_cancel: bool, **kwargs: Unpack[QueryOptionsKwargs]
+    ) -> Future[BlockingQueryResult]: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      options: QueryOptions,
-                      enable_cancel: bool,
-                      *args: JSONType,
-                      **kwargs: Unpack[QueryOptionsKwargs]) -> Future[BlockingQueryResult]: ...
-
+    def execute_query(
+        self,
+        statement: str,
+        options: QueryOptions,
+        enable_cancel: bool,
+        *args: JSONType,
+        **kwargs: Unpack[QueryOptionsKwargs],
+    ) -> Future[BlockingQueryResult]: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      options: QueryOptions,
-                      *args: JSONType,
-                      enable_cancel: bool,
-                      **kwargs: Unpack[QueryOptionsKwargs]) -> Future[BlockingQueryResult]: ...
-
-
+    def execute_query(
+        self,
+        statement: str,
+        options: QueryOptions,
+        *args: JSONType,
+        enable_cancel: bool,
+        **kwargs: Unpack[QueryOptionsKwargs],
+    ) -> Future[BlockingQueryResult]: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      options: QueryOptions,
-                      enable_cancel: bool,
-                      *args: JSONType,
-                      **kwargs: str) -> Future[BlockingQueryResult]: ...
-
+    def execute_query(
+        self, statement: str, options: QueryOptions, enable_cancel: bool, *args: JSONType, **kwargs: str
+    ) -> Future[BlockingQueryResult]: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      options: QueryOptions,
-                      *args: JSONType,
-                      enable_cancel: bool,
-                      **kwargs: str) -> Future[BlockingQueryResult]: ...
-
+    def execute_query(
+        self, statement: str, options: QueryOptions, *args: JSONType, enable_cancel: bool, **kwargs: str
+    ) -> Future[BlockingQueryResult]: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      enable_cancel: bool,
-                      *args: JSONType,
-                      **kwargs: str) -> Future[BlockingQueryResult]: ...
-
+    def execute_query(
+        self, statement: str, enable_cancel: bool, *args: JSONType, **kwargs: str
+    ) -> Future[BlockingQueryResult]: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      *args: JSONType,
-                      enable_cancel: bool,
-                      **kwargs: str) -> Future[BlockingQueryResult]: ...
+    def execute_query(
+        self, statement: str, *args: JSONType, enable_cancel: bool, **kwargs: str
+    ) -> Future[BlockingQueryResult]: ...

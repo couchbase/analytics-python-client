@@ -29,9 +29,9 @@ class ErrorType(Enum):
     def from_str(error_type: str) -> ErrorType:
         match = next((t for t in ErrorType if t.value == error_type), None)
         if not match:
-            raise ValueError(f'Invalid error type: {error_type}. '
-                             f'Valid options are: {[e.value for e in ErrorType]}')
+            raise ValueError(f'Invalid error type: {error_type}. Valid options are: {[e.value for e in ErrorType]}')
         return match
+
 
 class ResultType(Enum):
     Object = 'object'
@@ -41,9 +41,9 @@ class ResultType(Enum):
     def from_str(result_type: str) -> ResultType:
         match = next((t for t in ResultType if t.value == result_type), None)
         if not match:
-            raise ValueError(f'Invalid result type: {result_type}. '
-                             f'Valid options are: {[e.value for e in ResultType]}')
+            raise ValueError(f'Invalid result type: {result_type}. Valid options are: {[e.value for e in ResultType]}')
         return match
+
 
 class RetriableGroupType(Enum):
     All = 'all'
@@ -56,9 +56,11 @@ class RetriableGroupType(Enum):
     def from_str(rgt: str) -> RetriableGroupType:
         match = next((t for t in RetriableGroupType if t.value == rgt), None)
         if not match:
-            raise ValueError(f'Invalid retriable group type: {rgt}. '
-                             f'Valid options are: {[e.value for e in RetriableGroupType]}')
+            raise ValueError(
+                f'Invalid retriable group type: {rgt}. Valid options are: {[e.value for e in RetriableGroupType]}'
+            )
         return match
+
 
 class NonRetriableSpecificationType(Enum):
     AllEmpty = 'all_empty'
@@ -69,6 +71,8 @@ class NonRetriableSpecificationType(Enum):
     def from_str(nrst: str) -> NonRetriableSpecificationType:
         match = next((t for t in NonRetriableSpecificationType if t.value == nrst), None)
         if not match:
-            raise ValueError(f'Invalid non-retriable specification type: {nrst}. '
-                             f'Valid options are: {[e.value for e in NonRetriableSpecificationType]}')
+            raise ValueError(
+                f'Invalid non-retriable specification type: {nrst}. '
+                f'Valid options are: {[e.value for e in NonRetriableSpecificationType]}'
+            )
         return match

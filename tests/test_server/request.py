@@ -1,14 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import (Any,
-                    Dict,
-                    Optional)
+from typing import Any, Dict, Optional
 
-from tests.test_server import (ErrorType,
-                               NonRetriableSpecificationType,
-                               ResultType,
-                               RetriableGroupType)
+from tests.test_server import ErrorType, NonRetriableSpecificationType, ResultType, RetriableGroupType
 
 
 @dataclass
@@ -32,10 +27,13 @@ class ServerErrorRequest:
         nrst = None
         if non_retry_spec is not None:
             nrst = NonRetriableSpecificationType.from_str(non_retry_spec)
-        return cls(error_type=err_type,
-                   retry_group_type=rgt,
-                   non_retriable_spec=nrst,
-                   error_count=json_data.get('error_count', None))
+        return cls(
+            error_type=err_type,
+            retry_group_type=rgt,
+            non_retriable_spec=nrst,
+            error_count=json_data.get('error_count', None),
+        )
+
 
 @dataclass
 class ServerResultsRequest:
@@ -47,7 +45,6 @@ class ServerResultsRequest:
 
     @classmethod
     def from_json(cls, json_data: Dict[str, Any]) -> ServerResultsRequest:
-
         until_raw = json_data.get('until', None)
         if until_raw is not None and not isinstance(until_raw, (float, int)):
             raise ValueError(f'Invalid "until" value: {until_raw}. Must be a number.')
@@ -67,11 +64,14 @@ class ServerResultsRequest:
             raise ValueError(f'Invalid "chunk_size" value: {chunk_raw}. Must be an integer.')
         chunk_size = int(chunk_raw) if chunk_raw is not None else None
 
-        return cls(result_type=result_type,
-                   row_count=row_count,
-                   chunk_size=chunk_size,
-                   stream=json_data.get('stream', False),
-                   until=until)
+        return cls(
+            result_type=result_type,
+            row_count=row_count,
+            chunk_size=chunk_size,
+            stream=json_data.get('stream', False),
+            until=until,
+        )
+
 
 @dataclass
 class ServerSlowResultsRequest:
@@ -80,6 +80,7 @@ class ServerSlowResultsRequest:
     chunk_size: Optional[int] = None
     stream: Optional[bool] = False
     until: Optional[float] = None
+
 
 @dataclass
 class ServerTimeoutRequest:
@@ -94,9 +95,10 @@ class ServerTimeoutRequest:
             raise ValueError('Missing "timeout" in JSON data.')
         if not isinstance(timeout, (int, float)):
             raise ValueError(f'Invalid "timeout" value: {timeout}. Must be a number.')
-        return cls(error_type=ErrorType.Timeout,
-                   timeout=float(timeout),
-                   server_side=json_data.get('server_side', False))
+        return cls(
+            error_type=ErrorType.Timeout, timeout=float(timeout), server_side=json_data.get('server_side', False)
+        )
+
 
 @dataclass
 class ServerHttp503Request:
@@ -105,5 +107,4 @@ class ServerHttp503Request:
 
     @classmethod
     def from_json(cls, json_data: Dict[str, Any]) -> ServerHttp503Request:
-        return cls(error_type=ErrorType.Http503,
-                   analytics_error=json_data.get('analytics_error', False))
+        return cls(error_type=ErrorType.Http503, analytics_error=json_data.get('analytics_error', False))

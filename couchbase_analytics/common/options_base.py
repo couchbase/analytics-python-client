@@ -18,14 +18,7 @@ from __future__ import annotations
 
 import sys
 from datetime import timedelta
-from typing import (Any,
-                    Dict,
-                    Iterable,
-                    List,
-                    Literal,
-                    Optional,
-                    TypedDict,
-                    Union)
+from typing import Any, Dict, Iterable, List, Literal, Optional, TypedDict, Union
 
 if sys.version_info < (3, 10):
     from typing_extensions import TypeAlias, Unpack
@@ -64,7 +57,7 @@ ClusterOptionsValidKeys: TypeAlias = Literal[
 
 class ClusterOptionsBase(Dict[str, Any]):
     """
-        **INTERNAL**
+    **INTERNAL**
     """
 
     VALID_OPTION_KEYS: List[ClusterOptionsValidKeys] = [
@@ -98,7 +91,7 @@ SecurityOptionsValidKeys: TypeAlias = Literal[
 
 class SecurityOptionsBase(Dict[str, object]):
     """
-        **INTERNAL**
+    **INTERNAL**
     """
 
     VALID_OPTION_KEYS: List[SecurityOptionsValidKeys] = [
@@ -127,7 +120,7 @@ TimeoutOptionsValidKeys: TypeAlias = Literal[
 
 class TimeoutOptionsBase(Dict[str, object]):
     """
-        **INTERNAL**
+    **INTERNAL**
     """
 
     VALID_OPTION_KEYS: List[TimeoutOptionsValidKeys] = [
@@ -172,7 +165,6 @@ QueryOptionsValidKeys: TypeAlias = Literal[
 
 
 class QueryOptionsBase(Dict[str, object]):
-
     VALID_OPTION_KEYS: List[QueryOptionsValidKeys] = [
         'client_context_id',
         'deserializer',

@@ -13,9 +13,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from typing import (Any,
-                    Dict,
-                    List,
-                    Union)
+from typing import Any, Dict, List, Union
 
 JSONType = Union[str, int, float, bool, None, Dict[str, Any], List[Any]]

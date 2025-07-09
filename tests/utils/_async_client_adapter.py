@@ -23,6 +23,7 @@ def client_adapter_init_override(self, *args, **kwargs) -> None:  # type: ignore
     if self._http_transport_cls is None:
         self._http_transport_cls = adapter._http_transport_cls
 
+
 # async def create_client_override(self: _AsyncClientAdapter) -> None:
 #     if not hasattr(self, '_client'):
 #         auth = BasicAuth(*self._conn_details.credential)
@@ -38,6 +39,7 @@ def client_adapter_init_override(self, *args, **kwargs) -> None:  # type: ignore
 #             if self._http_transport_cls is not None:
 #                 transport = self._http_transport_cls()
 #             self._client = AsyncClient(auth=auth, transport=transport)
+
 
 async def send_request_override(self: _AsyncClientAdapter, request: QueryRequest) -> Response:
     if not hasattr(self, '_client'):
@@ -61,14 +63,8 @@ async def send_request_override(self: _AsyncClientAdapter, request: QueryRequest
 
     print(f'{request_extensions=}')
 
-    url = URL(scheme=request.url.scheme,
-                host=request.url.host,
-                port=request.url.port,
-                path=request.url.path)
-    req = self._client.build_request(request.method,
-                                     url,
-                                     json=request_json,
-                                     extensions=request_extensions)
+    url = URL(scheme=request.url.scheme, host=request.url.host, port=request.url.port, path=request.url.path)
+    req = self._client.build_request(request.method, url, json=request_json, extensions=request_extensions)
     try:
         return await self._client.send(req, stream=True)
     except socket.gaierror as err:
@@ -79,21 +75,25 @@ async def send_request_override(self: _AsyncClientAdapter, request: QueryRequest
 def set_request_path(self: _AsyncClientAdapter, path: str) -> None:
     self._ANALYTICS_PATH = path
 
+
 def update_request_json(self: _AsyncClientAdapter, json: Dict[str, object]) -> None:
     self._request_json = json  # type: ignore[attr-defined]
+
 
 def update_request_extensions(self: _AsyncClientAdapter, extensions: Dict[str, str]) -> None:
     self._request_extensions = extensions  # type: ignore[attr-defined]
 
+
 class _TestAsyncClientAdapter(_AsyncClientAdapter):
     pass
+
 
 _TestAsyncClientAdapter.__init__ = client_adapter_init_override  # type: ignore[method-assign]
 # _TestAsyncClientAdapter.create_client = create_client_override  # type: ignore[method-assign]
 _TestAsyncClientAdapter.send_request = send_request_override  # type: ignore[method-assign]
-setattr(_TestAsyncClientAdapter, 'set_request_path', set_request_path)
-setattr(_TestAsyncClientAdapter, 'update_request_json', update_request_json)
-setattr(_TestAsyncClientAdapter, 'update_request_extensions', update_request_extensions)
-setattr(_TestAsyncClientAdapter, 'PYCBAC_TESTING', True)
+_TestAsyncClientAdapter.set_request_path = set_request_path
+_TestAsyncClientAdapter.update_request_json = update_request_json
+_TestAsyncClientAdapter.update_request_extensions = update_request_extensions
+_TestAsyncClientAdapter.PYCBAC_TESTING = True
 
-__all__ = ["_TestAsyncClientAdapter"]
+__all__ = ['_TestAsyncClientAdapter']

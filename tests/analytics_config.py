@@ -26,7 +26,7 @@ import pytest
 from tests import AnalyticsTestEnvironmentError
 
 BASEDIR = pathlib.Path(__file__).parent.parent
-CONFIG_FILE = os.path.join(pathlib.Path(__file__).parent, "test_config.ini")
+CONFIG_FILE = os.path.join(pathlib.Path(__file__).parent, 'test_config.ini')
 ENV_TRUE = ['true', '1', 'y', 'yes', 'on']
 
 
@@ -87,40 +87,47 @@ class AnalyticsConfig:
             test_config = ConfigParser()
             test_config.read(CONFIG_FILE)
             test_config_analytics = test_config['analytics']
-            analytics_config._scheme = os.environ.get('PYCBAC_SCHEME',
-                                                      test_config_analytics.get('scheme', fallback='https'))
-            analytics_config._host = os.environ.get('PYCBAC_HOST',
-                                                    test_config_analytics.get('host', fallback='localhost'))
+            analytics_config._scheme = os.environ.get(
+                'PYCBAC_SCHEME', test_config_analytics.get('scheme', fallback='https')
+            )
+            analytics_config._host = os.environ.get(
+                'PYCBAC_HOST', test_config_analytics.get('host', fallback='localhost')
+            )
             port = os.environ.get('PYCBAC_PORT', test_config_analytics.get('port', fallback='8095'))
             analytics_config._port = int(port)
-            analytics_config._username = os.environ.get('PYCBAC_USERNAME',
-                                                        test_config_analytics.get('username', fallback='Administrator'))
-            analytics_config._password = os.environ.get('PYCBAC_PASSWORD',
-                                                       test_config_analytics.get('password', fallback='password'))
+            analytics_config._username = os.environ.get(
+                'PYCBAC_USERNAME', test_config_analytics.get('username', fallback='Administrator')
+            )
+            analytics_config._password = os.environ.get(
+                'PYCBAC_PASSWORD', test_config_analytics.get('password', fallback='password')
+            )
             use_nonprod = os.environ.get('PYCBAC_NONPROD', test_config_analytics.get('nonprod', fallback='OFF'))
             if use_nonprod.lower() in ENV_TRUE:
                 analytics_config._nonprod = True
             else:
                 analytics_config._nonprod = False
-            analytics_config._database_name = os.environ.get('PYCBAC_DATABASE',
-                                                             test_config_analytics.get('database_name',
-                                                                                      fallback='travel-sample'))
-            analytics_config._scope_name = os.environ.get('PYCBAC_SCOPE',
-                                                          test_config_analytics.get('scope_name', fallback='inventory'))
-            analytics_config._collection_name = os.environ.get('PYCBAC_COLLECTION',
-                                                               test_config_analytics.get('collection_name',
-                                                                                        fallback='airline'))
-            disable_cert_verification = os.environ.get('PYCBAC_DISABLE_SERVER_CERT_VERIFICATION',
-                                                       test_config_analytics.get('disable_server_cert_verification',
-                                                                                fallback='ON'))
+            analytics_config._database_name = os.environ.get(
+                'PYCBAC_DATABASE', test_config_analytics.get('database_name', fallback='travel-sample')
+            )
+            analytics_config._scope_name = os.environ.get(
+                'PYCBAC_SCOPE', test_config_analytics.get('scope_name', fallback='inventory')
+            )
+            analytics_config._collection_name = os.environ.get(
+                'PYCBAC_COLLECTION', test_config_analytics.get('collection_name', fallback='airline')
+            )
+            disable_cert_verification = os.environ.get(
+                'PYCBAC_DISABLE_SERVER_CERT_VERIFICATION',
+                test_config_analytics.get('disable_server_cert_verification', fallback='ON'),
+            )
             if disable_cert_verification.lower() in ENV_TRUE:
                 analytics_config._disable_server_certificate_verification = True
             fqdn = os.environ.get('PYCBAC_FQDN', test_config_analytics.get('fqdn', fallback=None))
             if fqdn is not None:
                 fqdn_tokens = fqdn.split('.')
                 if len(fqdn_tokens) != 3:
-                    raise AnalyticsTestEnvironmentError(('Invalid FQDN provided. Expected database.scope.collection. '
-                                                        f'FQDN provide={fqdn}'))
+                    raise AnalyticsTestEnvironmentError(
+                        (f'Invalid FQDN provided. Expected database.scope.collection. FQDN provide={fqdn}')
+                    )
 
                 analytics_config._database_name = f'{fqdn_tokens[0]}'
                 analytics_config._scope_name = f'{fqdn_tokens[1]}'
@@ -133,7 +140,7 @@ class AnalyticsConfig:
                 analytics_config._collection_name = 'airline'
 
         except Exception as ex:
-            raise AnalyticsTestEnvironmentError(f'Problem trying read/load test configuration:\n{ex}')
+            raise AnalyticsTestEnvironmentError(f'Problem trying read/load test configuration:\n{ex}') from None
 
         return analytics_config
 

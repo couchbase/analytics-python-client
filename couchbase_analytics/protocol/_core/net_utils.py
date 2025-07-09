@@ -16,9 +16,7 @@
 from __future__ import annotations
 
 import socket
-from ipaddress import (IPv4Address,
-                       IPv6Address,
-                       ip_address)
+from ipaddress import IPv4Address, IPv6Address, ip_address
 from random import choice
 from typing import Optional, Union
 

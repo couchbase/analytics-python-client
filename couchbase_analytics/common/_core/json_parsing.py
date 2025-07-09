@@ -23,6 +23,7 @@ from typing import NamedTuple, Optional
 # passing in a chunk_size is only applying an abstraction over the httpcore stream
 DEFAULT_HTTP_STREAM_BUFFER_SIZE = 2**16
 
+
 @dataclass
 class JsonStreamConfig:
     http_stream_buffer_size: int = DEFAULT_HTTP_STREAM_BUFFER_SIZE
@@ -36,14 +37,17 @@ class ParsedResultType(IntEnum):
     """
     **INTERNAL**
     """
+
     ROW = 0
     ERROR = 1
     END = 2
     UNKNOWN = 3
 
+
 class ParsedResult(NamedTuple):
     """
     **INTERNAL**
     """
+
     value: Optional[bytes]
     result_type: ParsedResultType

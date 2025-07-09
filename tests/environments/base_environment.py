@@ -19,13 +19,7 @@ import json
 import pathlib
 import sys
 from os import path
-from typing import (TYPE_CHECKING,
-                    Any,
-                    Dict,
-                    List,
-                    Optional,
-                    TypedDict,
-                    Union)
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict, Union
 
 if sys.version_info < (3, 11):
     from typing_extensions import Unpack
@@ -50,9 +44,8 @@ if TYPE_CHECKING:
     from tests.analytics_config import AnalyticsConfig
 
 
-TEST_AIRLINE_DATA_PATH = path.join(pathlib.Path(__file__).parent.parent,
-                                   'test_data',
-                                   'airline.json')
+TEST_AIRLINE_DATA_PATH = path.join(pathlib.Path(__file__).parent.parent, 'test_data', 'airline.json')
+
 
 class TestEnvironmentOptionsKwargs(TypedDict, total=False):
     async_cluster: Optional[AsyncCluster]
@@ -63,8 +56,8 @@ class TestEnvironmentOptionsKwargs(TypedDict, total=False):
     server_handler: Optional[WebServerHandler]
     backend: Optional[str]
 
-class TestEnvironment:
 
+class TestEnvironment:
     def __init__(self, config: AnalyticsConfig, **kwargs: Unpack[TestEnvironmentOptionsKwargs]) -> None:
         self._config = config
         self._async_cluster = kwargs.pop('async_cluster', None)
@@ -93,10 +86,9 @@ class TestEnvironment:
     def use_scope(self) -> bool:
         return self._use_scope
 
-    def assert_error_context_num_attempts(self,
-                                          expected_attempts: int,
-                                          context: Optional[str],
-                                          exact: Optional[bool]=True) -> None:
+    def assert_error_context_num_attempts(
+        self, expected_attempts: int, context: Optional[str], exact: Optional[bool] = True
+    ) -> None:
         assert isinstance(context, str)
         ctx_keys = context.replace('{', '').replace('}', '').split(',')
         assert len(ctx_keys) > 1
@@ -105,9 +97,9 @@ class TestEnvironment:
         match_keys = match.split()
         assert len(match_keys) == 2
         if exact is True:
-            assert int(match_keys[1].replace("'", "").replace('"', '')) == expected_attempts
+            assert int(match_keys[1].replace("'", '').replace('"', '')) == expected_attempts
         else:
-            assert int(match_keys[1].replace("'", "").replace('"', '')) >= expected_attempts
+            assert int(match_keys[1].replace("'", '').replace('"', '')) >= expected_attempts
 
     def assert_error_context_contains_last_dispatch(self, context: Optional[str]) -> None:
         assert isinstance(context, str)
@@ -118,7 +110,7 @@ class TestEnvironment:
         match = next((k for k in ctx_keys if 'last_dispatched_from' in k), None)
         assert match is not None
 
-    def assert_error_context_missing_last_dispatch(self, context: Optional[str]=None) -> None:
+    def assert_error_context_missing_last_dispatch(self, context: Optional[str] = None) -> None:
         if context is None:
             return
         assert isinstance(context, str)
@@ -136,6 +128,7 @@ class TestEnvironment:
         if limit is not None and len(json_data) > limit:
             return json_data[:limit]
         return json_data
+
 
 class BlockingTestEnvironment(TestEnvironment):
     def __init__(self, config: AnalyticsConfig, **kwargs: Unpack[TestEnvironmentOptionsKwargs]) -> None:
@@ -182,10 +175,9 @@ class BlockingTestEnvironment(TestEnvironment):
             # self._server_handler = None
         return self
 
-    def enable_scope(self,
-                     database_name: Optional[str] = None,
-                     scope_name: Optional[str] = None) -> BlockingTestEnvironment:
-
+    def enable_scope(
+        self, database_name: Optional[str] = None, scope_name: Optional[str] = None
+    ) -> BlockingTestEnvironment:
         if self._cluster is None:
             raise AnalyticsTestEnvironmentError('No cluster available.')
         db_name = database_name if database_name is not None else self._database_name
@@ -205,9 +197,12 @@ class BlockingTestEnvironment(TestEnvironment):
             raise AnalyticsTestEnvironmentError('No cluster available, cannot enable test server.')
         from tests.utils._client_adapter import _TestClientAdapter
         from tests.utils._test_httpx import TestHTTPTransport
+
         print(f'{self._cluster=}')
-        new_adapter = _TestClientAdapter(adapter=self._cluster._impl._client_adapter,  # type: ignore[call-arg]
-                                         http_transport_cls=TestHTTPTransport)
+        new_adapter = _TestClientAdapter(
+            adapter=self._cluster._impl._client_adapter,
+            http_transport_cls=TestHTTPTransport,
+        )
         new_adapter.create_client()
         self._cluster._impl._client_adapter = new_adapter
         url = self._cluster._impl.client_adapter.connection_details.url.get_formatted_url()
@@ -222,16 +217,18 @@ class BlockingTestEnvironment(TestEnvironment):
         setup_statements = [
             f'CREATE DATABASE `{self.config.database_name}` IF NOT EXISTS;',
             f'CREATE SCOPE `{self.config.database_name}`.`{self.config.scope_name}` IF NOT EXISTS;',
-            ('CREATE COLLECTION '
-             f'`{self.config.database_name}`.`{self.config.scope_name}`.`{self.config.collection_name}`'
-             ' IF NOT EXISTS PRIMARY KEY (pk: UUID) AUTOGENERATED;')
+            (
+                'CREATE COLLECTION '
+                f'`{self.config.database_name}`.`{self.config.scope_name}`.`{self.config.collection_name}`'
+                ' IF NOT EXISTS PRIMARY KEY (pk: UUID) AUTOGENERATED;'
+            ),
         ]
 
         for statement in setup_statements:
             try:
                 self.cluster.execute_query(statement)
             except Exception as ex:
-                raise AnalyticsTestEnvironmentError(f'Unable to execute statement={statement}. Error: {ex}')
+                raise AnalyticsTestEnvironmentError(f'Unable to execute statement={statement}. Error: {ex}') from None
 
         json_data = self.load_collection_data_from_file(TEST_AIRLINE_DATA_PATH)
         docs = []
@@ -241,13 +238,15 @@ class BlockingTestEnvironment(TestEnvironment):
             if 'scope' in d:
                 d['scope'] = self.config.scope_name
             docs.append(json.dumps(d))
-        statement = (f'USE `{self.config.database_name}`.`{self.config.scope_name}`; '
-                     f'UPSERT INTO `{self.config.collection_name}` ({",".join(docs)})')
+        statement = (
+            f'USE `{self.config.database_name}`.`{self.config.scope_name}`; '
+            f'UPSERT INTO `{self.config.collection_name}` ({",".join(docs)})'
+        )
 
         try:
             self.cluster.execute_query(statement)
         except Exception as ex:
-            raise AnalyticsTestEnvironmentError(f'Unable to load collection data. Error: {ex}')
+            raise AnalyticsTestEnvironmentError(f'Unable to load collection data. Error: {ex}') from None
 
     def set_url_path(self, url_path: str) -> None:
         if self._server_handler is None:
@@ -263,16 +262,18 @@ class BlockingTestEnvironment(TestEnvironment):
         teardown_statements = [
             f'DROP DATABASE `{self.config.database_name}` IF EXISTS;',
             f'DROP SCOPE `{self.config.database_name}`.`{self.config.scope_name}` IF EXISTS;',
-            ('DROP COLLECTION '
-             f'`{self.config.database_name}`.`{self.config.scope_name}`.`{self.config.collection_name}`'
-             ' IF EXISTS;')
+            (
+                'DROP COLLECTION '
+                f'`{self.config.database_name}`.`{self.config.scope_name}`.`{self.config.collection_name}`'
+                ' IF EXISTS;'
+            ),
         ]
 
         for statement in teardown_statements:
             try:
                 self.cluster.execute_query(statement)
             except Exception as ex:
-                raise AnalyticsTestEnvironmentError(f'Unable to execute statement={statement}. Error: {ex}')
+                raise AnalyticsTestEnvironmentError(f'Unable to execute statement={statement}. Error: {ex}') from None
 
     def update_request_extensions(self, extensions: Dict[str, object]) -> None:
         if self._server_handler is None:
@@ -289,9 +290,9 @@ class BlockingTestEnvironment(TestEnvironment):
         self._cluster._impl._client_adapter.update_request_json(json)
 
     @classmethod
-    def get_environment(cls,
-                        config: AnalyticsConfig,
-                        server_handler: Optional[WebServerHandler]=None) -> BlockingTestEnvironment:
+    def get_environment(
+        cls, config: AnalyticsConfig, server_handler: Optional[WebServerHandler] = None
+    ) -> BlockingTestEnvironment:
         if config is None:
             raise AnalyticsTestEnvironmentError('No test config provided.')
 
@@ -306,6 +307,7 @@ class BlockingTestEnvironment(TestEnvironment):
         sec_opts: Optional[SecurityOptions] = None
         if config.nonprod is True:
             from couchbase_analytics.common._core._certificates import _Certificates
+
             sec_opts = SecurityOptions.trust_only_certificates(_Certificates.get_nonprod_certificates())
 
         if config.disable_server_certificate_verification is True:
@@ -324,7 +326,6 @@ class BlockingTestEnvironment(TestEnvironment):
         env_opts['scope_name'] = config.scope_name
         env_opts['collection_name'] = config.collection_name
         return cls(config, **env_opts)
-
 
 
 class AsyncTestEnvironment(TestEnvironment):
@@ -372,10 +373,9 @@ class AsyncTestEnvironment(TestEnvironment):
             self._server_handler.stop_server()
         return self
 
-    def enable_scope(self,
-                     database_name: Optional[str] = None,
-                     scope_name: Optional[str] = None) -> AsyncTestEnvironment:
-
+    def enable_scope(
+        self, database_name: Optional[str] = None, scope_name: Optional[str] = None
+    ) -> AsyncTestEnvironment:
         if self._async_cluster is None:
             raise AnalyticsTestEnvironmentError('No cluster available.')
         db_name = database_name if database_name is not None else self._database_name
@@ -398,8 +398,10 @@ class AsyncTestEnvironment(TestEnvironment):
 
         # close the adapter here b/c we need to await
         await self._async_cluster._impl._client_adapter.close_client()
-        new_adapter = _TestAsyncClientAdapter(adapter=self._async_cluster._impl._client_adapter,  # type: ignore[call-arg]
-                                              http_transport_cls=TestAsyncHTTPTransport)
+        new_adapter = _TestAsyncClientAdapter(
+            adapter=self._async_cluster._impl._client_adapter,
+            http_transport_cls=TestAsyncHTTPTransport,
+        )
         await new_adapter.create_client()
         self._async_cluster._impl._client_adapter = new_adapter
         url = self._async_cluster._impl.client_adapter.connection_details.url.get_formatted_url()
@@ -414,16 +416,18 @@ class AsyncTestEnvironment(TestEnvironment):
         setup_statements = [
             f'CREATE DATABASE `{self.config.database_name}` IF NOT EXISTS;',
             f'CREATE SCOPE `{self.config.database_name}`.`{self.config.scope_name}` IF NOT EXISTS;',
-            ('CREATE COLLECTION '
-             f'`{self.config.database_name}`.`{self.config.scope_name}`.`{self.config.collection_name}`'
-             ' IF NOT EXISTS PRIMARY KEY (pk: UUID) AUTOGENERATED;')
+            (
+                'CREATE COLLECTION '
+                f'`{self.config.database_name}`.`{self.config.scope_name}`.`{self.config.collection_name}`'
+                ' IF NOT EXISTS PRIMARY KEY (pk: UUID) AUTOGENERATED;'
+            ),
         ]
 
         for statement in setup_statements:
             try:
                 await self.cluster.execute_query(statement)
             except Exception as ex:
-                raise AnalyticsTestEnvironmentError(f'Unable to execute statement={statement}. Error: {ex}')
+                raise AnalyticsTestEnvironmentError(f'Unable to execute statement={statement}. Error: {ex}') from None
 
         json_data = self.load_collection_data_from_file(TEST_AIRLINE_DATA_PATH)
         docs = []
@@ -433,13 +437,15 @@ class AsyncTestEnvironment(TestEnvironment):
             if 'scope' in d:
                 d['scope'] = self.config.scope_name
             docs.append(json.dumps(d))
-        statement = (f'USE `{self.config.database_name}`.`{self.config.scope_name}`; '
-                     f'UPSERT INTO `{self.config.collection_name}` ({",".join(docs)})')
+        statement = (
+            f'USE `{self.config.database_name}`.`{self.config.scope_name}`; '
+            f'UPSERT INTO `{self.config.collection_name}` ({",".join(docs)})'
+        )
 
         try:
             await self.cluster.execute_query(statement)
         except Exception as ex:
-            raise AnalyticsTestEnvironmentError(f'Unable to load collection data. Error: {ex}')
+            raise AnalyticsTestEnvironmentError(f'Unable to load collection data. Error: {ex}') from None
 
     def set_url_path(self, url_path: str) -> None:
         if self._server_handler is None:
@@ -458,16 +464,18 @@ class AsyncTestEnvironment(TestEnvironment):
         teardown_statements = [
             f'DROP DATABASE `{self.config.database_name}` IF EXISTS;',
             f'DROP SCOPE `{self.config.database_name}`.`{self.config.scope_name}` IF EXISTS;',
-            ('DROP COLLECTION '
-             f'`{self.config.database_name}`.`{self.config.scope_name}`.`{self.config.collection_name}`'
-             ' IF EXISTS;')
+            (
+                'DROP COLLECTION '
+                f'`{self.config.database_name}`.`{self.config.scope_name}`.`{self.config.collection_name}`'
+                ' IF EXISTS;'
+            ),
         ]
 
         for statement in teardown_statements:
             try:
                 await self.cluster.execute_query(statement)
             except Exception as ex:
-                raise AnalyticsTestEnvironmentError(f'Unable to execute statement={statement}. Error: {ex}')
+                raise AnalyticsTestEnvironmentError(f'Unable to execute statement={statement}. Error: {ex}') from None
 
     def update_request_extensions(self, extensions: Dict[str, object]) -> None:
         if self._server_handler is None:
@@ -484,10 +492,9 @@ class AsyncTestEnvironment(TestEnvironment):
         self._async_cluster._impl._client_adapter.update_request_json(json)
 
     @classmethod
-    def get_environment(cls,
-                        config: AnalyticsConfig,
-                        server_handler: Optional[WebServerHandler]=None,
-                        backend: Optional[str]=None) -> AsyncTestEnvironment:
+    def get_environment(
+        cls, config: AnalyticsConfig, server_handler: Optional[WebServerHandler] = None, backend: Optional[str] = None
+    ) -> AsyncTestEnvironment:
         if config is None:
             raise AnalyticsTestEnvironmentError('No test config provided.')
 
@@ -504,6 +511,7 @@ class AsyncTestEnvironment(TestEnvironment):
         sec_opts: Optional[SecurityOptions] = None
         if config.nonprod is True:
             from couchbase_analytics.common._core._certificates import _Certificates
+
             sec_opts = SecurityOptions.trust_only_certificates(_Certificates.get_nonprod_certificates())
 
         if config.disable_server_certificate_verification is True:
@@ -524,26 +532,30 @@ class AsyncTestEnvironment(TestEnvironment):
         env_opts['collection_name'] = config.collection_name
         return cls(config, **env_opts)
 
+
 @pytest.fixture(scope='class', name='sync_test_env')
 def base_test_environment(analytics_config: AnalyticsConfig) -> BlockingTestEnvironment:
-    print("Creating sync test environment")
+    print('Creating sync test environment')
     return BlockingTestEnvironment.get_environment(analytics_config)
+
 
 @pytest.fixture(scope='class', name='sync_test_env_with_server')
 def base_test_environment_with_server(analytics_config: AnalyticsConfig) -> BlockingTestEnvironment:
-    print("Creating sync test environment w/ test server")
+    print('Creating sync test environment w/ test server')
     server_handler = WebServerHandler()
     return BlockingTestEnvironment.get_environment(analytics_config, server_handler=server_handler)
 
+
 @pytest.fixture(scope='class', name='async_test_env')
 def base_async_test_environment(analytics_config: AnalyticsConfig, anyio_backend: str) -> AsyncTestEnvironment:
-    print("Creating async test environment")
+    print('Creating async test environment')
     return AsyncTestEnvironment.get_environment(analytics_config, backend=anyio_backend)
 
+
 @pytest.fixture(scope='class', name='async_test_env_with_server')
-def base_async_test_environment_with_server(analytics_config: AnalyticsConfig, anyio_backend:str) -> AsyncTestEnvironment:
-    print("Creating async test environment w/ test server")
+def base_async_test_environment_with_server(
+    analytics_config: AnalyticsConfig, anyio_backend: str
+) -> AsyncTestEnvironment:
+    print('Creating async test environment w/ test server')
     server_handler = WebServerHandler()
-    return AsyncTestEnvironment.get_environment(analytics_config,
-                                                server_handler=server_handler,
-                                                backend=anyio_backend)
+    return AsyncTestEnvironment.get_environment(analytics_config, server_handler=server_handler, backend=anyio_backend)

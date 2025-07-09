@@ -15,9 +15,7 @@
 
 from __future__ import annotations
 
-from typing import (Callable,
-                    Dict,
-                    Tuple)
+from typing import Callable, Dict, Tuple
 
 
 class Credential:
@@ -51,10 +49,7 @@ class Credential:
         """
         **INTERNAL**
         """
-        return {
-            'username': self._username,
-            'password': self._password
-        }
+        return {'username': self._username, 'password': self._password}
 
     def astuple(self) -> Tuple[bytes, bytes]:
         """

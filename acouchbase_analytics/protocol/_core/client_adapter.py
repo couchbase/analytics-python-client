@@ -19,10 +19,7 @@ import socket
 from typing import TYPE_CHECKING, Optional
 from uuid import uuid4
 
-from httpx import (URL,
-                   AsyncClient,
-                   BasicAuth,
-                   Response)
+from httpx import URL, AsyncClient, BasicAuth, Response
 
 from couchbase_analytics.common.credential import Credential
 from couchbase_analytics.common.deserializer import Deserializer
@@ -35,85 +32,79 @@ if TYPE_CHECKING:
 
 class _AsyncClientAdapter:
     """
-        **INTERNAL**
+    **INTERNAL**
     """
 
     _ANALYTICS_PATH = '/api/v1/request'
 
-    def __init__(self,
-                 http_endpoint: str,
-                 credential: Credential,
-                 options: Optional[object] = None,
-                 **kwargs: object) -> None:
+    def __init__(
+        self, http_endpoint: str, credential: Credential, options: Optional[object] = None, **kwargs: object
+    ) -> None:
         self._client_id = str(uuid4())
         self._opts_builder = OptionsBuilder()
-        self._conn_details = _ConnectionDetails.create(self._opts_builder,
-                                                       http_endpoint,
-                                                       credential,
-                                                       options,
-                                                       **kwargs)
+        self._conn_details = _ConnectionDetails.create(self._opts_builder, http_endpoint, credential, options, **kwargs)
         # TODO:  do we want to support custom HTTP transports for the async client?
         self._http_transport_cls = None
 
     @property
     def analytics_path(self) -> str:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         return self._ANALYTICS_PATH
 
     @property
     def client(self) -> AsyncClient:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         return self._client
 
     @property
     def client_id(self) -> str:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         return self._client_id
 
     @property
     def connection_details(self) -> _ConnectionDetails:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         return self._conn_details
 
     @property
     def default_deserializer(self) -> Deserializer:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         return self._conn_details.default_deserializer
 
     @property
     def has_client(self) -> bool:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         return hasattr(self, '_client')
 
     @property
     def options_builder(self) -> OptionsBuilder:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         return self._opts_builder
 
     async def close_client(self) -> None:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         if hasattr(self, '_client'):
             await self._client.aclose()
 
     async def create_client(self) -> None:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         if not hasattr(self, '_client'):
             if self._conn_details.is_secure():
@@ -122,33 +113,32 @@ class _AsyncClientAdapter:
                 transport = None
                 if self._http_transport_cls is not None:
                     transport = self._http_transport_cls(verify=self._conn_details.ssl_context)
-                self._client = AsyncClient(verify=self._conn_details.ssl_context,
-                                           auth=BasicAuth(*self._conn_details.credential),
-                                           transport=transport)
+                self._client = AsyncClient(
+                    verify=self._conn_details.ssl_context,
+                    auth=BasicAuth(*self._conn_details.credential),
+                    transport=transport,
+                )
             else:
                 transport = None
                 if self._http_transport_cls is not None:
                     transport = self._http_transport_cls()
-                self._client = AsyncClient(auth=BasicAuth(*self._conn_details.credential),
-                                           transport=transport)
+                self._client = AsyncClient(auth=BasicAuth(*self._conn_details.credential), transport=transport)
             # TODO: log message
-
 
     async def send_request(self, request: QueryRequest) -> Response:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         if not hasattr(self, '_client'):
             raise RuntimeError('Client not created yet')
 
-        url = URL(scheme=request.url.scheme,
-                  host=request.url.ip,
-                  port=request.url.port,
-                  path=request.url.path,)
-        req = self._client.build_request(request.method,
-                                         url,
-                                         json=request.body,
-                                         extensions=request.extensions)
+        url = URL(
+            scheme=request.url.scheme,
+            host=request.url.ip,
+            port=request.url.port,
+            path=request.url.path,
+        )
+        req = self._client.build_request(request.method, url, json=request.body, extensions=request.extensions)
         try:
             return await self._client.send(req, stream=True)
         except socket.gaierror as err:
@@ -157,7 +147,7 @@ class _AsyncClientAdapter:
 
     def reset_client(self) -> None:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         if hasattr(self, '_client'):
             del self._client

@@ -1,25 +1,14 @@
 import typing
 
-from httpcore import (AsyncConnectionPool,
-                      Origin,
-                      Request,
-                      Response)
-from httpcore._async.connection import (RETRIES_BACKOFF_FACTOR,
-                                        AsyncHTTPConnection,
-                                        exponential_backoff,
-                                        logger)
+from httpcore import AsyncConnectionPool, Origin, Request, Response
+from httpcore._async.connection import RETRIES_BACKOFF_FACTOR, AsyncHTTPConnection, exponential_backoff, logger
 from httpcore._async.connection_pool import AsyncPoolRequest, PoolByteStream
 from httpcore._async.interfaces import AsyncConnectionInterface
 from httpcore._backends.base import AsyncNetworkStream
-from httpcore._exceptions import (ConnectError,
-                                  ConnectionNotAvailable,
-                                  ConnectTimeout,
-                                  UnsupportedProtocol)
+from httpcore._exceptions import ConnectError, ConnectionNotAvailable, ConnectTimeout, UnsupportedProtocol
 from httpcore._ssl import default_ssl_context
 from httpcore._trace import Trace
-from httpx import (AsyncHTTPTransport,
-                   Limits,
-                   create_ssl_context)
+from httpx import AsyncHTTPTransport, Limits, create_ssl_context
 
 
 class TestAsyncHTTPConnection(AsyncHTTPConnection):
@@ -27,12 +16,12 @@ class TestAsyncHTTPConnection(AsyncHTTPConnection):
         super().__init__(*args, **kwargs)
 
     async def _connect(self, request: Request) -> AsyncNetworkStream:
-        timeouts = request.extensions.get("timeout", {})
-        sni_hostname = request.extensions.get("sni_hostname", None)
-        timeout = timeouts.get("connect", None)
+        timeouts = request.extensions.get('timeout', {})
+        sni_hostname = request.extensions.get('sni_hostname', None)
+        timeout = timeouts.get('connect', None)
         # TESTING_OVERRIDE
-        test_connect_timeout = timeouts.get("test_connect_timeout", None)
-        print(f"PYCBAC OVERRIDE: connect timeout: {timeout}, test_connect_timeout: {test_connect_timeout}")
+        test_connect_timeout = timeouts.get('test_connect_timeout', None)
+        print(f'PYCBAC OVERRIDE: connect timeout: {timeout}, test_connect_timeout: {test_connect_timeout}')
 
         retries_left = self._retries
         delays = exponential_backoff(factor=RETRIES_BACKOFF_FACTOR)
@@ -41,45 +30,36 @@ class TestAsyncHTTPConnection(AsyncHTTPConnection):
             try:
                 if self._uds is None:
                     kwargs = {
-                        "host": self._origin.host.decode("ascii"),
-                        "port": self._origin.port,
-                        "local_address": self._local_address,
-                        "timeout": timeout,
-                        "socket_options": self._socket_options,
+                        'host': self._origin.host.decode('ascii'),
+                        'port': self._origin.port,
+                        'local_address': self._local_address,
+                        'timeout': timeout,
+                        'socket_options': self._socket_options,
                     }
-                    async with Trace("connect_tcp", logger, request, kwargs) as trace:
+                    async with Trace('connect_tcp', logger, request, kwargs) as trace:
                         stream = await self._network_backend.connect_tcp(**kwargs)
                         trace.return_value = stream
                 else:
                     kwargs = {
-                        "path": self._uds,
-                        "timeout": timeout,
-                        "socket_options": self._socket_options,
+                        'path': self._uds,
+                        'timeout': timeout,
+                        'socket_options': self._socket_options,
                     }
-                    async with Trace(
-                        "connect_unix_socket", logger, request, kwargs
-                    ) as trace:
-                        stream = await self._network_backend.connect_unix_socket(
-                            **kwargs
-                        )
+                    async with Trace('connect_unix_socket', logger, request, kwargs) as trace:
+                        stream = await self._network_backend.connect_unix_socket(**kwargs)
                         trace.return_value = stream
 
-                if self._origin.scheme in (b"https", b"wss"):
-                    ssl_context = (
-                        default_ssl_context()
-                        if self._ssl_context is None
-                        else self._ssl_context
-                    )
-                    alpn_protocols = ["http/1.1", "h2"] if self._http2 else ["http/1.1"]
+                if self._origin.scheme in (b'https', b'wss'):
+                    ssl_context = default_ssl_context() if self._ssl_context is None else self._ssl_context
+                    alpn_protocols = ['http/1.1', 'h2'] if self._http2 else ['http/1.1']
                     ssl_context.set_alpn_protocols(alpn_protocols)
 
                     kwargs = {
-                        "ssl_context": ssl_context,
-                        "server_hostname": sni_hostname
-                        or self._origin.host.decode("ascii"),
-                        "timeout": timeout,
+                        'ssl_context': ssl_context,
+                        'server_hostname': sni_hostname or self._origin.host.decode('ascii'),
+                        'timeout': timeout,
                     }
-                    async with Trace("start_tls", logger, request, kwargs) as trace:
+                    async with Trace('start_tls', logger, request, kwargs) as trace:
                         stream = await stream.start_tls(**kwargs)
                         trace.return_value = stream
                 return stream
@@ -88,8 +68,9 @@ class TestAsyncHTTPConnection(AsyncHTTPConnection):
                     raise
                 retries_left -= 1
                 delay = next(delays)
-                async with Trace("retry", logger, request, kwargs) as trace:
+                async with Trace('retry', logger, request, kwargs) as trace:
                     await self._network_backend.sleep(delay)
+
 
 class TestAsyncConnectionPool(AsyncConnectionPool):
     def __init__(self, *args, **kwargs) -> None:  # type: ignore
@@ -97,7 +78,7 @@ class TestAsyncConnectionPool(AsyncConnectionPool):
 
     def create_connection(self, origin: Origin) -> AsyncConnectionInterface:
         if self._proxy is not None:
-            if self._proxy.url.scheme in (b"socks5", b"socks5h"):
+            if self._proxy.url.scheme in (b'socks5', b'socks5h'):
                 from httpcore._async.socks_proxy import AsyncSocks5Connection
 
                 return AsyncSocks5Connection(
@@ -110,7 +91,7 @@ class TestAsyncConnectionPool(AsyncConnectionPool):
                     http2=self._http2,
                     network_backend=self._network_backend,
                 )
-            elif origin.scheme == b"http":
+            elif origin.scheme == b'http':
                 from httpcore._async.http_proxy import AsyncForwardHTTPConnection
 
                 return AsyncForwardHTTPConnection(
@@ -156,20 +137,16 @@ class TestAsyncConnectionPool(AsyncConnectionPool):
         This is the core implementation that is called into by `.request()` or `.stream()`.
         """
         scheme = request.url.scheme.decode()
-        if scheme == "":
-            raise UnsupportedProtocol(
-                "Request URL is missing an 'http://' or 'https://' protocol."
-            )
-        if scheme not in ("http", "https", "ws", "wss"):
-            raise UnsupportedProtocol(
-                f"Request URL has an unsupported protocol '{scheme}://'."
-            )
+        if scheme == '':
+            raise UnsupportedProtocol("Request URL is missing an 'http://' or 'https://' protocol.")
+        if scheme not in ('http', 'https', 'ws', 'wss'):
+            raise UnsupportedProtocol(f"Request URL has an unsupported protocol '{scheme}://'.")
 
-        timeouts = request.extensions.get("timeout", {})
-        timeout = timeouts.get("pool", None)
+        timeouts = request.extensions.get('timeout', {})
+        timeout = timeouts.get('pool', None)
         # TESTING_OVERRIDE
-        test_pool_timeout = timeouts.get("test_pool_timeout", None)
-        print(f"PYCBAC OVERRIDE: pool timeout: {timeout}, test_pool_timeout: {test_pool_timeout}")
+        test_pool_timeout = timeouts.get('test_pool_timeout', None)
+        print(f'PYCBAC OVERRIDE: pool timeout: {timeout}, test_pool_timeout: {test_pool_timeout}')
 
         with self._optional_thread_lock:
             # Add the incoming request to our request queue.
@@ -189,9 +166,7 @@ class TestAsyncConnectionPool(AsyncConnectionPool):
 
                 try:
                     # Send the request on the assigned connection.
-                    response = await connection.handle_async_request(
-                        pool_request.request
-                    )
+                    response = await connection.handle_async_request(pool_request.request)
                 except ConnectionNotAvailable:
                     # In some cases a connection may initially be available to
                     # handle a request, but then become unavailable.
@@ -217,11 +192,10 @@ class TestAsyncConnectionPool(AsyncConnectionPool):
         return Response(
             status=response.status,
             headers=response.headers,
-            content=PoolByteStream(
-                stream=response.stream, pool_request=pool_request, pool=self
-            ),
+            content=PoolByteStream(stream=response.stream, pool_request=pool_request, pool=self),
             extensions=response.extensions,
         )
+
 
 def async_http_transport_init_override(self, *args, **kwargs) -> None:  # type: ignore
     verify = kwargs.get('verify')
@@ -251,9 +225,10 @@ def async_http_transport_init_override(self, *args, **kwargs) -> None:  # type: 
         socket_options=socket_options,
     )
 
+
 AsyncHTTPTransport.__init__ = async_http_transport_init_override  # type: ignore
-setattr(AsyncHTTPTransport, 'PYCBAC_TESTING', True)
+AsyncHTTPTransport.PYCBAC_TESTING = True
 
 TestAsyncHTTPTransport = AsyncHTTPTransport
 
-__all__ = ["TestAsyncHTTPTransport"]
+__all__ = ['TestAsyncHTTPTransport']

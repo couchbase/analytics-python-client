@@ -14,10 +14,7 @@
 #  limitations under the License.
 
 from enum import Enum
-from typing import (AsyncGenerator,
-                    Generator,
-                    Optional,
-                    TypeVar)
+from typing import AsyncGenerator, Generator, Optional, TypeVar
 
 T = TypeVar('T')
 AsyncYieldFixture = AsyncGenerator[T, None]
@@ -29,6 +26,7 @@ class SyncQueryType(Enum):
     LAZY = 'lazy'
     CANCELLABLE = 'cancellable'
 
+
 class AnalyticsTestEnvironmentError(Exception):
     """Raised when something with the test environment is incorrect."""
 
@@ -36,7 +34,7 @@ class AnalyticsTestEnvironmentError(Exception):
         super().__init__(message)
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({super().__repr__()})"
+        return f'{type(self).__name__}({super().__repr__()})'
 
     def __str__(self) -> str:
         return self.__repr__()

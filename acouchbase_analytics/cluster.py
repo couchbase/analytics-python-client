@@ -16,9 +16,7 @@
 from __future__ import annotations
 
 import sys
-from typing import (TYPE_CHECKING,
-                    Awaitable,
-                    Optional)
+from typing import TYPE_CHECKING, Awaitable, Optional
 
 if sys.version_info < (3, 10):
     from typing_extensions import TypeAlias
@@ -56,12 +54,11 @@ class AsyncCluster:
 
     """  # noqa: E501
 
-    def __init__(self,
-                 connstr: str,
-                 credential: Credential,
-                 options: Optional[ClusterOptions] = None,
-                 **kwargs: object) -> None:
+    def __init__(
+        self, connstr: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
+    ) -> None:
         from acouchbase_analytics.protocol.cluster import AsyncCluster as _AsyncCluster
+
         self._impl = _AsyncCluster(connstr, credential, options, **kwargs)
 
     def database(self, name: str) -> AsyncDatabase:
@@ -157,11 +154,9 @@ class AsyncCluster:
         return self._impl.shutdown()
 
     @classmethod
-    def create_instance(cls,
-                        connstr: str,
-                        credential: Credential,
-                        options: Optional[ClusterOptions] = None,
-                        **kwargs: object) -> AsyncCluster:
+    def create_instance(
+        cls, connstr: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
+    ) -> AsyncCluster:
         """Create an AsyncCluster instance
 
         Args:

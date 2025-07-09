@@ -145,7 +145,9 @@ def get_git_describe() -> str:
     return stdout.decode('utf-8').rstrip()
 
 
-def gen_version(do_write: Optional[bool] = True, txt: Optional[str] = None) -> None:
+def gen_version(
+    do_write: Optional[bool] = True, txt: Optional[str] = None, update_pyproject: Optional[bool] = False
+) -> None:
     """
     Generate a version based on git tag info. This will write the
     couchbase_analytics/_version.py file. If not inside a git tree it will
@@ -184,12 +186,54 @@ def gen_version(do_write: Optional[bool] = True, txt: Optional[str] = None) -> N
     with open(VERSION_FILE, 'w') as fp:
         fp.write('\n'.join(lines))
 
+    if update_pyproject is True:
+        update_pyproject_version(os.path.join(os.path.dirname(__file__), 'pyproject.toml'), vstr)
+
+
+# uv does not support a dynamic project version (yet), this is a workaround in the interim
+def update_pyproject_version(pyproject_path: str, new_version: str) -> bool:
+    import tomli
+    import tomli_w  # type: ignore[import-not-found]
+
+    if not os.path.exists(pyproject_path):
+        print(f"Error: pyproject.toml file not found at '{pyproject_path}'")
+        return False
+
+    try:
+        with open(pyproject_path, 'rb') as f:
+            data = tomli.load(f)
+
+        if 'project' in data and isinstance(data['project'], dict):
+            current_version = data['project'].get('version')
+            if current_version == new_version:
+                print(f"Version is already '{new_version}'. No update needed.")
+                return True
+
+            data['project']['version'] = new_version
+            print(f"Updated version from '{current_version}' to '{new_version}' in '{pyproject_path}'")
+
+            # Write the modified content back to the file
+            with open(pyproject_path, 'wb') as f:
+                tomli_w.dump(data, f)
+            return True
+        else:
+            print(f"Error: '[project]' section not found or is malformed in '{pyproject_path}'.")
+            return False
+
+    except tomli.TOMLDecodeError as e:
+        print(f"Error: Failed to parse pyproject.toml at '{pyproject_path}'. Invalid TOML format: {e}")
+        return False
+    except Exception as e:
+        print(f'An unexpected error occurred: {e}')
+        return False
+
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
 
     ap = ArgumentParser(description='Parse git version to PEP-440 version')
     ap.add_argument('-c', '--mode', choices=('show', 'make', 'parse'))
+    ap.add_argument('--update-pyproject', help='Update pyproject.toml with the version', action='store_true')
     ap.add_argument('-i', '--input', help='Sample input string (instead of git)')
     options = ap.parse_args()
 
@@ -197,7 +241,7 @@ if __name__ == '__main__':
     if cmd == 'show':
         print(get_version())
     elif cmd == 'make':
-        gen_version(do_write=True, txt=options.input)
+        gen_version(do_write=True, txt=options.input, update_pyproject=options.update_pyproject)
         print(get_version())
     elif cmd == 'parse':
         gen_version(do_write=False, txt=options.input)

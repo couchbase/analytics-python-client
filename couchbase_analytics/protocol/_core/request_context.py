@@ -3,25 +3,14 @@ from __future__ import annotations
 import json
 import math
 import time
-from concurrent.futures import (CancelledError,
-                                Future,
-                                ThreadPoolExecutor)
+from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
 from threading import Event, Lock
-from typing import (TYPE_CHECKING,
-                    Any,
-                    Callable,
-                    Dict,
-                    Iterator,
-                    List,
-                    Optional,
-                    Union)
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Optional, Union
 from uuid import uuid4
 
 from httpx import Response as HttpCoreResponse
 
-from couchbase_analytics.common._core import (JsonStreamConfig,
-                                              ParsedResult,
-                                              ParsedResultType)
+from couchbase_analytics.common._core import JsonStreamConfig, ParsedResult, ParsedResultType
 from couchbase_analytics.common._core.error_context import ErrorContext
 from couchbase_analytics.common.backoff_calculator import DefaultBackoffCalculator
 from couchbase_analytics.common.errors import AnalyticsError, TimeoutError
@@ -36,11 +25,12 @@ if TYPE_CHECKING:
     from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter
     from couchbase_analytics.protocol._core.request import QueryRequest
 
+
 # TODO: might not be needed; need to validate httpx iterator behavior
 class ThreadSafeBytesIterator:
     def __init__(self, iterator: Iterator[bytes]):
         if not hasattr(iterator, '__next__'):
-            raise TypeError("Provided object is not an iterator (missing __next__ method).")
+            raise TypeError('Provided object is not an iterator (missing __next__ method).')
         self._iterator = iterator
         self._lock = Lock()
 
@@ -48,7 +38,7 @@ class ThreadSafeBytesIterator:
         return self
 
     def __next__(self) -> bytes:
-        with self._lock: # Acquire the lock before accessing the iterator
+        with self._lock:  # Acquire the lock before accessing the iterator
             try:
                 item = next(self._iterator)
                 return item
@@ -56,10 +46,11 @@ class ThreadSafeBytesIterator:
                 # Always re-raise StopIteration to signal the end of iteration
                 raise
 
+
 class BackgroundRequest:
-    def __init__(self, bg_future: Future[BlockingQueryResult],
-                 user_future: Future[BlockingQueryResult],
-                 cancel_event: Event) -> None:
+    def __init__(
+        self, bg_future: Future[BlockingQueryResult], user_future: Future[BlockingQueryResult], cancel_event: Event
+    ) -> None:
         self._background_work_ft = bg_future
         self._user_ft = user_future
         self._cancel_event = cancel_event
@@ -98,21 +89,19 @@ class BackgroundRequest:
             return
 
 
-
 class RequestContext:
-
-    def __init__(self,
-                 client_adapter: _ClientAdapter,
-                 request: QueryRequest,
-                 tp_executor: ThreadPoolExecutor,
-                 stream_config: Optional[JsonStreamConfig]=None) -> None:
+    def __init__(
+        self,
+        client_adapter: _ClientAdapter,
+        request: QueryRequest,
+        tp_executor: ThreadPoolExecutor,
+        stream_config: Optional[JsonStreamConfig] = None,
+    ) -> None:
         self._id = str(uuid4())
         self._client_adapter = client_adapter
         self._request = request
         self._backoff_calc = DefaultBackoffCalculator()
-        self._error_ctx = ErrorContext(num_attempts=0,
-                                       method=request.method,
-                                       statement=request.get_request_statement())
+        self._error_ctx = ErrorContext(num_attempts=0, method=request.method, statement=request.get_request_statement())
         self._request_state = StreamingState.NotStarted
         self._stream_config = stream_config or JsonStreamConfig()
         self._json_stream: JsonStream
@@ -174,9 +163,9 @@ class RequestContext:
         if self._request_state in [StreamingState.Timeout, StreamingState.Cancelled, StreamingState.Error]:
             return
 
-        if (self._cancel_event.is_set()
-            or (self._background_request is not None
-                and self._background_request.user_cancelled)):
+        if self._cancel_event.is_set() or (
+            self._background_request is not None and self._background_request.user_cancelled
+        ):
             self._request_state = StreamingState.Cancelled
 
         current_time = time.monotonic()
@@ -194,16 +183,17 @@ class RequestContext:
             raise RuntimeError('Stage notification future already created for this context.')
         self._stage_notification_ft = Future[ParsedResultType]()
 
-    def _process_error(self,
-                       json_data: Union[str, List[Dict[str, Any]]],
-                       handle_context_shutdown: Optional[bool]=False) -> None:
+    def _process_error(
+        self, json_data: Union[str, List[Dict[str, Any]]], handle_context_shutdown: Optional[bool] = False
+    ) -> None:
         self._request_state = StreamingState.Error
         request_error: Union[AnalyticsError, WrappedError]
         if isinstance(json_data, str):
             request_error = ErrorMapper.build_error_from_http_status_code(json_data, self._error_ctx)
         elif not isinstance(json_data, list):
-            request_error = AnalyticsError(message='Cannot parse error response; expected JSON array',
-                                           context=str(self._error_ctx))
+            request_error = AnalyticsError(
+                message='Cannot parse error response; expected JSON array', context=str(self._error_ctx)
+            )
         else:
             request_error = ErrorMapper.build_error_from_json(json_data, self._error_ctx)
         if handle_context_shutdown is True:
@@ -216,11 +206,13 @@ class RequestContext:
         self._request_state = StreamingState.ResetAndNotStarted
         self._stage_notification_ft = None
 
-    def _start_next_stage(self,
-                         fn: Callable[..., Any],
-                         *args: object,
-                         create_notification: Optional[bool]=False,
-                         reset_previous_stage: Optional[bool]=False) -> None:
+    def _start_next_stage(
+        self,
+        fn: Callable[..., Any],
+        *args: object,
+        create_notification: Optional[bool] = False,
+        reset_previous_stage: Optional[bool] = False,
+    ) -> None:
         if reset_previous_stage is True:
             if self._stage_completed_ft is not None:
                 self._stage_completed_ft = None
@@ -312,40 +304,46 @@ class RequestContext:
             self._reset_stream()
             return True
 
-    def process_response(self,
-                         close_handler: Callable[[], None],
-                         raw_response: Optional[ParsedResult]=None,
-                         handle_context_shutdown: Optional[bool]=False) -> Any:
+    def process_response(
+        self,
+        close_handler: Callable[[], None],
+        raw_response: Optional[ParsedResult] = None,
+        handle_context_shutdown: Optional[bool] = False,
+    ) -> Any:
         if raw_response is None:
             raw_response = self._json_stream.get_result(self._stream_config.queue_timeout)
             if raw_response is None:
                 close_handler()
-                raise AnalyticsError(message='Received unexpected empty result from JsonStream.',
-                                     context=str(self._error_ctx))
+                raise AnalyticsError(
+                    message='Received unexpected empty result from JsonStream.', context=str(self._error_ctx)
+                )
 
         if raw_response.value is None:
             close_handler()
-            raise AnalyticsError(message='Received unexpected empty response value from JsonStream.',
-                                 context=str(self._error_ctx))
+            raise AnalyticsError(
+                message='Received unexpected empty response value from JsonStream.', context=str(self._error_ctx)
+            )
 
         # we have all the data, close the core response/stream
         close_handler()
         try:
             json_response = json.loads(raw_response.value)
         except json.JSONDecodeError:
-            self._process_error(str(raw_response.value),
-                                 handle_context_shutdown=handle_context_shutdown)
+            self._process_error(str(raw_response.value), handle_context_shutdown=handle_context_shutdown)
         else:
             if 'errors' in json_response:
                 self._process_error(json_response['errors'], handle_context_shutdown=handle_context_shutdown)
             return json_response
 
-    def send_request(self, enable_trace_handling: Optional[bool]=False) -> HttpCoreResponse:
+    def send_request(self, enable_trace_handling: Optional[bool] = False) -> HttpCoreResponse:
         self._error_ctx.update_num_attempts()
         ip = get_request_ip(self._request.url.host, self._request.url.port)
         if enable_trace_handling is True:
-            (self._request.update_url(ip, self._client_adapter.analytics_path)
-                          .add_trace_to_extensions(self._trace_handler))
+            (
+                self._request.update_url(ip, self._client_adapter.analytics_path).add_trace_to_extensions(
+                    self._trace_handler
+                )
+            )
         else:
             self._request.update_url(ip, self._client_adapter.analytics_path)
         self._error_ctx.update_request_context(self._request)
@@ -354,10 +352,11 @@ class RequestContext:
         # print(f'Response received: {response.status_code} for request {self._id}, body={self._request.body}.')
         return response
 
-    def send_request_in_background(self,
-                                   fn: Callable[..., BlockingQueryResult],
-                                   *args: object,) -> Future[BlockingQueryResult]:
-
+    def send_request_in_background(
+        self,
+        fn: Callable[..., BlockingQueryResult],
+        *args: object,
+    ) -> Future[BlockingQueryResult]:
         if self._background_request is not None:
             raise RuntimeError('Background reqeust already created for this context.')
         # TODO:  custom ThreadPoolExecutor, to get a "plain" future
@@ -369,16 +368,18 @@ class RequestContext:
     def set_state_to_streaming(self) -> None:
         self._request_state = StreamingState.StreamingResults
 
-    def shutdown(self, exc_val: Optional[BaseException]=None) -> None:
+    def shutdown(self, exc_val: Optional[BaseException] = None) -> None:
         if self.is_shutdown:
             return
         if isinstance(exc_val, CancelledError):
             self._request_state = StreamingState.Cancelled
         elif exc_val is not None:
             self._check_cancelled_or_timed_out()
-            if self._request_state not in [StreamingState.Timeout,
-                                           StreamingState.Cancelled,
-                                           StreamingState.SyncCancelledPriorToTimeout]:
+            if self._request_state not in [
+                StreamingState.Timeout,
+                StreamingState.Cancelled,
+                StreamingState.SyncCancelledPriorToTimeout,
+            ]:
                 self._request_state = StreamingState.Error
 
         if StreamingState.is_okay(self._request_state):
@@ -397,7 +398,7 @@ class RequestContext:
     def wait_for_stage_notification(self) -> None:
         if self._stage_notification_ft is None:
             raise RuntimeError('Stage notification future not created for this context.')
-        deadline = round(self._request_deadline - time.monotonic(), 6) # round to microseconds
+        deadline = round(self._request_deadline - time.monotonic(), 6)  # round to microseconds
         if deadline <= 0:
             raise TimeoutError(message='Request timed out waiting for stage notification', context=str(self._error_ctx))
         result_type = self._stage_notification_ft.result(timeout=deadline)

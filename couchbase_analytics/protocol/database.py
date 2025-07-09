@@ -33,21 +33,21 @@ class Database:
     @property
     def client_adapter(self) -> _ClientAdapter:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         return self._cluster.client_adapter
 
     @property
     def name(self) -> str:
         """
-            str: The name of this :class:`~couchbase_analytics.protocol.database.Database` instance.
+        str: The name of this :class:`~couchbase_analytics.protocol.database.Database` instance.
         """
         return self._database_name
 
     @property
     def threadpool_executor(self) -> ThreadPoolExecutor:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         return self._cluster.threadpool_executor
 

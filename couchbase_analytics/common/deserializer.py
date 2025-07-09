@@ -31,8 +31,7 @@ class Deserializer(ABC):
 
     @classmethod
     def __subclasshook__(cls, subclass: type) -> bool:
-        return (hasattr(subclass, 'deserialize') and
-                callable(subclass.deserialize))
+        return hasattr(subclass, 'deserialize') and callable(subclass.deserialize)
 
 
 class DefaultJsonDeserializer(Deserializer):

@@ -26,13 +26,14 @@ WEB_SERVER_PATH = path.join(pathlib.Path(__file__).parent.parent, 'test_server',
 
 print(f'Web server script path: {WEB_SERVER_PATH}')
 
-logging.basicConfig(level=logging.INFO,
-                    stream=sys.stderr,
-                    format='%(asctime)s - %(levelname)s - (PID:%(process)d) - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, stream=sys.stderr, format='%(asctime)s - %(levelname)s - (PID:%(process)d) - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
+
 class WebServerHandler:
-    def __init__(self, host: Optional[str]='0.0.0.0', port:Optional[int]=8080) -> None:
+    def __init__(self, host: Optional[str] = '0.0.0.0', port: Optional[int] = 8080) -> None:
         self._host = host or '0.0.0.0'
         self._port = port or 8080
         self._server_process: Optional[subprocess.Popen[bytes]] = None
@@ -54,19 +55,18 @@ class WebServerHandler:
             raise FileNotFoundError(msg)
 
         try:
-            cmd = [sys.executable,
-                   WEB_SERVER_PATH,
-                   '--host',
-                   self._host,
-                   '--port',
-                   str(self._port)]
+            cmd = [sys.executable, WEB_SERVER_PATH, '--host', self._host, '--port', str(self._port)]
             self._server_process = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr)
             time.sleep(1)
 
             # Check if the server process unexpectedly exited during startup
             if self._server_process.poll() is not None:
-                logger.error((f'Server process (PID: {self._server_process.pid}) exited immediately after launch. '
-                              f'Exit code: {self._server_process.returncode}.'))
+                logger.error(
+                    (
+                        f'Server process (PID: {self._server_process.pid}) exited immediately after launch. '
+                        f'Exit code: {self._server_process.returncode}.'
+                    )
+                )
                 self._server_process = None
             else:
                 logger.info('Server should be running at http://%s:%d/', self._host, self._port)

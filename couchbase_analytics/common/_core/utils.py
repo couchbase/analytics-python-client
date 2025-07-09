@@ -18,13 +18,7 @@ from __future__ import annotations
 from datetime import timedelta
 from enum import Enum
 from os import path
-from typing import (Any,
-                    Dict,
-                    Generic,
-                    List,
-                    Optional,
-                    TypeVar,
-                    Union)
+from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 
 from couchbase_analytics.common.deserializer import Deserializer
 
@@ -38,7 +32,7 @@ def is_null_or_empty(value: Optional[str]) -> bool:
 
 def timedelta_as_seconds(duration: timedelta) -> int:
     if duration and not isinstance(duration, timedelta):
-        raise ValueError(f"Expected timedelta instead of {duration}")
+        raise ValueError(f'Expected timedelta instead of {duration}')
     if duration.total_seconds() < 0:
         raise ValueError('Timeout must be non-negative.')
     return int(duration.total_seconds() if duration else 0)
@@ -46,7 +40,7 @@ def timedelta_as_seconds(duration: timedelta) -> int:
 
 def to_microseconds(value: Union[timedelta, float, int]) -> int:
     if value and not isinstance(value, (timedelta, float, int)):
-        raise ValueError(f"Excepted value to be of type Union[timedelta, float, int] instead of {value}")
+        raise ValueError(f'Excepted value to be of type Union[timedelta, float, int] instead of {value}')
     if not value:
         total_us = 0
     elif isinstance(value, timedelta):
@@ -59,6 +53,7 @@ def to_microseconds(value: Union[timedelta, float, int]) -> int:
         total_us = int(value * 1e6)
 
     return total_us
+
 
 def to_seconds(value: Union[timedelta, float, int]) -> float:
     if value and not isinstance(value, (timedelta, float, int)):
@@ -79,31 +74,35 @@ def to_seconds(value: Union[timedelta, float, int]) -> float:
 
 def validate_raw_dict(value: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(value, dict):
-        raise ValueError("Raw option must be of type Dict[str, Any].")
+        raise ValueError('Raw option must be of type Dict[str, Any].')
     if not all((isinstance(k, str) for k in value.keys())):
-        raise ValueError("All keys in raw dict must be a str.")
+        raise ValueError('All keys in raw dict must be a str.')
     return value
 
 
 def validate_path(value: str) -> str:
     if not isinstance(value, str):
-        raise ValueError("Path option must be str.")
+        raise ValueError('Path option must be str.')
     if not path.exists(value):
-        raise FileNotFoundError("Provided path does not exist.")
+        raise FileNotFoundError('Provided path does not exist.')
 
     return value
 
 
 class ValidateBaseClass(Generic[T]):
-    """ **INTERNAL** """
+    """**INTERNAL**"""
 
     def __call__(self, value: Any) -> T:
         expected_base_class = self.__orig_class__.__args__[0]  # type: ignore[attr-defined]
         # this will pass w/ duck-typing which is okay
         if not issubclass(value.__class__, expected_base_class):
-            raise ValueError((f"Expected value to be subclass of {expected_base_class} "
-                              "(or implement necessary functionality for the "
-                              f"{expected_base_class} base class)."))
+            raise ValueError(
+                (
+                    f'Expected value to be subclass of {expected_base_class} '
+                    '(or implement necessary functionality for the '
+                    f'{expected_base_class} base class).'
+                )
+            )
         return value  # type: ignore[no-any-return]
 
 
@@ -118,7 +117,7 @@ class EnumToStr(Generic[E]):
             raise ValueError(f"Invalid str representation of {expected_type}. Received '{value}'.")
 
         if not isinstance(value, expected_type):
-            raise ValueError(f"Expected value to be of type {expected_type} instead of {type(value)}")
+            raise ValueError(f'Expected value to be of type {expected_type} instead of {type(value)}')
 
         return value.value  # type: ignore[no-any-return]
 
@@ -127,7 +126,7 @@ class ValidateType(Generic[T]):
     def __call__(self, value: Any) -> T:
         expected_type = self.__orig_class__.__args__[0]  # type: ignore[attr-defined]
         if not isinstance(value, expected_type):
-            raise ValueError(f"Expected value to be of type {expected_type} instead of {type(value)}")
+            raise ValueError(f'Expected value to be of type {expected_type} instead of {type(value)}')
         return value  # type: ignore[no-any-return]
 
 
@@ -135,11 +134,12 @@ class ValidateList(Generic[T]):
     def __call__(self, value: Any) -> List[T]:
         expected_type = self.__orig_class__.__args__[0]  # type: ignore[attr-defined]
         if not isinstance(value, list):
-            raise ValueError("Expected value to be a list.")
+            raise ValueError('Expected value to be a list.')
         if not all((isinstance(v, expected_type) for v in value)):
             item_types = [type(x) for x in value]
-            raise ValueError(("Expected all items in list to be of type "
-                              f"{expected_type}. Provided item types {item_types}."))
+            raise ValueError(
+                (f'Expected all items in list to be of type {expected_type}. Provided item types {item_types}.')
+            )
         # we are returning List[T]
         return value
 

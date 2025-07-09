@@ -17,11 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import (Any,
-                    Dict,
-                    List,
-                    Optional,
-                    Union)
+from typing import Any, Dict, List, Optional, Union
 
 import pytest
 
@@ -65,18 +61,18 @@ class QueryOptionsTestSuite:
         'test_options_timeout',
         'test_options_timeout_kwargs',
         'test_options_timeout_must_be_positive',
-        'test_options_timeout_must_be_positive_kwargs'
+        'test_options_timeout_must_be_positive_kwargs',
     ]
 
     @pytest.fixture(scope='class')
     def query_statment(self) -> str:
         return 'SELECT * FROM default'
 
-    def test_options_deserializer(self,
-                                  query_statment: str,
-                                  request_builder: _RequestBuilder,
-                                  query_ctx: QueryContext) -> None:
+    def test_options_deserializer(
+        self, query_statment: str, request_builder: _RequestBuilder, query_ctx: QueryContext
+    ) -> None:
         from couchbase_analytics.deserializer import DefaultJsonDeserializer
+
         deserializer = DefaultJsonDeserializer()
         q_opts = QueryOptions(deserializer=deserializer)
         req = request_builder.build_base_query_request(query_statment, q_opts)
@@ -85,11 +81,11 @@ class QueryOptionsTestSuite:
         assert req.deserializer == deserializer
         query_ctx.validate_query_context(req.body)
 
-    def test_options_deserializer_kwargs(self,
-                                         query_statment: str,
-                                         request_builder: _RequestBuilder,
-                                         query_ctx: QueryContext) -> None:
+    def test_options_deserializer_kwargs(
+        self, query_statment: str, request_builder: _RequestBuilder, query_ctx: QueryContext
+    ) -> None:
         from couchbase_analytics.deserializer import DefaultJsonDeserializer
+
         deserializer = DefaultJsonDeserializer()
         kwargs: QueryOptionsKwargs = {'deserializer': deserializer}
         req = request_builder.build_base_query_request(query_statment, **kwargs)
@@ -99,11 +95,9 @@ class QueryOptionsTestSuite:
         query_ctx.validate_query_context(req.body)
 
     @pytest.mark.parametrize('max_retries', [5, 10, None])
-    def test_options_max_retries(self,
-                                 query_statment: str,
-                                 request_builder: _RequestBuilder,
-                                 query_ctx: QueryContext,
-                                 max_retries: Optional[int]) -> None:
+    def test_options_max_retries(
+        self, query_statment: str, request_builder: _RequestBuilder, query_ctx: QueryContext, max_retries: Optional[int]
+    ) -> None:
         if max_retries is not None:
             q_opts = QueryOptions(max_retries=max_retries)
             req = request_builder.build_base_query_request(query_statment, q_opts)
@@ -115,11 +109,9 @@ class QueryOptionsTestSuite:
         query_ctx.validate_query_context(req.body)
 
     @pytest.mark.parametrize('max_retries', [5, 10, None])
-    def test_options_max_retries_kwargs(self,
-                                         query_statment: str,
-                                         request_builder: _RequestBuilder,
-                                         query_ctx: QueryContext,
-                                         max_retries: Optional[int]) -> None:
+    def test_options_max_retries_kwargs(
+        self, query_statment: str, request_builder: _RequestBuilder, query_ctx: QueryContext, max_retries: Optional[int]
+    ) -> None:
         if max_retries is not None:
             kwargs: QueryOptionsKwargs = {'max_retries': max_retries}
             req = request_builder.build_base_query_request(query_statment, **kwargs)
@@ -130,10 +122,9 @@ class QueryOptionsTestSuite:
         assert req.max_retries == (max_retries if max_retries is not None else 7)
         query_ctx.validate_query_context(req.body)
 
-    def test_options_named_parameters(self,
-                                      query_statment: str,
-                                      request_builder: _RequestBuilder,
-                                      query_ctx: QueryContext) -> None:
+    def test_options_named_parameters(
+        self, query_statment: str, request_builder: _RequestBuilder, query_ctx: QueryContext
+    ) -> None:
         params: Dict[str, JSONType] = {'foo': 'bar', 'baz': 1, 'quz': False}
         q_opts = QueryOptions(named_parameters=params)
         req = request_builder.build_base_query_request(query_statment, q_opts)
@@ -141,10 +132,9 @@ class QueryOptionsTestSuite:
         assert req.options == exp_opts
         query_ctx.validate_query_context(req.body)
 
-    def test_options_named_parameters_kwargs(self,
-                                             query_statment: str,
-                                             request_builder: _RequestBuilder,
-                                             query_ctx: QueryContext) -> None:
+    def test_options_named_parameters_kwargs(
+        self, query_statment: str, request_builder: _RequestBuilder, query_ctx: QueryContext
+    ) -> None:
         params: Dict[str, JSONType] = {'foo': 'bar', 'baz': 1, 'quz': False}
         kwargs: QueryOptionsKwargs = {'named_parameters': params}
         req = request_builder.build_base_query_request(query_statment, **kwargs)
@@ -152,10 +142,9 @@ class QueryOptionsTestSuite:
         assert req.options == exp_opts
         query_ctx.validate_query_context(req.body)
 
-    def test_options_positional_parameters(self,
-                                           query_statment: str,
-                                           request_builder: _RequestBuilder,
-                                           query_ctx: QueryContext) -> None:
+    def test_options_positional_parameters(
+        self, query_statment: str, request_builder: _RequestBuilder, query_ctx: QueryContext
+    ) -> None:
         params: List[JSONType] = ['foo', 'bar', 1, False]
         q_opts = QueryOptions(positional_parameters=params)
         req = request_builder.build_base_query_request(query_statment, q_opts)
@@ -163,10 +152,9 @@ class QueryOptionsTestSuite:
         assert req.options == exp_opts
         query_ctx.validate_query_context(req.body)
 
-    def test_options_positional_parameters_kwargs(self,
-                                                  query_statment: str,
-                                                  request_builder: _RequestBuilder,
-                                                  query_ctx: QueryContext) -> None:
+    def test_options_positional_parameters_kwargs(
+        self, query_statment: str, request_builder: _RequestBuilder, query_ctx: QueryContext
+    ) -> None:
         params: List[JSONType] = ['foo', 'bar', 1, False]
         kwargs: QueryOptionsKwargs = {'positional_parameters': params}
         req = request_builder.build_base_query_request(query_statment, **kwargs)
@@ -174,10 +162,7 @@ class QueryOptionsTestSuite:
         assert req.options == exp_opts
         query_ctx.validate_query_context(req.body)
 
-    def test_options_raw(self,
-                         query_statment: str,
-                         request_builder: _RequestBuilder,
-                         query_ctx: QueryContext) -> None:
+    def test_options_raw(self, query_statment: str, request_builder: _RequestBuilder, query_ctx: QueryContext) -> None:
         pos_params: List[JSONType] = ['foo', 'bar', 1, False]
         params: Dict[str, Any] = {'readonly': True, 'positional_params': pos_params}
         q_opts = QueryOptions(raw=params)
@@ -186,10 +171,9 @@ class QueryOptionsTestSuite:
         assert req.options == exp_opts
         query_ctx.validate_query_context(req.body)
 
-    def test_options_raw_kwargs(self,
-                                query_statment: str,
-                                request_builder: _RequestBuilder,
-                                query_ctx: QueryContext) -> None:
+    def test_options_raw_kwargs(
+        self, query_statment: str, request_builder: _RequestBuilder, query_ctx: QueryContext
+    ) -> None:
         pos_params: List[JSONType] = ['foo', 'bar', 1, False]
         params: Dict[str, Any] = {'readonly': True, 'positional_params': pos_params}
         kwargs: QueryOptionsKwargs = {'raw': params}
@@ -198,104 +182,88 @@ class QueryOptionsTestSuite:
         assert req.options == exp_opts
         query_ctx.validate_query_context(req.body)
 
-    def test_options_readonly(self,
-                              query_statment: str,
-                              request_builder: _RequestBuilder,
-                              query_ctx: QueryContext) -> None:
+    def test_options_readonly(
+        self, query_statment: str, request_builder: _RequestBuilder, query_ctx: QueryContext
+    ) -> None:
         q_opts = QueryOptions(readonly=True)
         req = request_builder.build_base_query_request(query_statment, q_opts)
         exp_opts: QueryOptionsTransformedKwargs = {'readonly': True}
         assert req.options == exp_opts
         query_ctx.validate_query_context(req.body)
 
-    def test_options_readonly_kwargs(self,
-                                     query_statment: str,
-                                     request_builder: _RequestBuilder,
-                                     query_ctx: QueryContext) -> None:
+    def test_options_readonly_kwargs(
+        self, query_statment: str, request_builder: _RequestBuilder, query_ctx: QueryContext
+    ) -> None:
         kwargs: QueryOptionsKwargs = {'readonly': True}
         req = request_builder.build_base_query_request(query_statment, **kwargs)
         exp_opts: QueryOptionsTransformedKwargs = {'readonly': True}
         assert req.options == exp_opts
         query_ctx.validate_query_context(req.body)
 
-    def test_options_scan_consistency(self,
-                                      query_statment: str,
-                                      request_builder: _RequestBuilder,
-                                      query_ctx: QueryContext) -> None:
+    def test_options_scan_consistency(
+        self, query_statment: str, request_builder: _RequestBuilder, query_ctx: QueryContext
+    ) -> None:
         from couchbase_analytics.query import QueryScanConsistency
+
         q_opts = QueryOptions(scan_consistency=QueryScanConsistency.REQUEST_PLUS)
         req = request_builder.build_base_query_request(query_statment, q_opts)
-        exp_opts: QueryOptionsTransformedKwargs = {
-            'scan_consistency': QueryScanConsistency.REQUEST_PLUS.value
-        }
+        exp_opts: QueryOptionsTransformedKwargs = {'scan_consistency': QueryScanConsistency.REQUEST_PLUS.value}
         assert req.options == exp_opts
         query_ctx.validate_query_context(req.body)
 
-    def test_options_scan_consistency_kwargs(self,
-                                             query_statment: str,
-                                             request_builder: _RequestBuilder,
-                                             query_ctx: QueryContext) -> None:
+    def test_options_scan_consistency_kwargs(
+        self, query_statment: str, request_builder: _RequestBuilder, query_ctx: QueryContext
+    ) -> None:
         from couchbase_analytics.query import QueryScanConsistency
+
         kwargs: QueryOptionsKwargs = {'scan_consistency': QueryScanConsistency.REQUEST_PLUS}
         req = request_builder.build_base_query_request(query_statment, **kwargs)
-        exp_opts: QueryOptionsTransformedKwargs = {
-            'scan_consistency': QueryScanConsistency.REQUEST_PLUS.value
-        }
+        exp_opts: QueryOptionsTransformedKwargs = {'scan_consistency': QueryScanConsistency.REQUEST_PLUS.value}
         assert req.options == exp_opts
         query_ctx.validate_query_context(req.body)
 
-    def test_options_timeout(self,
-                             query_statment: str,
-                             request_builder:  _RequestBuilder,
-                             query_ctx: QueryContext) -> None:
+    def test_options_timeout(
+        self, query_statment: str, request_builder: _RequestBuilder, query_ctx: QueryContext
+    ) -> None:
         q_opts = QueryOptions(timeout=timedelta(seconds=20))
         req = request_builder.build_base_query_request(query_statment, q_opts)
-        exp_opts: QueryOptionsTransformedKwargs = {
-            'timeout': 20.0
-        }
+        exp_opts: QueryOptionsTransformedKwargs = {'timeout': 20.0}
         assert req.options == exp_opts
         # NOTE: we add time to the server timeout to ensure a client side timeout
         assert req.body['timeout'] == '25000.0ms'
         query_ctx.validate_query_context(req.body)
 
-    def test_options_timeout_kwargs(self,
-                                    query_statment: str,
-                                    request_builder: _RequestBuilder,
-                                    query_ctx: QueryContext) -> None:
+    def test_options_timeout_kwargs(
+        self, query_statment: str, request_builder: _RequestBuilder, query_ctx: QueryContext
+    ) -> None:
         kwargs: QueryOptionsKwargs = {'timeout': timedelta(seconds=20)}
         req = request_builder.build_base_query_request(query_statment, **kwargs)
-        exp_opts: QueryOptionsTransformedKwargs = {
-            'timeout': 20.0
-        }
+        exp_opts: QueryOptionsTransformedKwargs = {'timeout': 20.0}
         assert req.options == exp_opts
         # NOTE: we add time to the server timeout to ensure a client side timeout
         assert req.body['timeout'] == '25000.0ms'
         query_ctx.validate_query_context(req.body)
 
-    def test_options_timeout_must_be_positive(self,
-                                              query_statment: str,
-                                              request_builder: _RequestBuilder
-                                              ) -> None:
+    def test_options_timeout_must_be_positive(self, query_statment: str, request_builder: _RequestBuilder) -> None:
         q_opts = QueryOptions(timeout=timedelta(seconds=-1))
         with pytest.raises(ValueError):
             request_builder.build_base_query_request(query_statment, q_opts)
 
-    def test_options_timeout_must_be_positive_kwargs(self,
-                                                     query_statment: str,
-                                                     request_builder: _RequestBuilder
-                                                     ) -> None:
+    def test_options_timeout_must_be_positive_kwargs(
+        self, query_statment: str, request_builder: _RequestBuilder
+    ) -> None:
         kwargs: QueryOptionsKwargs = {'timeout': timedelta(seconds=-1)}
         with pytest.raises(ValueError):
             request_builder.build_base_query_request(query_statment, **kwargs)
 
 
 class ClusterQueryOptionsTests(QueryOptionsTestSuite):
-
     @pytest.fixture(scope='class', autouse=True)
     def validate_test_manifest(self) -> None:
         def valid_test_method(meth: str) -> bool:
             attr = getattr(ClusterQueryOptionsTests, meth)
             return callable(attr) and not meth.startswith('__') and meth.startswith('test')
+
         method_list = [meth for meth in dir(ClusterQueryOptionsTests) if valid_test_method(meth)]
         test_list = set(QueryOptionsTestSuite.TEST_MANIFEST).symmetric_difference(method_list)
         if test_list:
@@ -312,12 +280,12 @@ class ClusterQueryOptionsTests(QueryOptionsTestSuite):
 
 
 class ScopeQueryOptionsTests(QueryOptionsTestSuite):
-
     @pytest.fixture(scope='class', autouse=True)
     def validate_test_manifest(self) -> None:
         def valid_test_method(meth: str) -> bool:
             attr = getattr(ScopeQueryOptionsTests, meth)
             return callable(attr) and not meth.startswith('__') and meth.startswith('test')
+
         method_list = [meth for meth in dir(ScopeQueryOptionsTests) if valid_test_method(meth)]
         test_list = set(QueryOptionsTestSuite.TEST_MANIFEST).symmetric_difference(method_list)
         if test_list:
@@ -330,6 +298,4 @@ class ScopeQueryOptionsTests(QueryOptionsTestSuite):
     @pytest.fixture(scope='class')
     def request_builder(self) -> _RequestBuilder:
         cred = Credential.from_username_and_password('Administrator', 'password')
-        return _RequestBuilder(_ClientAdapter('https://localhost', cred),
-                               'test-database',
-                               'test-scope')
+        return _RequestBuilder(_ClientAdapter('https://localhost', cred), 'test-database', 'test-scope')

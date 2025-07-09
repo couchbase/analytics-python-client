@@ -16,17 +16,14 @@
 from __future__ import annotations
 
 import json
-from typing import (Any,
-                    List,
-                    Optional,
-                    TypedDict)
+from typing import Any, List, Optional, TypedDict
 
 from couchbase_analytics.common._core.duration_str_utils import parse_duration_str
 
 
 class QueryMetricsCore(TypedDict, total=False):
     """
-        **INTERNAL**
+    **INTERNAL**
     """
 
     elapsed_time: float
@@ -42,7 +39,7 @@ class QueryMetricsCore(TypedDict, total=False):
 
 class QueryWarningCore(TypedDict, total=False):
     """
-        **INTERNAL**
+    **INTERNAL**
     """
 
     code: int
@@ -51,7 +48,7 @@ class QueryWarningCore(TypedDict, total=False):
 
 class QueryMetadataCore(TypedDict, total=False):
     """
-        **INTERNAL**
+    **INTERNAL**
     """
 
     request_id: str
@@ -61,8 +58,7 @@ class QueryMetadataCore(TypedDict, total=False):
     status: Optional[str]
 
 
-def build_query_metadata(json_data: Optional[Any]=None,
-                         raw_metadata: Optional[bytes]=None) -> QueryMetadataCore:
+def build_query_metadata(json_data: Optional[Any] = None, raw_metadata: Optional[bytes] = None) -> QueryMetadataCore:
     """
     Builds the query metadata from the raw bytes.
 
@@ -83,11 +79,13 @@ def build_query_metadata(json_data: Optional[Any]=None,
 
     warnings: List[QueryWarningCore] = []
     for warning in json_data.get('warnings', []):
-        warnings.append({'code':warning.get('code', 0), 'message': warning.get('msg', '')})
+        warnings.append({'code': warning.get('code', 0), 'message': warning.get('msg', '')})
 
-    metadata: QueryMetadataCore = {'request_id':json_data.get('requestID', ''),
-                                   'client_context_id':json_data.get('clientContextID', ''),
-                                   'warnings':warnings}
+    metadata: QueryMetadataCore = {
+        'request_id': json_data.get('requestID', ''),
+        'client_context_id': json_data.get('clientContextID', ''),
+        'warnings': warnings,
+    }
 
     # TODO:  include status in metadata??  Seems to only be populated in error scenario
     if 'status' in json_data:
@@ -106,7 +104,7 @@ def build_query_metadata(json_data: Optional[Any]=None,
         'result_size': json_data['metrics'].get('resultSize', 0),
         'processed_objects': json_data['metrics'].get('processedObjects', 0),
         'buffer_cache_hit_ratio': json_data['metrics'].get('bufferCacheHitRatio', ''),
-        'buffer_cache_page_read_count': json_data['metrics'].get('bufferCachePageReadCount', 0)
+        'buffer_cache_page_read_count': json_data['metrics'].get('bufferCachePageReadCount', 0),
     }
 
     metadata['metrics'] = metrics

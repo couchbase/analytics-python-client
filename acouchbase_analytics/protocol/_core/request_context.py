@@ -3,30 +3,17 @@ from __future__ import annotations
 import json
 from asyncio import CancelledError, Task
 from types import TracebackType
-from typing import (TYPE_CHECKING,
-                    Any,
-                    Awaitable,
-                    Callable,
-                    Coroutine,
-                    Dict,
-                    List,
-                    Optional,
-                    Type,
-                    Union)
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Coroutine, Dict, List, Optional, Type, Union
 from uuid import uuid4
 
 import anyio
 from httpx import Response as HttpCoreResponse
 from httpx import TimeoutException
 
-from acouchbase_analytics.protocol._core.anyio_utils import (AsyncBackend,
-                                                             current_async_library,
-                                                             get_time)
+from acouchbase_analytics.protocol._core.anyio_utils import AsyncBackend, current_async_library, get_time
 from acouchbase_analytics.protocol._core.async_json_stream import AsyncJsonStream
 from acouchbase_analytics.protocol._core.net_utils import get_request_ip_async
-from couchbase_analytics.common._core import (JsonStreamConfig,
-                                              ParsedResult,
-                                              ParsedResultType)
+from couchbase_analytics.common._core import JsonStreamConfig, ParsedResult, ParsedResultType
 from couchbase_analytics.common._core.error_context import ErrorContext
 from couchbase_analytics.common.backoff_calculator import DefaultBackoffCalculator
 from couchbase_analytics.common.errors import AnalyticsError
@@ -38,23 +25,24 @@ if TYPE_CHECKING:
     from acouchbase_analytics.protocol._core.client_adapter import _AsyncClientAdapter
     from couchbase_analytics.protocol._core.request import QueryRequest
 
+
 class AsyncRequestContext:
     # TODO: AsyncExitStack??
     # https://anyio.readthedocs.io/en/stable/cancellation.html
 
-    def __init__(self,
-                 client_adapter: _AsyncClientAdapter,
-                 request: QueryRequest,
-                 stream_config: Optional[JsonStreamConfig]=None,
-                 backend: Optional[AsyncBackend]=None) -> None:
+    def __init__(
+        self,
+        client_adapter: _AsyncClientAdapter,
+        request: QueryRequest,
+        stream_config: Optional[JsonStreamConfig] = None,
+        backend: Optional[AsyncBackend] = None,
+    ) -> None:
         self._id = str(uuid4())
         self._client_adapter = client_adapter
         self._request = request
         self._backend = backend or current_async_library()
         self._backoff_calc = DefaultBackoffCalculator()
-        self._error_ctx = ErrorContext(num_attempts=0,
-                                       method=request.method,
-                                       statement=request.get_request_statement())
+        self._error_ctx = ErrorContext(num_attempts=0, method=request.method, statement=request.get_request_statement())
         self._request_state = StreamingState.NotStarted
         self._stream_config = stream_config or JsonStreamConfig()
         self._json_stream: AsyncJsonStream
@@ -137,9 +125,9 @@ class AsyncRequestContext:
         if self._stage_completed is not None:
             self._stage_completed.set()
 
-    def _maybe_set_request_error(self,
-                                 exc_type: Optional[Type[BaseException]]=None,
-                                 exc_val: Optional[BaseException]=None) -> None:
+    def _maybe_set_request_error(
+        self, exc_type: Optional[Type[BaseException]] = None, exc_val: Optional[BaseException] = None
+    ) -> None:
         self._check_cancelled_or_timed_out()
         if exc_val is None:
             return
@@ -155,15 +143,16 @@ class AsyncRequestContext:
                 self._request_state = StreamingState.Error
             self._request_error = exc_val
 
-    async def _process_error(self,
-                            json_data: Union[str, List[Dict[str, Any]]],
-                            handle_context_shutdown: Optional[bool]=False) -> None:
+    async def _process_error(
+        self, json_data: Union[str, List[Dict[str, Any]]], handle_context_shutdown: Optional[bool] = False
+    ) -> None:
         self._request_state = StreamingState.Error
         if isinstance(json_data, str):
             self._request_error = ErrorMapper.build_error_from_http_status_code(json_data, self._error_ctx)
         elif not isinstance(json_data, list):
-            self._request_error = AnalyticsError('Cannot parse error response; expected JSON array',
-                                                 context=str(self._error_ctx))
+            self._request_error = AnalyticsError(
+                'Cannot parse error response; expected JSON array', context=str(self._error_ctx)
+            )
         else:
             self._request_error = ErrorMapper.build_error_from_json(json_data, self._error_ctx)
         if handle_context_shutdown is True:
@@ -178,10 +167,9 @@ class AsyncRequestContext:
         self._stage_completed = None
         self._cancel_scope_deadline_updated = False
 
-    def _start_next_stage(self,
-                         fn: Callable[..., Awaitable[Any]],
-                         *args: object,
-                         reset_previous_stage: Optional[bool]=False) -> None:
+    def _start_next_stage(
+        self, fn: Callable[..., Awaitable[Any]], *args: object, reset_previous_stage: Optional[bool] = False
+    ) -> None:
         if self._stage_completed is not None:
             if reset_previous_stage is True:
                 self._stage_completed = None
@@ -202,7 +190,7 @@ class AsyncRequestContext:
             self._update_cancel_scope_deadline(self._request_deadline, is_absolute=True)
             self._cancel_scope_deadline_updated = True
 
-    def _update_cancel_scope_deadline(self, deadline: float, is_absolute: Optional[bool]=False) -> None:
+    def _update_cancel_scope_deadline(self, deadline: float, is_absolute: Optional[bool] = False) -> None:
         # TODO:  confirm scenario of get_time() < self._taskgroup.cancel_scope.deadline is handled by anyio
         new_deadline = deadline if is_absolute else get_time() + deadline
         # TODO:  Useful debug log message
@@ -220,9 +208,7 @@ class AsyncRequestContext:
     def calculate_backoff(self) -> float:
         return self._backoff_calc.calculate_backoff(self._error_ctx.num_attempts) / 1000
 
-    def cancel_request(self,
-                       fn: Optional[Callable[..., Awaitable[Any]]]=None,
-                       *args: object) -> None:
+    def cancel_request(self, fn: Optional[Callable[..., Awaitable[Any]]] = None, *args: object) -> None:
         if fn is not None:
             self._taskgroup.start_soon(fn, *args)
         if self._request_state == StreamingState.Timeout:
@@ -303,21 +289,25 @@ class AsyncRequestContext:
             self._reset_stream()
             return True
 
-    async def process_response(self,
-                               close_handler: Callable[[], Coroutine[Any, Any, None]],
-                               raw_response: Optional[ParsedResult]=None,
-                               handle_context_shutdown: Optional[bool]=False) -> Any:
+    async def process_response(
+        self,
+        close_handler: Callable[[], Coroutine[Any, Any, None]],
+        raw_response: Optional[ParsedResult] = None,
+        handle_context_shutdown: Optional[bool] = False,
+    ) -> Any:
         if raw_response is None:
             raw_response = await self._json_stream.get_result()
             if raw_response is None:
                 await close_handler()
-                raise AnalyticsError(message='Received unexpected empty result from JsonStream.',
-                                     context=str(self._error_ctx))
+                raise AnalyticsError(
+                    message='Received unexpected empty result from JsonStream.', context=str(self._error_ctx)
+                )
 
         if raw_response.value is None:
             await close_handler()
-            raise AnalyticsError(message='Received unexpected empty result from JsonStream.',
-                                 context=str(self._error_ctx))
+            raise AnalyticsError(
+                message='Received unexpected empty result from JsonStream.', context=str(self._error_ctx)
+            )
 
         # we have all the data, close the core response/stream
         await close_handler()
@@ -325,8 +315,7 @@ class AsyncRequestContext:
         try:
             json_response = json.loads(raw_response.value)
         except json.JSONDecodeError:
-            await self._process_error(str(raw_response.value),
-                                      handle_context_shutdown=handle_context_shutdown)
+            await self._process_error(str(raw_response.value), handle_context_shutdown=handle_context_shutdown)
         else:
             if 'errors' in json_response:
                 await self._process_error(json_response['errors'], handle_context_shutdown=handle_context_shutdown)
@@ -339,12 +328,15 @@ class AsyncRequestContext:
             await self.shutdown(type(ex), ex, ex.__traceback__)
             raise ex from None
 
-    async def send_request(self, enable_trace_handling: Optional[bool]=False) -> HttpCoreResponse:
+    async def send_request(self, enable_trace_handling: Optional[bool] = False) -> HttpCoreResponse:
         self._error_ctx.update_num_attempts()
         ip = await get_request_ip_async(self._request.url.host, self._request.url.port)
         if enable_trace_handling is True:
-            (self._request.update_url(ip, self._client_adapter.analytics_path)
-                          .add_trace_to_extensions(self._trace_handler))
+            (
+                self._request.update_url(ip, self._client_adapter.analytics_path).add_trace_to_extensions(
+                    self._trace_handler
+                )
+            )
         else:
             self._request.update_url(ip, self._client_adapter.analytics_path)
         # TODO:  add logging; provide request details (to/from, deadlines, etc.)
@@ -353,10 +345,12 @@ class AsyncRequestContext:
         self._error_ctx.update_response_context(response)
         return response
 
-    async def shutdown(self,
-                       exc_type: Optional[Type[BaseException]]=None,
-                       exc_val: Optional[BaseException]=None,
-                       exc_tb: Optional[TracebackType]=None) -> None:
+    async def shutdown(
+        self,
+        exc_type: Optional[Type[BaseException]] = None,
+        exc_val: Optional[BaseException] = None,
+        exc_tb: Optional[TracebackType] = None,
+    ) -> None:
         if self.is_shutdown:
             return
         if hasattr(self, '_taskgroup'):
@@ -387,14 +381,13 @@ class AsyncRequestContext:
         await self._taskgroup.__aenter__()
         return self
 
-    async def __aexit__(self,
-                        exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> Optional[bool]:
+    async def __aexit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> Optional[bool]:
         try:
             await self._taskgroup.__aexit__(exc_type, exc_val, exc_tb)
         except BaseException:
-            pass # we handle the error when the context is shutdown (which is what calls __aexit__())
+            pass  # we handle the error when the context is shutdown (which is what calls __aexit__())
         finally:
             self._maybe_set_request_error(exc_type, exc_val)
             del self._taskgroup

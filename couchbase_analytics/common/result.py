@@ -15,10 +15,7 @@
 
 from __future__ import annotations
 
-from typing import (TYPE_CHECKING,
-                    Any,
-                    List,
-                    Optional)
+from typing import TYPE_CHECKING, Any, List, Optional
 
 from couchbase_analytics.common._core.result import QueryResult as QueryResult
 from couchbase_analytics.common.query import QueryMetadata
@@ -79,7 +76,7 @@ class BlockingQueryResult(QueryResult):
         return iter(BlockingIterator(self._http_response))
 
     def __repr__(self) -> str:
-        return "BlockingQueryResult()"
+        return 'BlockingQueryResult()'
 
 
 class AsyncQueryResult(QueryResult):
@@ -146,4 +143,4 @@ class AsyncQueryResult(QueryResult):
         return AsyncIterator(self._http_response).__aiter__()
 
     def __repr__(self) -> str:
-        return "AsyncQueryResult()"
+        return 'AsyncQueryResult()'

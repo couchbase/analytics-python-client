@@ -18,16 +18,11 @@ from __future__ import annotations
 from concurrent.futures import CancelledError
 from functools import wraps
 from time import sleep
-from typing import (TYPE_CHECKING,
-                    Callable,
-                    Optional,
-                    Union)
+from typing import TYPE_CHECKING, Callable, Optional, Union
 
 from httpx import ConnectError, ConnectTimeout
 
-from couchbase_analytics.common.errors import (AnalyticsError,
-                                               InternalSDKError,
-                                               TimeoutError)
+from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError, TimeoutError
 from couchbase_analytics.common.streaming import StreamingState
 from couchbase_analytics.protocol.errors import WrappedError
 
@@ -38,7 +33,7 @@ if TYPE_CHECKING:
 
 class RetryHandler:
     """
-        **INTERNAL**
+    **INTERNAL**
     """
 
     @staticmethod
@@ -70,12 +65,11 @@ class RetryHandler:
                         ex.maybe_set_cause_context(ctx.error_context)
                         err = ex.unwrap()
                     else:
-                        err = AnalyticsError(cause=ex.unwrap(),
-                                             message='Retry limit exceeded.',
-                                             context=str(ctx.error_context))
+                        err = AnalyticsError(
+                            cause=ex.unwrap(), message='Retry limit exceeded.', context=str(ctx.error_context)
+                        )
                 else:
-                    err = TimeoutError(message='Request timed out during retry delay.',
-                                       context=str(ctx.error_context))
+                    err = TimeoutError(message='Request timed out during retry delay.', context=str(ctx.error_context))
 
             if err:
                 return err
@@ -113,13 +107,14 @@ class RetryHandler:
                 except BaseException as ex:
                     self._request_context.shutdown(ex)
                     if self._request_context.timed_out:
-                        raise TimeoutError(message='Request timeout.',
-                                           context=str(self._request_context.error_context)) from None
+                        raise TimeoutError(
+                            message='Request timeout.', context=str(self._request_context.error_context)
+                        ) from None
                     if self._request_context.cancelled:
                         raise CancelledError('Request was cancelled.') from None
-                    raise InternalSDKError(cause=ex,
-                                           message=str(ex),
-                                           context=str(self._request_context.error_context)) from None
+                    raise InternalSDKError(
+                        cause=ex, message=str(ex), context=str(self._request_context.error_context)
+                    ) from None
                 finally:
                     if not StreamingState.is_okay(self._request_context.request_state):
                         self.close()
