@@ -37,19 +37,19 @@ class Scope:
 
     def __init__(self, database: Database, scope_name: str) -> None:
         from couchbase_analytics.protocol.scope import Scope as _Scope
+
         self._impl = _Scope(database, scope_name)
 
     @property
     def name(self) -> str:
         """
-            str: The name of this :class:`~couchbase_analytics.scope.Scope` instance.
+        str: The name of this :class:`~couchbase_analytics.scope.Scope` instance.
         """
         return self._impl.name
 
-    def execute_query(self,
-                      statement: str,
-                      *args: object,
-                      **kwargs: object) -> Union[Future[BlockingQueryResult], BlockingQueryResult]:
+    def execute_query(
+        self, statement: str, *args: object, **kwargs: object
+    ) -> Union[Future[BlockingQueryResult], BlockingQueryResult]:
         """Executes a query against an Analytics scope.
 
         .. note::

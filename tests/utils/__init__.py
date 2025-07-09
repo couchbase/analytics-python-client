@@ -22,30 +22,28 @@ import pathlib
 import random
 from collections.abc import AsyncIterator as PyAsyncIterator
 from collections.abc import Iterator
-from typing import (Any,
-                    Dict,
-                    Generator,
-                    List,
-                    Optional,
-                    Tuple,
-                    Union)
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 from urllib.parse import quote
 
 import anyio
 
 
 class AsyncInfiniteBytesIterator(PyAsyncIterator[bytes]):
-
-    def __init__(self,
-                 data_generator: Generator[bytes, None, None],
-                 initial_data: Optional[Union[bytes, str]] = None,
-                 chunk_size: Optional[int] = 100,
-                 simulate_delay: Optional[bool] = False,
-                 simulate_delay_range: Optional[Tuple[float, float]] = (0.01, 0.1)) -> None:
+    def __init__(
+        self,
+        data_generator: Generator[bytes, None, None],
+        initial_data: Optional[Union[bytes, str]] = None,
+        chunk_size: Optional[int] = 100,
+        simulate_delay: Optional[bool] = False,
+        simulate_delay_range: Optional[Tuple[float, float]] = (0.01, 0.1),
+    ) -> None:
         self._data_generator = data_generator
         self._initial_data = bytearray()
         if initial_data is not None:
-            self._initial_data = bytearray(initial_data)[:-1] if isinstance(initial_data, bytes) else bytearray(initial_data, 'utf-8')[:-1]
+            if isinstance(initial_data, bytes):
+                self._initial_data = bytearray(initial_data)[:-1]
+            else:
+                self._initial_data = bytearray(initial_data, 'utf-8')[:-1]
         self._initial_data += b',"results":['
         self._end_data = bytearray()
 
@@ -64,7 +62,10 @@ class AsyncInfiniteBytesIterator(PyAsyncIterator[bytes]):
     def stop_iterating(self, end_data: Optional[Union[bytes, str]] = None) -> None:
         self._stop_iterating = True
         if end_data is not None:
-            self._end_data = bytearray(end_data)[1:-1] if isinstance(end_data, bytes) else bytearray(end_data, 'utf-8')[1:-1]
+            if isinstance(end_data, bytes):
+                self._end_data = bytearray(end_data)[1:-1]
+            else:
+                self._end_data = bytearray(end_data, 'utf-8')[1:-1]
 
     def __aiter__(self) -> AsyncInfiniteBytesIterator:
         return self
@@ -99,19 +100,21 @@ class AsyncInfiniteBytesIterator(PyAsyncIterator[bytes]):
             if self._stop >= len(self._data):
                 self._stop = len(self._data)
 
-            chunk = bytes(self._data[:self._stop])
-            del self._data[:self._stop]
+            chunk = bytes(self._data[: self._stop])
+            del self._data[: self._stop]
             self._stop += self._chunk_size
 
             return chunk
 
-class AsyncBytesIterator(PyAsyncIterator[bytes]):
 
-    def __init__(self,
-                 data: Union[bytes, str],
-                 chunk_size: Optional[int] = 100,
-                 simulate_delay: Optional[bool] = False,
-                 simulate_delay_range: Optional[Tuple[float, float]] = (0.01, 0.1)) -> None:
+class AsyncBytesIterator(PyAsyncIterator[bytes]):
+    def __init__(
+        self,
+        data: Union[bytes, str],
+        chunk_size: Optional[int] = 100,
+        simulate_delay: Optional[bool] = False,
+        simulate_delay_range: Optional[Tuple[float, float]] = (0.01, 0.1),
+    ) -> None:
         self._data = data if isinstance(data, bytes) else bytes(data, 'utf-8')
         self._chunk_size = chunk_size or 100
         self._simulate_delay = simulate_delay or False
@@ -138,13 +141,13 @@ class AsyncBytesIterator(PyAsyncIterator[bytes]):
             if self._stop >= len(self._data):
                 self._stop = len(self._data)
 
-            chunk = self._data[self._start:self._stop]
+            chunk = self._data[self._start : self._stop]
             self._start = self._stop
             self._stop += self._chunk_size
             return chunk
 
-class BytesIterator(Iterator[bytes]):
 
+class BytesIterator(Iterator[bytes]):
     def __init__(self, data: Union[bytes, str], chunk_size: Optional[int] = 100) -> None:
         self._data = data if isinstance(data, bytes) else bytes(data, 'utf-8')
         self._chunk_size = chunk_size or 100
@@ -167,7 +170,7 @@ class BytesIterator(Iterator[bytes]):
             if self._stop >= len(self._data):
                 self._stop = len(self._data)
 
-            chunk = self._data[self._start:self._stop]
+            chunk = self._data[self._start : self._stop]
             self._start = self._stop
             self._stop += self._chunk_size
             return chunk
@@ -176,14 +179,17 @@ class BytesIterator(Iterator[bytes]):
 def get_test_cert_path() -> str:
     return os.path.join(pathlib.Path(__file__).parent, 'certs', 'dinocluster.pem')
 
+
 def get_test_cert_list() -> List[str]:
     cert_file = pathlib.Path(get_test_cert_path())
     cert_file1 = pathlib.Path(os.path.join(pathlib.Path(__file__).parent, 'certs', 'dinoca.pem'))
     return [cert_file.read_text(), cert_file1.read_text()]
 
+
 def get_test_cert_str() -> str:
     cert_file = pathlib.Path(get_test_cert_path())
     return cert_file.read_text()
+
 
 def to_query_str(params: Dict[str, Any]) -> str:
     encoded_params = []

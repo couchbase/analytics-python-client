@@ -18,10 +18,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator as PyAsyncIterator
 from collections.abc import Iterator
 from enum import IntEnum
-from typing import (TYPE_CHECKING,
-                    Any,
-                    List,
-                    NamedTuple)
+from typing import TYPE_CHECKING, Any, List, NamedTuple
 
 from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError
 
@@ -34,6 +31,7 @@ class StreamingState(IntEnum):
     """
     **INTERNAL
     """
+
     NotStarted = 0
     ResetAndNotStarted = 1
     Started = 2
@@ -64,19 +62,19 @@ class StreamingState(IntEnum):
         """
         **INTERNAL
         """
-        return state not in [StreamingState.Cancelled,
-                             StreamingState.Error,
-                             StreamingState.Timeout]
+        return state not in [StreamingState.Cancelled, StreamingState.Error, StreamingState.Timeout]
 
     @staticmethod
     def is_timeout_or_cancelled(state: StreamingState) -> bool:
         """
         **INTERNAL
         """
-        return state in [StreamingState.Cancelled,
-                         StreamingState.Timeout,
-                         StreamingState.AsyncCancelledPriorToTimeout,
-                         StreamingState.SyncCancelledPriorToTimeout]
+        return state in [
+            StreamingState.Cancelled,
+            StreamingState.Timeout,
+            StreamingState.AsyncCancelledPriorToTimeout,
+            StreamingState.SyncCancelledPriorToTimeout,
+        ]
 
 
 class BlockingIterator(Iterator[Any]):
@@ -115,6 +113,7 @@ class BlockingIterator(Iterator[Any]):
         except Exception as ex:
             raise InternalSDKError(cause=ex, message='Error attempting to obtain next row.') from None
 
+
 class AsyncIterator(PyAsyncIterator[Any]):
     """
     **INTERNAL
@@ -148,17 +147,21 @@ class AsyncIterator(PyAsyncIterator[Any]):
         except Exception as ex:
             raise InternalSDKError(cause=ex, message='Error attempting to obtain next row.') from None
 
+
 class HttpResponseType(IntEnum):
     """
     **INTERNAL**
     """
+
     ROW = 0
     ERROR = 1
     END = 2
+
 
 class ParsedResult(NamedTuple):
     """
     **INTERNAL**
     """
+
     result: str
     result_type: HttpResponseType

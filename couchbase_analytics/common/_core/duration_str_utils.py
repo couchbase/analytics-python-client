@@ -23,6 +23,7 @@ from couchbase_analytics.common._core.utils import is_null_or_empty
 DURATION_PATTERN = re.compile(r'^([-+]?)((\d*(\.\d*)?){1}(?:ns|us|µs|μs|ms|s|m|h){1})+$')
 DURATION_PAIRS_PATTERN = re.compile(r'(\d*(?:\.\d*)?)(ns|us|ms|s|m|h)')
 
+
 def check_valid_duration_str(duration_str: str) -> None:
     """
     Validates if the given string is a valid duration string.
@@ -48,7 +49,8 @@ def check_valid_duration_str(duration_str: str) -> None:
     if not match:
         raise ValueError('Duration string has invalid format')
 
-def parse_duration_str(duration_str: str, in_millis: Optional[bool]=False) -> float:
+
+def parse_duration_str(duration_str: str, in_millis: Optional[bool] = False) -> float:
     check_valid_duration_str(duration_str)
 
     # Special case: "0" duration
@@ -63,9 +65,9 @@ def parse_duration_str(duration_str: str, in_millis: Optional[bool]=False) -> fl
         'ns': 1e-9,  # nanoseconds
         'us': 1e-6,  # microseconds
         'ms': 1e-3,  # milliseconds
-        's': 1.0,    # seconds
-        'm': 60.0,   # minutes
-        'h': 3600.0  # hours
+        's': 1.0,  # seconds
+        'm': 60.0,  # minutes
+        'h': 3600.0,  # hours
     }
 
     segments = DURATION_PAIRS_PATTERN.findall(duration_str)
@@ -75,11 +77,13 @@ def parse_duration_str(duration_str: str, in_millis: Optional[bool]=False) -> fl
             value = float(num_str)
             total_seconds += value * unit_multipliers[unit_str]
         except OverflowError as e:
-            raise ValueError((f'Invalid duration. Overflow error while parsing number "{num_str}{unit_str}". '
-                              f'Error details: {e}')) from None
+            raise ValueError(
+                (f'Invalid duration. Overflow error while parsing number "{num_str}{unit_str}". Error details: {e}')
+            ) from None
         except ValueError as e:
-            raise ValueError((f'Invalid duration. Parsing error while parsing number "{num_str}{unit_str}". '
-                              f'Error details: {e}')) from None
+            raise ValueError(
+                (f'Invalid duration. Parsing error while parsing number "{num_str}{unit_str}". Error details: {e}')
+            ) from None
         except KeyError:
             raise ValueError(f'Invalid duration.  Unknown unit "{unit_str}"') from None
 

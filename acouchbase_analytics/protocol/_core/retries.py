@@ -17,19 +17,12 @@ from __future__ import annotations
 
 from asyncio import CancelledError
 from functools import wraps
-from typing import (TYPE_CHECKING,
-                    Any,
-                    Callable,
-                    Coroutine,
-                    Optional,
-                    Union)
+from typing import TYPE_CHECKING, Any, Callable, Coroutine, Optional, Union
 
 from httpx import ConnectError, ConnectTimeout
 
 from acouchbase_analytics.protocol._core.anyio_utils import sleep
-from couchbase_analytics.common.errors import (AnalyticsError,
-                                               InternalSDKError,
-                                               TimeoutError)
+from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError, TimeoutError
 from couchbase_analytics.common.streaming import StreamingState
 from couchbase_analytics.protocol.errors import WrappedError
 
@@ -40,13 +33,13 @@ if TYPE_CHECKING:
 
 class AsyncRetryHandler:
     """
-        **INTERNAL**
+    **INTERNAL**
     """
 
     @staticmethod
-    async def handle_httpx_retry(ex: Union[ConnectError, ConnectTimeout],
-                                 ctx: AsyncRequestContext
-                                 ) -> Optional[Exception]:
+    async def handle_httpx_retry(
+        ex: Union[ConnectError, ConnectTimeout], ctx: AsyncRequestContext
+    ) -> Optional[Exception]:
         err_str = str(ex)
         if 'SSL:' in err_str:
             message = 'TLS connection error occurred.'
@@ -64,9 +57,7 @@ class AsyncRetryHandler:
         return None
 
     @staticmethod
-    async def handle_retry(ex: WrappedError,
-                           ctx: AsyncRequestContext
-                           ) -> Optional[Union[BaseException, Exception]]:
+    async def handle_retry(ex: WrappedError, ctx: AsyncRequestContext) -> Optional[Union[BaseException, Exception]]:
         if ex.retriable is True:
             delay = ctx.calculate_backoff()
             err: Optional[Union[BaseException, Exception]] = None
@@ -76,12 +67,11 @@ class AsyncRetryHandler:
                         ex.maybe_set_cause_context(ctx.error_context)
                         err = ex.unwrap()
                     else:
-                        err = AnalyticsError(cause=ex.unwrap(),
-                                             message='Retry limit exceeded.',
-                                             context=str(ctx.error_context))
+                        err = AnalyticsError(
+                            cause=ex.unwrap(), message='Retry limit exceeded.', context=str(ctx.error_context)
+                        )
                 else:
-                    err = TimeoutError(message='Request timed out during retry delay.',
-                                       context=str(ctx.error_context))
+                    err = TimeoutError(message='Request timed out during retry delay.', context=str(ctx.error_context))
 
             if err:
                 return err
@@ -90,10 +80,10 @@ class AsyncRetryHandler:
         ex.maybe_set_cause_context(ctx.error_context)
         return ex.unwrap()
 
-
     @staticmethod
-    def with_retries(fn: Callable[[AsyncHttpStreamingResponse], Coroutine[Any, Any, None]]  # noqa: C901
-                    ) -> Callable[[AsyncHttpStreamingResponse], Coroutine[Any, Any, None]]:
+    def with_retries(  # noqa: C901
+        fn: Callable[[AsyncHttpStreamingResponse], Coroutine[Any, Any, None]],
+    ) -> Callable[[AsyncHttpStreamingResponse], Coroutine[Any, Any, None]]:
         @wraps(fn)
         async def wrapped_fn(self: AsyncHttpStreamingResponse) -> None:  # noqa: C901
             while True:
@@ -121,15 +111,16 @@ class AsyncRetryHandler:
                 except BaseException as ex:
                     await self._request_context.shutdown(type(ex), ex, ex.__traceback__)
                     if self._request_context.timed_out:
-                        raise TimeoutError(message='Request timed out.',
-                                           context=str(self._request_context.error_context)) from None
+                        raise TimeoutError(
+                            message='Request timed out.', context=str(self._request_context.error_context)
+                        ) from None
                     if self._request_context.cancelled:
                         raise CancelledError('Request was cancelled.') from None
                     if self._request_context.request_error is not None:
                         raise self._request_context.request_error from None
-                    raise InternalSDKError(cause=ex,
-                                           message=str(ex),
-                                           context=str(self._request_context.error_context)) from None
+                    raise InternalSDKError(
+                        cause=ex, message=str(ex), context=str(self._request_context.error_context)
+                    ) from None
                 finally:
                     if not StreamingState.is_okay(self._request_context.request_state):
                         await self.close()

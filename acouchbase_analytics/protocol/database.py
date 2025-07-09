@@ -38,14 +38,14 @@ class AsyncDatabase:
     @property
     def client_adapter(self) -> _AsyncClientAdapter:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         return self._cluster.client_adapter
 
     @property
     def name(self) -> str:
         """
-            str: The name of this :class:`~acouchbase_analytics.protocol.database.Database` instance.
+        str: The name of this :class:`~acouchbase_analytics.protocol.database.Database` instance.
         """
         return self._database_name
 

@@ -36,12 +36,13 @@ class Database:
 
     def __init__(self, cluster: Cluster, database_name: str) -> None:
         from couchbase_analytics.protocol.database import Database as _Database
+
         self._impl = _Database(cluster, database_name)
 
     @property
     def name(self) -> str:
         """
-            str: The name of this :class:`~couchbase_analytics.database.Database` instance.
+        str: The name of this :class:`~couchbase_analytics.database.Database` instance.
         """
         return self._impl.name
 

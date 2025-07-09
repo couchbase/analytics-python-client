@@ -16,9 +16,7 @@
 from __future__ import annotations
 
 from concurrent.futures import Future
-from typing import (TYPE_CHECKING,
-                    Optional,
-                    Union)
+from typing import TYPE_CHECKING, Optional, Union
 
 from couchbase_analytics.database import Database
 from couchbase_analytics.result import BlockingQueryResult
@@ -51,12 +49,11 @@ class Cluster:
 
     """  # noqa: E501
 
-    def __init__(self,
-                 http_endpoint: str,
-                 credential: Credential,
-                 options: Optional[ClusterOptions] = None,
-                 **kwargs: object) -> None:
+    def __init__(
+        self, http_endpoint: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
+    ) -> None:
         from couchbase_analytics.protocol.cluster import Cluster as _Cluster
+
         self._impl = _Cluster(http_endpoint, credential, options, **kwargs)
 
     def database(self, name: str) -> Database:
@@ -74,10 +71,9 @@ class Cluster:
         """
         return Database(self._impl, name)
 
-    def execute_query(self,
-                      statement: str,
-                      *args: object,
-                      **kwargs: object) -> Union[Future[BlockingQueryResult], BlockingQueryResult]:
+    def execute_query(
+        self, statement: str, *args: object, **kwargs: object
+    ) -> Union[Future[BlockingQueryResult], BlockingQueryResult]:
         """Executes a query against an Analytics cluster.
 
         .. note::
@@ -154,11 +150,9 @@ class Cluster:
         return self._impl.shutdown()
 
     @classmethod
-    def create_instance(cls,
-                        http_endpoint: str,
-                        credential: Credential,
-                        options: Optional[ClusterOptions] = None,
-                        **kwargs: object) -> Cluster:
+    def create_instance(
+        cls, http_endpoint: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
+    ) -> Cluster:
         """Create a Cluster instance
 
         Args:

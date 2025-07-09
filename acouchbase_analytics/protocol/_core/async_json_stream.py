@@ -18,23 +18,20 @@ from __future__ import annotations
 from typing import AsyncIterator, Optional
 
 import ijson
-from anyio import (EndOfStream,
-                   Event,
-                   create_memory_object_stream)
+from anyio import EndOfStream, Event, create_memory_object_stream
 
 from acouchbase_analytics.protocol._core.async_json_token_parser import AsyncJsonTokenParser
-from couchbase_analytics.common._core.json_parsing import (JsonStreamConfig,
-                                                           ParsedResult,
-                                                           ParsedResultType)
+from couchbase_analytics.common._core.json_parsing import JsonStreamConfig, ParsedResult, ParsedResultType
 from couchbase_analytics.common.errors import AnalyticsError
 
 
 class AsyncJsonStream:
-    def __init__(self,
-                 http_stream_iter: AsyncIterator[bytes],
-                 *,
-                 stream_config: Optional[JsonStreamConfig]=None,
-                 ) -> None:
+    def __init__(
+        self,
+        http_stream_iter: AsyncIterator[bytes],
+        *,
+        stream_config: Optional[JsonStreamConfig] = None,
+    ) -> None:
         # HTTP stream handling
         if stream_config is None:
             stream_config = JsonStreamConfig()
@@ -44,7 +41,9 @@ class AsyncJsonStream:
         self._http_stream_exhausted = False
 
         # results handling
-        self._send_stream, self._receive_stream = create_memory_object_stream[ParsedResult](max_buffer_size=stream_config.buffered_row_max) # noqa: E501
+        self._send_stream, self._receive_stream = create_memory_object_stream[ParsedResult](
+            max_buffer_size=stream_config.buffered_row_max
+        )  # noqa: E501
         self._json_stream_parser = None
         self._buffer_entire_result = stream_config.buffer_entire_result
         handler = None if self._buffer_entire_result is True else self._handle_json_result
@@ -88,7 +87,7 @@ class AsyncJsonStream:
             return False
         return True
 
-    async def _send_to_stream(self, result: ParsedResult, close: Optional[bool]=False) -> None:
+    async def _send_to_stream(self, result: ParsedResult, close: Optional[bool] = False) -> None:
         """
         **INTERNAL**
         """
@@ -104,7 +103,7 @@ class AsyncJsonStream:
             self._handle_notification(ParsedResultType.ROW)
         await self._send_to_stream(ParsedResult(row, ParsedResultType.ROW))
 
-    def _handle_notification(self, result_type: Optional[ParsedResultType]=None) -> None:
+    def _handle_notification(self, result_type: Optional[ParsedResultType] = None) -> None:
         if self._has_results_or_errors_evt.is_set():
             return
 
@@ -121,7 +120,7 @@ class AsyncJsonStream:
         **INTERNAL**
         """
         if self._json_stream_parser is None:
-                self._json_stream_parser = ijson.parse_async(self, buf_size=self._http_stream_buffer_size)
+            self._json_stream_parser = ijson.parse_async(self, buf_size=self._http_stream_buffer_size)
 
         while self._continue_processing():
             try:
@@ -138,13 +137,12 @@ class AsyncJsonStream:
                 self._handle_notification(ParsedResultType.ERROR)
                 return
 
-
         if self._token_stream_exhausted:
             result_type = ParsedResultType.ERROR if self._json_token_parser.has_errors else ParsedResultType.END
             await self._send_to_stream(ParsedResult(self._json_token_parser.get_result(), result_type), close=True)
             self._handle_notification(result_type)
 
-    async def read(self, size: Optional[int]=-1) -> bytes:
+    async def read(self, size: Optional[int] = -1) -> bytes:
         """
         **INTERNAL**
         """

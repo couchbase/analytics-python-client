@@ -60,10 +60,13 @@ pyyaml==6.0.2
     # via pre-commit
 ruff==0.12.2
     # via -r requirements-dev.in
-tomli==2.2.1 ; python_full_version < '3.11'
+tomli==2.2.1
     # via
+    #   -r requirements-dev.in
     #   mypy
     #   pytest
+tomli-w==1.2.0
+    # via -r requirements-dev.in
 typing-extensions==4.14.0
     # via
     #   exceptiongroup

@@ -33,12 +33,13 @@ if TYPE_CHECKING:
 class AsyncScope:
     def __init__(self, database: AsyncDatabase, scope_name: str) -> None:
         from acouchbase_analytics.protocol.scope import AsyncScope as _AsyncScope
+
         self._impl = _AsyncScope(database, scope_name)
 
     @property
     def name(self) -> str:
         """
-            str: The name of this :class:`~acouchbase_analytics.scope.AsyncScope` instance.
+        str: The name of this :class:`~acouchbase_analytics.scope.AsyncScope` instance.
         """
         return self._impl.name
 

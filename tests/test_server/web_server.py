@@ -13,6 +13,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import asyncio
@@ -30,28 +32,33 @@ CLIENT_ROOT = pathlib.Path(__file__).parent.parent.parent
 sys.path.append(str(CLIENT_ROOT))
 
 from tests.test_server import ErrorType
-from tests.test_server.request import (ServerErrorRequest,
-                                       ServerHttp503Request,
-                                       ServerResultsRequest,
-                                       ServerTimeoutRequest)
-from tests.test_server.response import (ServerResponse,
-                                        ServerResponseError,
-                                        ServerResponseResults)
+from tests.test_server.request import (
+    ServerErrorRequest,
+    ServerHttp503Request,
+    ServerResultsRequest,
+    ServerTimeoutRequest,
+)
+from tests.test_server.response import ServerResponse, ServerResponseError, ServerResponseResults
 from tests.utils import AsyncBytesIterator, AsyncInfiniteBytesIterator
 
-logging.basicConfig(level=logging.INFO,
-                    stream=sys.stderr,
-                    format='%(asctime)s - %(levelname)s - (PID:%(process)d) - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, stream=sys.stderr, format='%(asctime)s - %(levelname)s - (PID:%(process)d) - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
+
 class AsyncWebServer:
-    def __init__(self, host: Optional[str]='0.0.0.0', port:Optional[int]=8080) -> None:
+    def __init__(self, host: Optional[str] = '0.0.0.0', port: Optional[int] = 8080) -> None:
         self._app = web.Application()
         self._host = host
         self._port = port
-        self._app.add_routes([web.post('/test_error', self.handle_error_request),
-                              web.post('/test_results', self.handle_results_request),
-                              web.post('/test_slow_results', self.handle_slow_results_request)])
+        self._app.add_routes(
+            [
+                web.post('/test_error', self.handle_error_request),
+                web.post('/test_results', self.handle_results_request),
+                web.post('/test_slow_results', self.handle_slow_results_request),
+            ]
+        )
 
     async def _handle_timeout_error_request(self, request: ServerTimeoutRequest) -> web.Response:
         timeout = request.timeout
@@ -66,12 +73,14 @@ class AsyncWebServer:
             resp.update_elapsed_time(elapsed)
             return web.json_response(resp.to_json_repr())
 
-        return web.json_response({
-            'requestID': request_id,
-            'status': 'timeout',
-            'elapsedTime': f'{elapsed}s',
-            'message': f'Request timed out after {timeout} seconds.'
-        })
+        return web.json_response(
+            {
+                'requestID': request_id,
+                'status': 'timeout',
+                'elapsedTime': f'{elapsed}s',
+                'message': f'Request timed out after {timeout} seconds.',
+            }
+        )
 
     def _handle_auth_error_request(self, error_type: ErrorType) -> web.Response:
         start = perf_counter()
@@ -96,18 +105,21 @@ class AsyncWebServer:
     async def _handle_retry_error_request(self, request: ServerErrorRequest) -> web.Response:
         start = perf_counter()
         resp = ServerResponse.create()
-        ServerResponseError.build_errors(resp,
-                                         request.error_type,
-                                         group_type=request.retry_group_type,
-                                         retry_specification=request.non_retriable_spec,
-                                         err_count=request.error_count)
+        ServerResponseError.build_errors(
+            resp,
+            request.error_type,
+            group_type=request.retry_group_type,
+            retry_specification=request.non_retriable_spec,
+            err_count=request.error_count,
+        )
         end = perf_counter()
         elapsed = end - start
         resp.update_elapsed_time(elapsed)
-        res = resp.to_json_repr()
         return web.json_response(resp.to_json_repr())
 
-    async def _handle_results_request(self, request: ServerResultsRequest, web_request: web.Request) -> Union[web.Response, web.StreamResponse]:
+    async def _handle_results_request(
+        self, request: ServerResultsRequest, web_request: web.Request
+    ) -> Union[web.Response, web.StreamResponse]:
         resp = ServerResponse.create()
         start = perf_counter()
         if request.until is not None:
@@ -118,7 +130,9 @@ class AsyncWebServer:
             chunk_size = request.chunk_size or 100
             bytes_generator = ServerResponseResults.get_result_genetaotr(request.result_type)
             initial_data = bytes(json.dumps({'requestID': resp.request_id, 'status': resp.status}), 'utf-8')
-            async_inf_iterator = AsyncInfiniteBytesIterator(bytes_generator(), initial_data=initial_data, chunk_size=chunk_size)
+            async_inf_iterator = AsyncInfiniteBytesIterator(
+                bytes_generator(), initial_data=initial_data, chunk_size=chunk_size
+            )
             while deadline > now:
                 chunk = await async_inf_iterator.__anext__()
                 await response.write(chunk)
@@ -172,20 +186,17 @@ class AsyncWebServer:
             elif error_req.error_type == ErrorType.Http503:
                 http503_req = ServerHttp503Request.from_json(received_json)
                 return self._handle_http503_error_request(http503_req)
-            logger.info(f"Received JSON: {received_json}")
-            return web.json_response({
-                'status': 'success',
-                'data': received_json
-            })
+            logger.info(f'Received JSON: {received_json}')
+            return web.json_response({'status': 'success', 'data': received_json})
         except json.JSONDecodeError:
             received_text = await request.text()
-            msg = "POST request received, but data is not valid JSON. Showing as plain text."
+            msg = 'POST request received, but data is not valid JSON. Showing as plain text.'
             logger.error(msg)
             logger.error(f'Received text: {received_text}')
-            return web.Response(status=400, text="Bad Request")
+            return web.Response(status=400, text='Bad Request')
         except Exception as e:
             logger.error(f'An error occurred: {e}', exc_info=True)
-            return web.Response(status=400, text="Bad Request")
+            return web.Response(status=400, text='Bad Request')
 
     async def handle_results_request(self, request: web.Request) -> Union[web.Response, web.StreamResponse]:
         try:
@@ -194,13 +205,13 @@ class AsyncWebServer:
             return await self._handle_results_request(result_req, request)
         except json.JSONDecodeError:
             received_text = await request.text()
-            msg = "POST request received, but data is not valid JSON. Showing as plain text."
+            msg = 'POST request received, but data is not valid JSON. Showing as plain text.'
             logger.error(msg)
             logger.error(f'Received text: {received_text}')
-            return web.Response(status=400, text="Bad Request")
+            return web.Response(status=400, text='Bad Request')
         except Exception as e:
             logger.error(f'An error occurred: {e}', exc_info=True)
-            return web.Response(status=400, text="Bad Request")
+            return web.Response(status=400, text='Bad Request')
 
     async def handle_slow_results_request(self, request: web.Request) -> web.StreamResponse:
         try:
@@ -208,20 +219,17 @@ class AsyncWebServer:
             if 'request_type' not in received_json:
                 raise ValueError('Missing "request_type" in JSON data.')
 
-            logger.info(f"Received JSON: {received_json}")
-            return web.json_response({
-                'status': 'success',
-                'data': received_json
-            })
+            logger.info(f'Received JSON: {received_json}')
+            return web.json_response({'status': 'success', 'data': received_json})
         except json.JSONDecodeError:
             received_text = await request.text()
-            msg = "POST request received, but data is not valid JSON. Showing as plain text."
+            msg = 'POST request received, but data is not valid JSON. Showing as plain text.'
             logger.error(msg)
             logger.error(f'Received text: {received_text}')
-            return web.Response(status=400, text="Bad Request")
+            return web.Response(status=400, text='Bad Request')
         except Exception as e:
             logger.error(f'An error occurred: {e}', exc_info=True)
-            return web.Response(status=400, text="Bad Request")
+            return web.Response(status=400, text='Bad Request')
 
     async def start(self) -> None:
         runner = web.AppRunner(self._app)
@@ -233,6 +241,7 @@ class AsyncWebServer:
     async def stop(self) -> None:
         await self._app.shutdown()
         await self._app.cleanup()
+
 
 async def run_server(host: str, port: int) -> None:
     server = AsyncWebServer(host=host, port=port)
@@ -254,15 +263,12 @@ async def run_server(host: str, port: int) -> None:
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
+
     ap = ArgumentParser(description='Run Async Web Server')
-    ap.add_argument('--host',
-                    type=str,
-                    default='127.0.0.1',
-                    help='Host address to bind to (e.g., 127.0.0.1 for localhost only)')
-    ap.add_argument('--port',
-                    type=int,
-                    default=8000,
-                    help='Port number to listen on')
+    ap.add_argument(
+        '--host', type=str, default='127.0.0.1', help='Host address to bind to (e.g., 127.0.0.1 for localhost only)'
+    )
+    ap.add_argument('--port', type=int, default=8000, help='Port number to listen on')
     options = ap.parse_args()
     try:
         asyncio.run(run_server(host=options.host, port=options.port))

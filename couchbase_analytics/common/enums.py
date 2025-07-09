@@ -28,11 +28,15 @@ class QueryScanConsistency(Enum):
 
 
 # This is unfortunate, but Enum is 'special' and this is one of the least invasive manners to document the members
-QueryScanConsistency.NOT_BOUNDED.__doc__ = ('Indicates that no specific consistency is required, '
-                                            'this is the fastest options, but results may not include '
-                                            'the most recent operations which have been performed.')
-QueryScanConsistency.REQUEST_PLUS.__doc__ = ('Indicates that the results to the query should include '
-                                             'all operations that have occurred up until the query was started. '
-                                             'This incurs a performance penalty of waiting for the index to catch '
-                                             'up to the most recent operations, but provides the highest level '
-                                             'of consistency.')
+QueryScanConsistency.NOT_BOUNDED.__doc__ = (
+    'Indicates that no specific consistency is required, '
+    'this is the fastest options, but results may not include '
+    'the most recent operations which have been performed.'
+)
+QueryScanConsistency.REQUEST_PLUS.__doc__ = (
+    'Indicates that the results to the query should include '
+    'all operations that have occurred up until the query was started. '
+    'This incurs a performance penalty of waiting for the index to catch '
+    'up to the most recent operations, but provides the highest level '
+    'of consistency.'
+)

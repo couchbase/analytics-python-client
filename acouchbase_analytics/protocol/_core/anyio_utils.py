@@ -12,8 +12,10 @@ def get_time() -> float:
     """
     return anyio.current_time()
 
+
 async def sleep(delay: float) -> None:
     await anyio.sleep(delay)
+
 
 class AsyncBackend:
     def __init__(self, backend_lib: str) -> None:
@@ -35,12 +37,14 @@ class AsyncBackend:
         Get the event loop for the async backend, if it exists
         """
         if not hasattr(self, '_loop'):
-            if self._backend_lib  == 'asyncio':
+            if self._backend_lib == 'asyncio':
                 import asyncio
+
                 self._loop = asyncio.get_event_loop()
             else:
                 raise RuntimeError('Unsupported async backend library.')
         return self._loop
+
 
 def current_async_library() -> Optional[AsyncBackend]:
     try:

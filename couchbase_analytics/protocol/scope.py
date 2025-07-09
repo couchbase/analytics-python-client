@@ -29,7 +29,6 @@ if TYPE_CHECKING:
 
 
 class Scope:
-
     def __init__(self, database: Database, scope_name: str) -> None:
         self._database = database
         self._scope_name = scope_name
@@ -38,37 +37,34 @@ class Scope:
     @property
     def client_adapter(self) -> _ClientAdapter:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         return self._database.client_adapter
 
     @property
     def name(self) -> str:
         """
-            str: The name of this :class:`~couchbase_analytics.protocol.scope.Scope` instance.
+        str: The name of this :class:`~couchbase_analytics.protocol.scope.Scope` instance.
         """
         return self._scope_name
 
     @property
     def threadpool_executor(self) -> ThreadPoolExecutor:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         return self._database.threadpool_executor
 
-    def execute_query(self,
-                      statement: str,
-                      *args: object,
-                      **kwargs: object) -> Union[BlockingQueryResult, Future[BlockingQueryResult]]:
+    def execute_query(
+        self, statement: str, *args: object, **kwargs: object
+    ) -> Union[BlockingQueryResult, Future[BlockingQueryResult]]:
         base_req = self._request_builder.build_base_query_request(statement, *args, **kwargs)
         lazy_execute = base_req.options.pop('lazy_execute', None)
         stream_config = base_req.options.pop('stream_config', None)
-        request_context = RequestContext(self.client_adapter,
-                                         base_req,
-                                         self.threadpool_executor,
-                                         stream_config=stream_config)
-        resp = HttpStreamingResponse(request_context,
-                                     lazy_execute=lazy_execute)
+        request_context = RequestContext(
+            self.client_adapter, base_req, self.threadpool_executor, stream_config=stream_config
+        )
+        resp = HttpStreamingResponse(request_context, lazy_execute=lazy_execute)
 
         def _execute_query(http_response: HttpStreamingResponse) -> BlockingQueryResult:
             http_response.send_request()
@@ -76,8 +72,12 @@ class Scope:
 
         if request_context.cancel_enabled is True:
             if lazy_execute is True:
-                raise RuntimeError(('Cannot cancel, via cancel token, a query that is executed lazily.'
-                                    ' Queries executed lazily can be cancelled only after iteration begins.'))
+                raise RuntimeError(
+                    (
+                        'Cannot cancel, via cancel token, a query that is executed lazily.'
+                        ' Queries executed lazily can be cancelled only after iteration begins.'
+                    )
+                )
             return request_context.send_request_in_background(_execute_query, resp)
         else:
             if lazy_execute is not True:

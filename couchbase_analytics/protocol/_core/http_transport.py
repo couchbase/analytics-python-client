@@ -1,41 +1,31 @@
-
 import ssl
 import time
 from types import TracebackType
-from typing import (Iterable,
-                    Optional,
-                    TypeVar,
-                    Union)
+from typing import Iterable, Optional, TypeVar, Union
 
-from httpcore import (ConnectionInterface,
-                      ConnectionPool,
-                      HTTP2Connection,
-                      HTTP11Connection,
-                      HTTPConnection,
-                      Origin,
-                      Request)
+from httpcore import (
+    ConnectionInterface,
+    ConnectionPool,
+    HTTP2Connection,
+    HTTP11Connection,
+    HTTPConnection,
+    Origin,
+    Request,
+)
 from httpcore import Response as CoreResponse
 from httpcore._exceptions import ConnectionNotAvailable, UnsupportedProtocol
 from httpcore._sync.connection_pool import PoolByteStream, PoolRequest
-from httpx import (URL,
-                   BaseTransport,
-                   HTTPTransport,
-                   Limits,
-                   Proxy,
-                   Response,
-                   SyncByteStream,
-                   create_ssl_context)
-from httpx._transports.default import (SOCKET_OPTION,
-                                       ResponseStream,
-                                       map_httpcore_exceptions)
+from httpx import URL, BaseTransport, HTTPTransport, Limits, Proxy, Response, SyncByteStream, create_ssl_context
+from httpx._transports.default import SOCKET_OPTION, ResponseStream, map_httpcore_exceptions
 from httpx._types import CertTypes, ProxyTypes
 
 # httpx._transports.default.py
-T = TypeVar("T", bound="HTTPTransport")
+T = TypeVar('T', bound='HTTPTransport')
 DEFAULT_LIMITS = Limits(max_connections=100, max_keepalive_connections=20)
 
 # ProxyTypes = Union["URL", str, "Proxy"]
 # CertTypes = Union[str, Tuple[str, str], Tuple[str, str, str]]
+
 
 class AnalyticsHTTPConnection(HTTPConnection):
     def __init__(self, *args, **kwargs) -> None:  # type: ignore
@@ -46,24 +36,19 @@ class AnalyticsHTTPConnection(HTTPConnection):
     # 2025-06-05: https://github.com/encode/httpcore/blob/98209758cc14e1a5f966fe1dfdc1064b94055d8c/httpcore/_sync/connection.py#L69
     def handle_request(self, request: Request) -> CoreResponse:
         if not self.can_handle_request(request.url.origin):
-            raise RuntimeError(
-                f"Attempted to send request to {request.url.origin} on connection to {self._origin}"
-            )
+            raise RuntimeError(f'Attempted to send request to {request.url.origin} on connection to {self._origin}')
 
         # PYCBAC Addition: track the query deadline
-        timeouts = request.extensions.get("timeout", {})
-        timeout = timeouts.get("read", None)
+        timeouts = request.extensions.get('timeout', {})
+        timeout = timeouts.get('read', None)
         deadline = time.monotonic() + timeout
         try:
             with self._request_lock:
                 if self._connection is None:
                     stream = self._connect(request)
 
-                    ssl_object = stream.get_extra_info("ssl_object")
-                    http2_negotiated = (
-                        ssl_object is not None
-                        and ssl_object.selected_alpn_protocol() == "h2"
-                    )
+                    ssl_object = stream.get_extra_info('ssl_object')
+                    http2_negotiated = ssl_object is not None and ssl_object.selected_alpn_protocol() == 'h2'
                     if http2_negotiated or (self._http2 and not self._http1):
                         self._connection = HTTP2Connection(
                             origin=self._origin,
@@ -81,10 +66,11 @@ class AnalyticsHTTPConnection(HTTPConnection):
             raise exc
 
         # PYCBAC Addition: We _always_ set the request timeouts, so no need to validate keys
-        query_timeout = round(deadline - time.monotonic(), 6) # round to microseconds
-        request.extensions["timeout"]["read"] = query_timeout
+        query_timeout = round(deadline - time.monotonic(), 6)  # round to microseconds
+        request.extensions['timeout']['read'] = query_timeout
 
         return self._connection.handle_request(request)
+
 
 class AnalyticsConnectionPool(ConnectionPool):
     def __init__(self, *args, **kwargs) -> None:  # type: ignore
@@ -101,17 +87,13 @@ class AnalyticsConnectionPool(ConnectionPool):
         This is the core implementation that is called into by `.request()` or `.stream()`.
         """
         scheme = request.url.scheme.decode()
-        if scheme == "":
-            raise UnsupportedProtocol(
-                "Request URL is missing an 'http://' or 'https://' protocol."
-            )
-        if scheme not in ("http", "https", "ws", "wss"):
-            raise UnsupportedProtocol(
-                f"Request URL has an unsupported protocol '{scheme}://'."
-            )
+        if scheme == '':
+            raise UnsupportedProtocol("Request URL is missing an 'http://' or 'https://' protocol.")
+        if scheme not in ('http', 'https', 'ws', 'wss'):
+            raise UnsupportedProtocol(f"Request URL has an unsupported protocol '{scheme}://'.")
 
-        timeouts = request.extensions.get("timeout", {})
-        timeout = timeouts.get("pool", None)
+        timeouts = request.extensions.get('timeout', {})
+        timeout = timeouts.get('pool', None)
 
         with self._optional_thread_lock:
             # Add the incoming request to our request queue.
@@ -131,14 +113,12 @@ class AnalyticsConnectionPool(ConnectionPool):
                 # Wait until this request has an assigned connection.
                 connection = pool_request.wait_for_connection(timeout=timeout)
                 # PYCBAC Addition: We _always_ set the request timeouts, so no need to validate keys
-                connect_timeout = round(deadline - time.monotonic(), 6) # round to microseconds
-                pool_request.request.extensions["timeout"]["connect"] = connect_timeout
+                connect_timeout = round(deadline - time.monotonic(), 6)  # round to microseconds
+                pool_request.request.extensions['timeout']['connect'] = connect_timeout
 
                 try:
                     # Send the request on the assigned connection.
-                    response = connection.handle_request(
-                        pool_request.request
-                    )
+                    response = connection.handle_request(pool_request.request)
                 except ConnectionNotAvailable:
                     # In some cases a connection may initially be available to
                     # handle a request, but then become unavailable.
@@ -146,7 +126,7 @@ class AnalyticsConnectionPool(ConnectionPool):
                     # In this case we clear the connection and try again.
                     pool_request.clear_connection()
                     # PYCBAC Addition: We update the timeout for the next attempt
-                    timeout = round(deadline - time.monotonic(), 6) # round to microseconds
+                    timeout = round(deadline - time.monotonic(), 6)  # round to microseconds
                 else:
                     break  # pragma: nocover
 
@@ -166,9 +146,7 @@ class AnalyticsConnectionPool(ConnectionPool):
         return CoreResponse(
             status=response.status,
             headers=response.headers,
-            content=PoolByteStream(
-                stream=response.stream, pool_request=pool_request, pool=self
-            ),
+            content=PoolByteStream(stream=response.stream, pool_request=pool_request, pool=self),
             extensions=response.extensions,
         )
 
@@ -188,6 +166,7 @@ class AnalyticsConnectionPool(ConnectionPool):
             socket_options=self._socket_options,
         )
 
+
 class AnalyticsHTTPTransport(BaseTransport):
     def __init__(
         self,
@@ -203,7 +182,6 @@ class AnalyticsHTTPTransport(BaseTransport):
         retries: int = 0,
         socket_options: Optional[Iterable[SOCKET_OPTION]] = None,
     ) -> None:
-
         proxy = Proxy(url=proxy) if isinstance(proxy, (str, URL)) else proxy
         ssl_context = create_ssl_context(verify=verify, cert=cert, trust_env=trust_env)
 

@@ -26,8 +26,7 @@ class _LoopValidator:
     **INTERNAL**
     """
 
-    REQUIRED_METHODS = {'add_reader', 'remove_reader',
-                        'add_writer', 'remove_writer'}
+    REQUIRED_METHODS = {'add_reader', 'remove_reader', 'add_writer', 'remove_writer'}
 
     @staticmethod
     def _get_working_loop() -> AbstractEventLoop:
@@ -53,8 +52,7 @@ class _LoopValidator:
         if not evloop:
             return False
         for meth in _LoopValidator.REQUIRED_METHODS:
-            abs_meth, actual_meth = (
-                getattr(asyncio.AbstractEventLoop, meth), getattr(evloop.__class__, meth))
+            abs_meth, actual_meth = (getattr(asyncio.AbstractEventLoop, meth), getattr(evloop.__class__, meth))
             if abs_meth == actual_meth:
                 return False
         return True

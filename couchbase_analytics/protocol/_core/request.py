@@ -17,15 +17,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import (TYPE_CHECKING,
-                    Any,
-                    Callable,
-                    Coroutine,
-                    Dict,
-                    Optional,
-                    TypedDict,
-                    Union,
-                    cast)
+from typing import TYPE_CHECKING, Any, Callable, Coroutine, Dict, Optional, TypedDict, Union, cast
 from uuid import uuid4
 
 from couchbase_analytics.common.deserializer import Deserializer
@@ -38,16 +30,19 @@ if TYPE_CHECKING:
     from acouchbase_analytics.protocol._core.client_adapter import _AsyncClientAdapter as AsyncClientAdapter
     from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter as BlockingClientAdapter
 
+
 class RequestTimeoutExtensions(TypedDict, total=False):
     pool: Optional[float]  # Timeout for acquiring a connection from the pool
     connect: Optional[float]  # Timeout for establishing a socket connection
     read: Optional[float]  # Timeout for reading data from the socket connection
     write: Optional[float]  # Timeout for writing data to the socket connection
 
+
 class RequestExtensions(TypedDict, total=False):
     timeout: RequestTimeoutExtensions
     sni_hostname: Optional[str]
     trace: Optional[Callable[[str, str], Union[None, Coroutine[Any, Any, None]]]]
+
 
 @dataclass
 class QueryRequest:
@@ -61,8 +56,9 @@ class QueryRequest:
     options: Optional[QueryOptionsTransformedKwargs] = None
     enable_cancel: Optional[bool] = None
 
-    def add_trace_to_extensions(self, handler: Callable[[str, str],
-                                                        Union[None, Coroutine[Any, Any, None]]]) -> QueryRequest:
+    def add_trace_to_extensions(
+        self, handler: Callable[[str, str], Union[None, Coroutine[Any, Any, None]]]
+    ) -> QueryRequest:
         """
         **INTERNAL**
         """
@@ -97,12 +93,12 @@ class QueryRequest:
 
 
 class _RequestBuilder:
-
-    def __init__(self,
-                 client: Union[AsyncClientAdapter, BlockingClientAdapter],
-                 database_name: Optional[str]=None,
-                 scope_name: Optional[str]=None
-                 ) -> None:
+    def __init__(
+        self,
+        client: Union[AsyncClientAdapter, BlockingClientAdapter],
+        database_name: Optional[str] = None,
+        scope_name: Optional[str] = None,
+    ) -> None:
         self._conn_details = client.connection_details
         self._opts_builder = client.options_builder
         self._database_name = database_name
@@ -111,22 +107,19 @@ class _RequestBuilder:
         connect_timeout = self._conn_details.get_connect_timeout()
         self._default_query_timeout = self._conn_details.get_query_timeout()
         self._extensions: RequestExtensions = {
-            'timeout': {
-                'pool': connect_timeout,
-                'connect': connect_timeout,
-                'read': self._default_query_timeout
-            }
+            'timeout': {'pool': connect_timeout, 'connect': connect_timeout, 'read': self._default_query_timeout}
         }
         # TODO:  warning if we have a secure connection, but the sni_hostname is not set?
         if self._conn_details.is_secure() and self._conn_details.sni_hostname is not None:
             self._extensions['sni_hostname'] = self._conn_details.sni_hostname
 
-
-    def build_base_query_request(self,  # noqa: C901
-                                 statement: str,
-                                 *args: object,
-                                 is_async: Optional[bool] = False,
-                                 **kwargs: object) -> QueryRequest:  # noqa: C901
+    def build_base_query_request(  # noqa: C901
+        self,
+        statement: str,
+        *args: object,
+        is_async: Optional[bool] = False,
+        **kwargs: object,
+    ) -> QueryRequest:  # noqa: C901
         enable_cancel: Optional[bool] = None
         cancel_kwarg_token = kwargs.pop('enable_cancel', None)
         if isinstance(cancel_kwarg_token, bool):
@@ -151,10 +144,7 @@ class _RequestBuilder:
         for key in named_param_keys:
             named_params[key] = kwargs.pop(key)
 
-        q_opts = self._opts_builder.build_options(QueryOptions,
-                                                  QueryOptionsTransformedKwargs,
-                                                  kwargs,
-                                                  opts)
+        q_opts = self._opts_builder.build_options(QueryOptions, QueryOptionsTransformedKwargs, kwargs, opts)
         # positional params and named params passed in outside of QueryOptions serve as overrides
         if parsed_args_list and len(parsed_args_list) > 0:
             q_opts['positional_parameters'] = parsed_args_list
@@ -166,7 +156,7 @@ class _RequestBuilder:
 
         body: Dict[str, Union[str, object]] = {
             'statement': statement,
-            'client_context_id': q_opts.get('client_context_id', None) or str(uuid4())
+            'client_context_id': q_opts.get('client_context_id', None) or str(uuid4()),
         }
 
         if self._database_name is not None and self._scope_name is not None:
@@ -175,8 +165,7 @@ class _RequestBuilder:
         # handle timeouts
         timeout = q_opts.get('timeout', None) or self._default_query_timeout
         extensions = deepcopy(self._extensions)
-        if (timeout is not None
-            and timeout != self._default_query_timeout):
+        if timeout is not None and timeout != self._default_query_timeout:
             extensions['timeout']['read'] = timeout
         # in the async world we have our own cancel scope that handles the connect timeout
         if is_async:
@@ -206,10 +195,12 @@ class _RequestBuilder:
                 else:
                     body['scan_consistency'] = opt_val
 
-        return QueryRequest(self._conn_details.url,
-                            deserializer,
-                            body,
-                            extensions=extensions,
-                            max_retries=max_retries,
-                            options=q_opts,
-                            enable_cancel=enable_cancel)
+        return QueryRequest(
+            self._conn_details.url,
+            deserializer,
+            body,
+            extensions=extensions,
+            max_retries=max_retries,
+            options=q_opts,
+            enable_cancel=enable_cancel,
+        )

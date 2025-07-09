@@ -38,6 +38,7 @@ def client_adapter_init_override(self, *args, **kwargs) -> None:  # type: ignore
 #             self._client = Client(auth=BasicAuth(*self._conn_details.credential),
 #                                     transport=transport)
 
+
 def send_request_override(self: _ClientAdapter, request: QueryRequest) -> Response:
     if not hasattr(self, '_client'):
         raise RuntimeError('Client not created yet')
@@ -60,38 +61,37 @@ def send_request_override(self: _ClientAdapter, request: QueryRequest) -> Respon
 
     print(f'{request_extensions=}')
 
-    url = URL(scheme=request.url.scheme,
-                host=request.url.host,
-                port=request.url.port,
-                path=request.url.path)
-    req = self._client.build_request(request.method,
-                                     url,
-                                     json=request_json,
-                                     extensions=request_extensions)
+    url = URL(scheme=request.url.scheme, host=request.url.host, port=request.url.port, path=request.url.path)
+    req = self._client.build_request(request.method, url, json=request_json, extensions=request_extensions)
     try:
         return self._client.send(req, stream=True)
     except socket.gaierror as err:
         req_url = self._conn_details.url.get_formatted_url()
         raise RuntimeError(f'Unable to connect to {req_url}') from err
 
+
 def set_request_path(self: _ClientAdapter, path: str) -> None:
     self._ANALYTICS_PATH = path
+
 
 def update_request_json(self: _ClientAdapter, json: Dict[str, object]) -> None:
     self._request_json = json  # type: ignore[attr-defined]
 
+
 def update_request_extensions(self: _ClientAdapter, extensions: Dict[str, str]) -> None:
     self._request_extensions = extensions  # type: ignore[attr-defined]
+
 
 class _TestClientAdapter(_ClientAdapter):
     pass
 
+
 _TestClientAdapter.__init__ = client_adapter_init_override  # type: ignore[method-assign]
 # _TestClientAdapter.create_client = create_client_override
 _TestClientAdapter.send_request = send_request_override  # type: ignore[method-assign]
-setattr(_TestClientAdapter, 'set_request_path', set_request_path)
-setattr(_TestClientAdapter, 'update_request_json', update_request_json)
-setattr(_TestClientAdapter, 'update_request_extensions', update_request_extensions)
-setattr(_TestClientAdapter, 'PYCBAC_TESTING', True)
+_TestClientAdapter.set_request_path = set_request_path
+_TestClientAdapter.update_request_json = update_request_json
+_TestClientAdapter.update_request_extensions = update_request_extensions
+_TestClientAdapter.PYCBAC_TESTING = True
 
-__all__ = ["_TestClientAdapter"]
+__all__ = ['_TestClientAdapter']

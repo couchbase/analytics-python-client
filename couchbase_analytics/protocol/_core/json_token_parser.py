@@ -15,29 +15,29 @@
 
 from __future__ import annotations
 
-from typing import (Callable,
-                    List,
-                    Optional)
+from typing import Callable, List, Optional
 
-from couchbase_analytics.common._core.json_token_parser_base import (POP_EVENTS,
-                                                                     START_EVENTS,
-                                                                     VALUE_TOKENS,
-                                                                     JsonTokenParserBase,
-                                                                     ParsingState,
-                                                                     TokenType)
+from couchbase_analytics.common._core.json_token_parser_base import (
+    POP_EVENTS,
+    START_EVENTS,
+    VALUE_TOKENS,
+    JsonTokenParserBase,
+    ParsingState,
+    TokenType,
+)
 
 
 class JsonTokenParser(JsonTokenParserBase):
-    def __init__(self,
-                 result_handler: Optional[Callable[[bytes], None]]=None) -> None:
+    def __init__(self, result_handler: Optional[Callable[[bytes], None]] = None) -> None:
         self._result_handler = result_handler
         super().__init__(emit_results_enabled=result_handler is not None)
 
-
     def _handle_obj_emit(self, obj: str) -> bool:
-        if (self._emit_results_enabled
+        if (
+            self._emit_results_enabled
             and self._result_handler is not None
-            and ParsingState.okay_to_emit(self._state, self._previous_state)):
+            and ParsingState.okay_to_emit(self._state, self._previous_state)
+        ):
             self._result_handler(bytes(obj, 'utf-8'))
             return True
         return False
@@ -55,7 +55,7 @@ class JsonTokenParser(JsonTokenParserBase):
                 else:
                     obj = f'{{{",".join(reversed(obj_pairs))}}}'
                 if should_emit and self._handle_obj_emit(obj):
-                    break # this means we emiited the result/error, so stop processing the stack
+                    break  # this means we emiited the result/error, so stop processing the stack
 
                 if len(self._stack) > 0 and self._stack[-1].type == TokenType.MAP_KEY:
                     map_key = self._pop()

@@ -23,24 +23,28 @@ MIN = 100
 MAX = 60 * 1000
 EXPONENT_BASE = 2
 
+
 class BackoffCalcTestSuite:
     TEST_MANIFEST = [
         'test_backoff_calcs',
     ]
 
-    @pytest.mark.parametrize('retry_count, max_expected',
-                             [(1, MIN * EXPONENT_BASE ** 0),
-                              (2, MIN * EXPONENT_BASE ** 1),
-                              (3, MIN * EXPONENT_BASE ** 2),
-                              (4, MIN * EXPONENT_BASE ** 3),
-                              (5, MIN * EXPONENT_BASE ** 4),
-                              (6, MIN * EXPONENT_BASE ** 5),
-                              (7, MIN * EXPONENT_BASE ** 6),
-                              (8, MIN * EXPONENT_BASE ** 7),
-                              (9, MIN * EXPONENT_BASE ** 8),
-                              (10, MIN * EXPONENT_BASE ** 9),
-                              (1000, MAX),
-                              ])
+    @pytest.mark.parametrize(
+        'retry_count, max_expected',
+        [
+            (1, MIN * EXPONENT_BASE**0),
+            (2, MIN * EXPONENT_BASE**1),
+            (3, MIN * EXPONENT_BASE**2),
+            (4, MIN * EXPONENT_BASE**3),
+            (5, MIN * EXPONENT_BASE**4),
+            (6, MIN * EXPONENT_BASE**5),
+            (7, MIN * EXPONENT_BASE**6),
+            (8, MIN * EXPONENT_BASE**7),
+            (9, MIN * EXPONENT_BASE**8),
+            (10, MIN * EXPONENT_BASE**9),
+            (1000, MAX),
+        ],
+    )
     def test_backoff_calcs(self, retry_count: int, max_expected: float) -> None:
         calc = DefaultBackoffCalculator()
         for _ in range(10):
@@ -49,12 +53,12 @@ class BackoffCalcTestSuite:
 
 
 class BackoffCalcTests(BackoffCalcTestSuite):
-
     @pytest.fixture(scope='class', autouse=True)
     def validate_test_manifest(self) -> None:
         def valid_test_method(meth: str) -> bool:
             attr = getattr(BackoffCalcTests, meth)
             return callable(attr) and not meth.startswith('__') and meth.startswith('test')
+
         method_list = [meth for meth in dir(BackoffCalcTests) if valid_test_method(meth)]
         test_list = set(BackoffCalcTestSuite.TEST_MANIFEST).symmetric_difference(method_list)
         if test_list:

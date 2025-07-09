@@ -18,9 +18,7 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import List, Optional
 
-from couchbase_analytics.common._core.query import (QueryMetadataCore,
-                                                    QueryMetricsCore,
-                                                    QueryWarningCore)
+from couchbase_analytics.common._core.query import QueryMetadataCore, QueryMetricsCore, QueryWarningCore
 
 
 class QueryWarning:
@@ -42,7 +40,7 @@ class QueryWarning:
         return self._raw['message']
 
     def __repr__(self) -> str:
-        return "QueryWarning:{}".format(self._raw)
+        return 'QueryWarning:{}'.format(self._raw)
 
 
 class QueryMetrics:
@@ -92,7 +90,7 @@ class QueryMetrics:
         return self._raw.get('processed_objects') or 0
 
     def __repr__(self) -> str:
-        return "QueryMetrics:{}".format(self._raw)
+        return 'QueryMetrics:{}'.format(self._raw)
 
 
 class QueryMetadata:
@@ -124,4 +122,4 @@ class QueryMetadata:
         return QueryMetrics(self._raw['metrics'])
 
     def __repr__(self) -> str:
-        return "QueryMetadata:{}".format(self._raw)
+        return 'QueryMetadata:{}'.format(self._raw)

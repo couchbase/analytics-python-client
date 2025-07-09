@@ -23,15 +23,15 @@ class BackoffCalculator(ABC):
     def calculate_backoff(self, retry_count: int) -> float:
         raise NotImplementedError
 
+
 class DefaultBackoffCalculator(BackoffCalculator):
     MIN = 100
     MAX = 60 * 1000
     EXPONENT_BASE = 1.5
 
-    def __init__(self,
-                 min: Optional[int]=None,
-                 max: Optional[int]=None,
-                 exponent_base: Optional[int]=None) -> None:
+    def __init__(
+        self, min: Optional[int] = None, max: Optional[int] = None, exponent_base: Optional[int] = None
+    ) -> None:
         self._min = min or self.MIN
         self._max = max or self.MAX
         self._exp = exponent_base or self.EXPONENT_BASE

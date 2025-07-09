@@ -39,7 +39,7 @@ class RequestURL:
             'scheme': self.scheme,
             'host': self.host,
             'port': str(self.port),
-            'path': self.path if self.path else ''
+            'path': self.path if self.path else '',
         }
         return f'{type(self).__name__}({details})'
 

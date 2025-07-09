@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 import json
 from enum import Enum
 from typing import Any, Tuple
@@ -13,8 +14,9 @@ class JsonDataType(Enum):
     FAILED_REQUEST_MULTI_ERRORS = 'failed_request_multi_errors'
     FAILED_REQUEST_MID_STREAM = 'failed_request_mid_stream'
 
+
 JSON_DATA = {
-    'simple_request':"""
+    'simple_request': """
 {
   "requestID": "98f69cf0-6d00-4a61-b8b6-e3b29fb6061b",
   "signature": {
@@ -37,7 +39,7 @@ JSON_DATA = {
     "processedObjects": 0
   }
 }""".strip(),
-    'multiple_results':"""
+    'multiple_results': """
 {
   "requestID": "94c7f89f-92b6-4aba-a90d-be715ca47309",
   "signature": {
@@ -94,7 +96,7 @@ JSON_DATA = {
     "bufferCacheHitRatio": "100.00%"
   }
 }""".strip(),
-'multiple_results_raw':"""
+    'multiple_results_raw': """
 {
   "requestID": "94c7f89f-92b6-4aba-a90d-be715ca47309",
   "signature": {
@@ -125,7 +127,7 @@ JSON_DATA = {
     "bufferCacheHitRatio": "100.00%"
   }
 }""".strip(),
-    'failed_request':"""
+    'failed_request': """
 {
   "requestID": "c5f50c58-c044-481f-a26a-357a29f7446e",
   "errors": [
@@ -148,7 +150,7 @@ JSON_DATA = {
     "errorCount": 1
   }
 }""".strip(),
-    'failed_request_multi_errors':"""
+    'failed_request_multi_errors': """
 {
   "requestID": "c5f50c58-c044-481f-a26a-357a29f7446e",
   "errors": [
@@ -175,7 +177,7 @@ JSON_DATA = {
     "errorCount": 2
   }
 }""".strip(),
-    'failed_request_mid_stream':"""
+    'failed_request_mid_stream': """
 {
   "requestID": "c5f50c58-c044-481f-a26a-357a29f7446e",
   "results": [
@@ -201,8 +203,9 @@ JSON_DATA = {
     "bufferCachePageReadCount": 0,
     "errorCount": 2
   }
-}""".strip()
+}""".strip(),
 }
+
 
 class BaseSimpleEnvironment:
     def __init__(self, backend: str) -> None:
@@ -218,17 +221,21 @@ class BaseSimpleEnvironment:
         data = JSON_DATA[key]
         return json.loads(data), bytes(data, 'utf-8')
 
+
 class AsyncSimpleEnvironment(BaseSimpleEnvironment):
     def __init__(self, backend: str) -> None:
         super().__init__(backend)
+
 
 class SimpleEnvironment(BaseSimpleEnvironment):
     def __init__(self, backend: str) -> None:
         super().__init__(backend)
 
+
 @pytest.fixture(scope='class', name='simple_async_test_env')
 def simple_async_test_environment(anyio_backend: str) -> AsyncSimpleEnvironment:
     return AsyncSimpleEnvironment(anyio_backend)
+
 
 @pytest.fixture(scope='class', name='simple_test_env')
 def simple_test_environment(anyio_backend: str) -> SimpleEnvironment:

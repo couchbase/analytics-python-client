@@ -32,12 +32,13 @@ if TYPE_CHECKING:
 class AsyncDatabase:
     def __init__(self, cluster: AsyncCluster, database_name: str) -> None:
         from acouchbase_analytics.protocol.database import AsyncDatabase as _AsyncDatabase
+
         self._impl = _AsyncDatabase(cluster, database_name)
 
     @property
     def name(self) -> str:
         """
-            str: The name of this :class:`~acouchbase_analytics.database.AsyncDatabase` instance.
+        str: The name of this :class:`~acouchbase_analytics.database.AsyncDatabase` instance.
         """
         return self._impl.name
 

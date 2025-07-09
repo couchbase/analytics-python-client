@@ -22,9 +22,7 @@ from typing import TYPE_CHECKING, Dict
 import pytest
 
 from acouchbase_analytics.protocol._core.async_json_stream import AsyncJsonStream
-from couchbase_analytics.common._core import (JsonStreamConfig,
-                                              ParsedResult,
-                                              ParsedResultType)
+from couchbase_analytics.common._core import JsonStreamConfig, ParsedResult, ParsedResultType
 from couchbase_analytics.common.errors import AnalyticsError
 from tests.environments.simple_environment import JsonDataType
 from tests.utils import AsyncBytesIterator
@@ -43,37 +41,32 @@ class JsonParsingTestSuite:
         'test_analytics_multiple_errors',
         'test_analytics_parses_async',
         'test_analytics_simple_result',
-
         'test_array',
         'test_array_empty',
         'test_array_mixed_types',
         'test_array_of_objects',
-
         'test_invalid_empty',
         'test_invalid_garbage_between_objects',
         'test_invalid_leading_garbage',
         'test_invalid_trailing_garbage',
         'test_invalid_whitespace_only',
-
         'test_object',
         'test_object_complex_nested_structure',
         'test_object_empty',
         'test_object_simple_nested',
         'test_object_with_empty_key_and_value',
         'test_object_with_unicode',
-
         'test_value_bool',
         'test_value_null',
     ]
 
     @pytest.mark.parametrize('buffered_result', [True, False])
-    async def test_analytics_error(self,
-                                   async_test_env: AsyncSimpleEnvironment,
-                                   buffered_result: bool) -> None:
+    async def test_analytics_error(self, async_test_env: AsyncSimpleEnvironment, buffered_result: bool) -> None:
         json_object, bytes_data = async_test_env.get_json_data(JsonDataType.FAILED_REQUEST)
         if buffered_result:
-            parser = AsyncJsonStream(AsyncBytesIterator(bytes_data),
-                                     stream_config=JsonStreamConfig(buffer_entire_result=True))
+            parser = AsyncJsonStream(
+                AsyncBytesIterator(bytes_data), stream_config=JsonStreamConfig(buffer_entire_result=True)
+            )
         else:
             parser = AsyncJsonStream(AsyncBytesIterator(bytes_data))
         await parser.start_parsing()
@@ -138,13 +131,12 @@ class JsonParsingTestSuite:
             await parser.get_result()
 
     @pytest.mark.parametrize('buffered_result', [True, False])
-    async def test_analytics_many_rows_raw(self,
-                                           async_test_env: AsyncSimpleEnvironment,
-                                           buffered_result: bool) -> None:
+    async def test_analytics_many_rows_raw(self, async_test_env: AsyncSimpleEnvironment, buffered_result: bool) -> None:
         json_object, bytes_data = async_test_env.get_json_data(JsonDataType.MULTIPLE_RESULTS_RAW)
         if buffered_result:
-            parser = AsyncJsonStream(AsyncBytesIterator(bytes_data),
-                                     stream_config=JsonStreamConfig(buffer_entire_result=True))
+            parser = AsyncJsonStream(
+                AsyncBytesIterator(bytes_data), stream_config=JsonStreamConfig(buffer_entire_result=True)
+            )
         else:
             parser = AsyncJsonStream(AsyncBytesIterator(bytes_data))
 
@@ -174,13 +166,14 @@ class JsonParsingTestSuite:
             await parser.get_result()
 
     @pytest.mark.parametrize('buffered_result', [True, False])
-    async def test_analytics_multiple_errors(self,
-                                             async_test_env: AsyncSimpleEnvironment,
-                                             buffered_result: bool) -> None:
+    async def test_analytics_multiple_errors(
+        self, async_test_env: AsyncSimpleEnvironment, buffered_result: bool
+    ) -> None:
         json_object, bytes_data = async_test_env.get_json_data(JsonDataType.FAILED_REQUEST_MULTI_ERRORS)
         if buffered_result:
-            parser = AsyncJsonStream(AsyncBytesIterator(bytes_data),
-                                     stream_config=JsonStreamConfig(buffer_entire_result=True))
+            parser = AsyncJsonStream(
+                AsyncBytesIterator(bytes_data), stream_config=JsonStreamConfig(buffer_entire_result=True)
+            )
         else:
             parser = AsyncJsonStream(AsyncBytesIterator(bytes_data))
         await parser.start_parsing()
@@ -194,10 +187,11 @@ class JsonParsingTestSuite:
 
     async def test_analytics_parses_async(self, async_test_env: AsyncSimpleEnvironment) -> None:
         json_object, bytes_data = async_test_env.get_json_data(JsonDataType.MULTIPLE_RESULTS)
+
         async def _run_async(idx: int) -> Dict[float, int]:
-            parser = AsyncJsonStream(AsyncBytesIterator(bytes_data,
-                                                              simulate_delay=True,
-                                                              simulate_delay_range=(0.01, 0.1)))
+            parser = AsyncJsonStream(
+                AsyncBytesIterator(bytes_data, simulate_delay=True, simulate_delay_range=(0.01, 0.1))
+            )
             await parser.start_parsing()
             row_idx = 0
             while row_idx < 36:
@@ -220,13 +214,12 @@ class JsonParsingTestSuite:
         assert list(ordered_results.values()) != list(range(10))
 
     @pytest.mark.parametrize('buffered_result', [True, False])
-    async def test_analytics_simple_result(self,
-                                           async_test_env: AsyncSimpleEnvironment,
-                                           buffered_result: bool) -> None:
+    async def test_analytics_simple_result(self, async_test_env: AsyncSimpleEnvironment, buffered_result: bool) -> None:
         json_object, bytes_data = async_test_env.get_json_data(JsonDataType.SIMPLE_REQUEST)
         if buffered_result:
-            parser = AsyncJsonStream(AsyncBytesIterator(bytes_data),
-                                     stream_config=JsonStreamConfig(buffer_entire_result=True))
+            parser = AsyncJsonStream(
+                AsyncBytesIterator(bytes_data), stream_config=JsonStreamConfig(buffer_entire_result=True)
+            )
         else:
             parser = AsyncJsonStream(AsyncBytesIterator(bytes_data))
         await parser.start_parsing()
@@ -252,8 +245,9 @@ class JsonParsingTestSuite:
     @pytest.mark.anyio
     async def test_array(self) -> None:
         data = '[1,2,"three"]'
-        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                 stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = AsyncJsonStream(
+            AsyncBytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         await parser.start_parsing()
         result = await parser.get_result()
         assert isinstance(result, ParsedResult)
@@ -266,8 +260,9 @@ class JsonParsingTestSuite:
     @pytest.mark.anyio
     async def test_array_empty(self) -> None:
         data = '[]'
-        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                 stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = AsyncJsonStream(
+            AsyncBytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         await parser.start_parsing()
         result = await parser.get_result()
         assert isinstance(result, ParsedResult)
@@ -280,8 +275,9 @@ class JsonParsingTestSuite:
     @pytest.mark.anyio
     async def test_array_mixed_types(self) -> None:
         data = '[123,"text",true,null,{"key":"value"}]'
-        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                 stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = AsyncJsonStream(
+            AsyncBytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         await parser.start_parsing()
         result = await parser.get_result()
         assert isinstance(result, ParsedResult)
@@ -294,8 +290,9 @@ class JsonParsingTestSuite:
     @pytest.mark.anyio
     async def test_array_of_objects(self) -> None:
         data = '[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]'
-        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                 stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = AsyncJsonStream(
+            AsyncBytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         await parser.start_parsing()
         result = await parser.get_result()
         assert isinstance(result, ParsedResult)
@@ -308,8 +305,9 @@ class JsonParsingTestSuite:
     @pytest.mark.anyio
     async def test_invalid_empty(self) -> None:
         data = ''
-        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                    stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = AsyncJsonStream(
+            AsyncBytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         await parser.start_parsing()
         res = await parser.get_result()
         assert res.result_type == ParsedResultType.ERROR
@@ -319,8 +317,9 @@ class JsonParsingTestSuite:
     @pytest.mark.anyio
     async def test_invalid_garbage_between_objects(self) -> None:
         data = '[{"id":1,"name":"Alice"},garbage,{"id":2,"name":"Bob"}]'
-        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                    stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = AsyncJsonStream(
+            AsyncBytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         await parser.start_parsing()
         res = await parser.get_result()
         assert res.result_type == ParsedResultType.ERROR
@@ -330,8 +329,9 @@ class JsonParsingTestSuite:
     @pytest.mark.anyio
     async def test_invalid_leading_garbage(self) -> None:
         data = 'garbage{"key":"value"}'
-        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                    stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = AsyncJsonStream(
+            AsyncBytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         await parser.start_parsing()
         res = await parser.get_result()
         assert res.result_type == ParsedResultType.ERROR
@@ -341,8 +341,9 @@ class JsonParsingTestSuite:
     @pytest.mark.anyio
     async def test_invalid_trailing_garbage(self) -> None:
         data = '{"key":"value"}garbage'
-        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                    stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = AsyncJsonStream(
+            AsyncBytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         await parser.start_parsing()
         res = await parser.get_result()
         assert res.result_type == ParsedResultType.ERROR
@@ -352,8 +353,9 @@ class JsonParsingTestSuite:
     @pytest.mark.anyio
     async def test_invalid_whitespace_only(self) -> None:
         data = '   \n\t  '
-        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                    stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = AsyncJsonStream(
+            AsyncBytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         await parser.start_parsing()
         res = await parser.get_result()
         assert res.result_type == ParsedResultType.ERROR
@@ -363,8 +365,9 @@ class JsonParsingTestSuite:
     @pytest.mark.anyio
     async def test_value_bool(self) -> None:
         data = 'true'
-        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                 stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = AsyncJsonStream(
+            AsyncBytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         await parser.start_parsing()
         result = await parser.get_result()
         assert isinstance(result, ParsedResult)
@@ -377,8 +380,9 @@ class JsonParsingTestSuite:
     @pytest.mark.anyio
     async def test_value_null(self) -> None:
         data = 'null'
-        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                 stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = AsyncJsonStream(
+            AsyncBytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         await parser.start_parsing()
         result = await parser.get_result()
         assert isinstance(result, ParsedResult)
@@ -391,8 +395,9 @@ class JsonParsingTestSuite:
     @pytest.mark.anyio
     async def test_object(self) -> None:
         data = '{"name":"John","age":30,"city":"New York"}'
-        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                 stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = AsyncJsonStream(
+            AsyncBytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         await parser.start_parsing()
         result = await parser.get_result()
         assert isinstance(result, ParsedResult)
@@ -404,12 +409,14 @@ class JsonParsingTestSuite:
 
     @pytest.mark.anyio
     async def test_object_complex_nested_structure(self) -> None:
-        data_list = ['{"users":[{"id":1,"name":"Alice","roles":["admin","editor"]},'
-                     '{"id":2,"name":"Bob","roles":["viewer"]}],',
-                     '"meta":{"count":2,"status":"success"}}']
+        data_list = [
+            '{"users":[{"id":1,"name":"Alice","roles":["admin","editor"]},{"id":2,"name":"Bob","roles":["viewer"]}],',
+            '"meta":{"count":2,"status":"success"}}',
+        ]
         data = ''.join(data_list)
-        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                 stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = AsyncJsonStream(
+            AsyncBytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         await parser.start_parsing()
         result = await parser.get_result()
         assert isinstance(result, ParsedResult)
@@ -422,8 +429,9 @@ class JsonParsingTestSuite:
     @pytest.mark.anyio
     async def test_object_empty(self) -> None:
         data = '{}'
-        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                 stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = AsyncJsonStream(
+            AsyncBytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         await parser.start_parsing()
         result = await parser.get_result()
         assert isinstance(result, ParsedResult)
@@ -436,8 +444,9 @@ class JsonParsingTestSuite:
     @pytest.mark.anyio
     async def test_object_simple_nested(self) -> None:
         data = '{"outer":{"inner":{"key":"value"}}}'
-        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                 stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = AsyncJsonStream(
+            AsyncBytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         await parser.start_parsing()
         result = await parser.get_result()
         assert isinstance(result, ParsedResult)
@@ -450,8 +459,9 @@ class JsonParsingTestSuite:
     @pytest.mark.anyio
     async def test_object_with_empty_key_and_value(self) -> None:
         data = '{"":""}'
-        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                 stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = AsyncJsonStream(
+            AsyncBytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         await parser.start_parsing()
         result = await parser.get_result()
         assert isinstance(result, ParsedResult)
@@ -464,8 +474,9 @@ class JsonParsingTestSuite:
     @pytest.mark.anyio
     async def test_object_with_unicode(self) -> None:
         data = '{"name":"你好","city":"Denver"}'
-        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                 stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = AsyncJsonStream(
+            AsyncBytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         await parser.start_parsing()
         result = await parser.get_result()
         assert isinstance(result, ParsedResult)
@@ -475,13 +486,14 @@ class JsonParsingTestSuite:
         with pytest.raises(AnalyticsError):
             await parser.get_result()
 
-class JsonParsingTests(JsonParsingTestSuite):
 
+class JsonParsingTests(JsonParsingTestSuite):
     @pytest.fixture(scope='class', autouse=True)
     def validate_test_manifest(self) -> None:
         def valid_test_method(meth: str) -> bool:
             attr = getattr(JsonParsingTests, meth)
             return callable(attr) and not meth.startswith('__') and meth.startswith('test')
+
         method_list = [meth for meth in dir(JsonParsingTests) if valid_test_method(meth)]
         test_list = set(JsonParsingTestSuite.TEST_MANIFEST).symmetric_difference(method_list)
         if test_list:

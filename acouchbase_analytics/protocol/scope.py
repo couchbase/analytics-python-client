@@ -35,7 +35,6 @@ if TYPE_CHECKING:
 
 
 class AsyncScope:
-
     def __init__(self, database: AsyncDatabase, scope_name: str) -> None:
         self._database = database
         self._scope_name = scope_name
@@ -45,20 +44,20 @@ class AsyncScope:
     @property
     def client_adapter(self) -> _AsyncClientAdapter:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         return self._database.client_adapter
 
     @property
     def name(self) -> str:
         """
-            str: The name of this :class:`~acouchbase_analytics.protocol.scope.Scope` instance.
+        str: The name of this :class:`~acouchbase_analytics.protocol.scope.Scope` instance.
         """
         return self._scope_name
 
     async def _create_client(self) -> None:
         """
-            **INTERNAL**
+        **INTERNAL**
         """
         await self.client_adapter.create_client()
 
@@ -72,10 +71,9 @@ class AsyncScope:
     def execute_query(self, statement: str, *args: object, **kwargs: object) -> Awaitable[AsyncQueryResult]:
         base_req = self._request_builder.build_base_query_request(statement, *args, is_async=True, **kwargs)
         stream_config = base_req.options.pop('stream_config', None)
-        request_context = AsyncRequestContext(client_adapter=self.client_adapter,
-                                              request=base_req,
-                                              stream_config=stream_config,
-                                              backend=self._backend)
+        request_context = AsyncRequestContext(
+            client_adapter=self.client_adapter, request=base_req, stream_config=stream_config, backend=self._backend
+        )
         resp = AsyncHttpStreamingResponse(request_context)
         if self._backend.backend_lib == 'asyncio':
             return request_context.create_response_task(self._execute_query, resp)

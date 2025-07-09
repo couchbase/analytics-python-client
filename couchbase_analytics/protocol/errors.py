@@ -18,13 +18,7 @@ from __future__ import annotations
 import socket
 import sys
 from functools import wraps
-from typing import (Any,
-                    Callable,
-                    Dict,
-                    List,
-                    NamedTuple,
-                    Optional,
-                    Union)
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
 
 if sys.version_info < (3, 10):
     from typing_extensions import TypeAlias
@@ -32,22 +26,22 @@ else:
     from typing import TypeAlias
 
 from couchbase_analytics.common._core.error_context import ErrorContext
-from couchbase_analytics.common.errors import (AnalyticsError,
-                                               InternalSDKError,
-                                               InvalidCredentialError,
-                                               QueryError,
-                                               TimeoutError)
+from couchbase_analytics.common.errors import (
+    AnalyticsError,
+    InternalSDKError,
+    InvalidCredentialError,
+    QueryError,
+    TimeoutError,
+)
 
-AnalyticsClientError: TypeAlias = Union[AnalyticsError,
-                                        InternalSDKError,
-                                        QueryError,
-                                        RuntimeError,
-                                        ValueError]
+AnalyticsClientError: TypeAlias = Union[AnalyticsError, InternalSDKError, QueryError, RuntimeError, ValueError]
+
 
 class ServerQueryError(NamedTuple):
     """
     **INTERNAL**
     """
+
     code: int
     message: str
     retriable: bool = False
@@ -79,10 +73,9 @@ class ServerQueryError(NamedTuple):
         retriable = bool(json_data.get('retriable', False))
         return cls(code=code, message=message, retriable=retriable)
 
+
 class WrappedError(Exception):
-    def __init__(self,
-                 cause: Union[BaseException, Exception],
-                 retriable: bool = False) -> None:
+    def __init__(self, cause: Union[BaseException, Exception], retriable: bool = False) -> None:
         super().__init__()
         self._cause = cause
         self._retriable = retriable
@@ -118,15 +111,15 @@ class WrappedError(Exception):
     def __str__(self) -> str:
         return self.__repr__()
 
+
 # Python does not specify which socket errors are retriable or not, although there is a EAI_AGAIN error
 # that is commented to be temporary.  The current version of the RFC has connect failures as retriable.
 # https://github.com/python/cpython/blob/0f866cbfefd797b4dae25962457c5579bb90dde5/Modules/addrinfo.h#L58-L71
 
-class ErrorMapper:
 
+class ErrorMapper:
     @staticmethod
     def build_error_from_http_status_code(message: str, context: ErrorContext) -> WrappedError:
-
         if context.status_code == 503:
             return WrappedError(AnalyticsError(context=str(context), message=message), retriable=True)
 
@@ -178,7 +171,7 @@ class ErrorMapper:
                 return fn(host, port)
             except socket.gaierror as ex:
                 print(f'getaddrinfo failed for {host}:{port} with error: {ex}')
-                msg='Connection error occurred while sending request.'
+                msg = 'Connection error occurred while sending request.'
                 raise WrappedError(AnalyticsError(cause=ex, message=msg), retriable=True) from None
 
         return wrapped_fn

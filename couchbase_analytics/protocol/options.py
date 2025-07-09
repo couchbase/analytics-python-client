@@ -16,38 +16,35 @@
 from __future__ import annotations
 
 from copy import copy
-from typing import (Any,
-                    Callable,
-                    Dict,
-                    List,
-                    Literal,
-                    Optional,
-                    Tuple,
-                    TypedDict,
-                    TypeVar,
-                    Union)
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, TypedDict, TypeVar, Union
 
 from couchbase_analytics.common._core import JsonStreamConfig
-from couchbase_analytics.common._core.utils import (VALIDATE_BOOL,
-                                                    VALIDATE_DESERIALIZER,
-                                                    VALIDATE_INT,
-                                                    VALIDATE_STR,
-                                                    VALIDATE_STR_LIST,
-                                                    EnumToStr,
-                                                    to_seconds,
-                                                    validate_path,
-                                                    validate_raw_dict)
+from couchbase_analytics.common._core.utils import (
+    VALIDATE_BOOL,
+    VALIDATE_DESERIALIZER,
+    VALIDATE_INT,
+    VALIDATE_STR,
+    VALIDATE_STR_LIST,
+    EnumToStr,
+    to_seconds,
+    validate_path,
+    validate_raw_dict,
+)
 from couchbase_analytics.common.deserializer import Deserializer
 from couchbase_analytics.common.enums import QueryScanConsistency
-from couchbase_analytics.common.options import (ClusterOptions,
-                                                OptionsClass,
-                                                QueryOptions,
-                                                SecurityOptions,
-                                                TimeoutOptions)
-from couchbase_analytics.common.options_base import (ClusterOptionsValidKeys,
-                                                     QueryOptionsValidKeys,
-                                                     SecurityOptionsValidKeys,
-                                                     TimeoutOptionsValidKeys)
+from couchbase_analytics.common.options import (
+    ClusterOptions,
+    OptionsClass,
+    QueryOptions,
+    SecurityOptions,
+    TimeoutOptions,
+)
+from couchbase_analytics.common.options_base import (
+    ClusterOptionsValidKeys,
+    QueryOptionsValidKeys,
+    SecurityOptionsValidKeys,
+    TimeoutOptionsValidKeys,
+)
 
 QUERY_CONSISTENCY_TO_STR = EnumToStr[QueryScanConsistency]()
 
@@ -81,8 +78,9 @@ class SecurityOptionsTransforms(TypedDict):
     trust_only_pem_file: Dict[Literal['trust_only_pem_file'], Callable[[Any], str]]
     trust_only_pem_str: Dict[Literal['trust_only_pem_str'], Callable[[Any], str]]
     trust_only_certificates: Dict[Literal['trust_only_certificates'], Callable[[Any], List[str]]]
-    disable_server_certificate_verification: Dict[Literal['disable_server_certificate_verification'],
-                                                  Callable[[Any], bool]]
+    disable_server_certificate_verification: Dict[
+        Literal['disable_server_certificate_verification'], Callable[[Any], bool]
+    ]
 
 
 SECURITY_OPTIONS_TRANSFORMS: SecurityOptionsTransforms = {
@@ -138,14 +136,14 @@ QUERY_OPTIONS_TRANSFORMS: QueryOptionsTransforms = {
     'deserializer': {'deserializer': VALIDATE_DESERIALIZER},
     'lazy_execute': {'lazy_execute': VALIDATE_BOOL},
     'max_retries': {'max_retries': VALIDATE_INT},
-    'named_parameters':  {'named_parameters': lambda x: x},
-    'positional_parameters':  {'positional_parameters': lambda x: x},
+    'named_parameters': {'named_parameters': lambda x: x},
+    'positional_parameters': {'positional_parameters': lambda x: x},
     'query_context': {'query_context': VALIDATE_STR},
     'raw': {'raw': validate_raw_dict},
     'readonly': {'readonly': VALIDATE_BOOL},
     'scan_consistency': {'scan_consistency': QUERY_CONSISTENCY_TO_STR},
-    'stream_config':  {'stream_config': lambda x: x},
-    'timeout': {'timeout': to_seconds}
+    'stream_config': {'stream_config': lambda x: x},
+    'timeout': {'timeout': to_seconds},
 }
 
 
@@ -165,33 +163,37 @@ class QueryOptionsTransformedKwargs(TypedDict, total=False):
     timeout: Optional[float]
 
 
-TransformedOptionKwargs = TypeVar('TransformedOptionKwargs',
-                                  QueryOptionsTransformedKwargs,
-                                  ClusterOptionsTransformedKwargs,
-                                  SecurityOptionsTransformedKwargs,
-                                  TimeoutOptionsTransformedKwargs)
+TransformedOptionKwargs = TypeVar(
+    'TransformedOptionKwargs',
+    QueryOptionsTransformedKwargs,
+    ClusterOptionsTransformedKwargs,
+    SecurityOptionsTransformedKwargs,
+    TimeoutOptionsTransformedKwargs,
+)
 
-TransformedClusterOptionKwargs = TypeVar('TransformedClusterOptionKwargs',
-                                         ClusterOptionsTransformedKwargs,
-                                         SecurityOptionsTransformedKwargs,
-                                         TimeoutOptionsTransformedKwargs)
+TransformedClusterOptionKwargs = TypeVar(
+    'TransformedClusterOptionKwargs',
+    ClusterOptionsTransformedKwargs,
+    SecurityOptionsTransformedKwargs,
+    TimeoutOptionsTransformedKwargs,
+)
 
-TransformDetailsPair = Union[Tuple[List[QueryOptionsValidKeys], QueryOptionsTransforms],
-                             Tuple[List[ClusterOptionsValidKeys], ClusterOptionsTransforms],
-                             Tuple[List[SecurityOptionsValidKeys], SecurityOptionsTransforms],
-                             Tuple[List[TimeoutOptionsValidKeys], TimeoutOptionsTransforms],
-                             ]
+TransformDetailsPair = Union[
+    Tuple[List[QueryOptionsValidKeys], QueryOptionsTransforms],
+    Tuple[List[ClusterOptionsValidKeys], ClusterOptionsTransforms],
+    Tuple[List[SecurityOptionsValidKeys], SecurityOptionsTransforms],
+    Tuple[List[TimeoutOptionsValidKeys], TimeoutOptionsTransforms],
+]
 
 
 class OptionsBuilder:
     """
-        **INTERNAL**
+    **INTERNAL**
     """
 
-    def _get_options_copy(self,
-                          options_class: type[OptionsClass],
-                          orig_kwargs: Dict[str, object],
-                          options: Optional[object] = None) -> Dict[str, object]:
+    def _get_options_copy(
+        self, options_class: type[OptionsClass], orig_kwargs: Dict[str, object], options: Optional[object] = None
+    ) -> Dict[str, object]:
         orig_kwargs = copy(orig_kwargs) if orig_kwargs else {}
         # set our options base dict()
         temp_options: Dict[str, object] = {}
@@ -205,7 +207,6 @@ class OptionsBuilder:
         return temp_options
 
     def _get_transform_details(self, option_type: str) -> TransformDetailsPair:  # noqa: C901
-
         if option_type == 'ClusterOptions':
             return ClusterOptions.VALID_OPTION_KEYS, CLUSTER_OPTIONS_TRANSFORMS
         elif option_type == 'SecurityOptions':
@@ -217,13 +218,14 @@ class OptionsBuilder:
         else:
             raise ValueError('Invalid OptionType.')
 
-    def build_cluster_options(self,  # noqa: C901
-                              option_type: type[OptionsClass],
-                              output_type: type[TransformedClusterOptionKwargs],
-                              orig_kwargs: Dict[str, object],
-                              options: Optional[object] = None,
-                              query_str_opts: Optional[Dict[str, QueryStrVal]] = None
-                              ) -> TransformedClusterOptionKwargs:
+    def build_cluster_options(  # noqa: C901
+        self,
+        option_type: type[OptionsClass],
+        output_type: type[TransformedClusterOptionKwargs],
+        orig_kwargs: Dict[str, object],
+        options: Optional[object] = None,
+        query_str_opts: Optional[Dict[str, QueryStrVal]] = None,
+    ) -> TransformedClusterOptionKwargs:
         temp_options = self._get_options_copy(option_type, orig_kwargs, options)
 
         # we flatten all the nested options (timeout_options & security_options)
@@ -249,25 +251,21 @@ class OptionsBuilder:
             for k, v in query_str_opts.items():
                 temp_options[k] = v
 
-        keys_to_ignore: List[str] = [*ClusterOptions.VALID_OPTION_KEYS,
-                                     *TimeoutOptions.VALID_OPTION_KEYS]
+        keys_to_ignore: List[str] = [*ClusterOptions.VALID_OPTION_KEYS, *TimeoutOptions.VALID_OPTION_KEYS]
 
         # not going to be able to make mypy happy w/ keys_to_ignore :/
-        transformed_security_opts = self.build_options(SecurityOptions,
-                                                       SecurityOptionsTransformedKwargs,
-                                                       temp_options,
-                                                       keys_to_ignore=keys_to_ignore)
+        transformed_security_opts = self.build_options(
+            SecurityOptions, SecurityOptionsTransformedKwargs, temp_options, keys_to_ignore=keys_to_ignore
+        )
         if transformed_security_opts:
             temp_options['security_options'] = transformed_security_opts
 
-        keys_to_ignore = [*ClusterOptions.VALID_OPTION_KEYS,
-                          *SecurityOptions.VALID_OPTION_KEYS]
+        keys_to_ignore = [*ClusterOptions.VALID_OPTION_KEYS, *SecurityOptions.VALID_OPTION_KEYS]
 
         # not going to be able to make mypy happy w/ keys_to_ignore :/
-        transformed_timeout_opts = self.build_options(TimeoutOptions,
-                                                      TimeoutOptionsTransformedKwargs,
-                                                      temp_options,
-                                                      keys_to_ignore=keys_to_ignore)
+        transformed_timeout_opts = self.build_options(
+            TimeoutOptions, TimeoutOptionsTransformedKwargs, temp_options, keys_to_ignore=keys_to_ignore
+        )
         if transformed_timeout_opts:
             temp_options['timeout_options'] = transformed_timeout_opts
 
@@ -276,14 +274,14 @@ class OptionsBuilder:
 
         return transformed_opts
 
-    def build_options(self,
-                      option_type: type[OptionsClass],
-                      output_type: type[TransformedOptionKwargs],
-                      orig_kwargs: Dict[str, object],
-                      options: Optional[object] = None,
-                      keys_to_ignore: Optional[List[str]] = None
-                      ) -> TransformedOptionKwargs:
-
+    def build_options(
+        self,
+        option_type: type[OptionsClass],
+        output_type: type[TransformedOptionKwargs],
+        orig_kwargs: Dict[str, object],
+        options: Optional[object] = None,
+        keys_to_ignore: Optional[List[str]] = None,
+    ) -> TransformedOptionKwargs:
         temp_options = self._get_options_copy(option_type, orig_kwargs, options)
         transformed_opts: TransformedOptionKwargs = {}
         # Option 1 satisfies mypy, but we want temp_options to be the limiting factor for the loop.

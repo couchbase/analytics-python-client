@@ -23,9 +23,7 @@ from acouchbase_analytics.protocol._core.request_context import AsyncRequestCont
 from acouchbase_analytics.protocol._core.retries import AsyncRetryHandler
 from couchbase_analytics.common._core import ParsedResult, ParsedResultType
 from couchbase_analytics.common._core.query import build_query_metadata
-from couchbase_analytics.common.errors import (AnalyticsError,
-                                               InternalSDKError,
-                                               TimeoutError)
+from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError, TimeoutError
 from couchbase_analytics.common.query import QueryMetadata
 
 
@@ -51,23 +49,24 @@ class AsyncHttpStreamingResponse:
             await self._request_context.shutdown()
             raise StopAsyncIteration
         elif self._request_context.timed_out:
-            err = TimeoutError(message='Unable to complete iteration. Request timed out.',
-                               context=str(self._request_context.error_context))
+            err = TimeoutError(
+                message='Unable to complete iteration. Request timed out.',
+                context=str(self._request_context.error_context),
+            )
             await self._request_context.reraise_after_shutdown(err)
         else:
             await self._request_context.shutdown()
             raise StopAsyncIteration
 
-
-    async def _process_response(self,
-                                raw_response: Optional[ParsedResult]=None,
-                                handle_context_shutdown: Optional[bool]=False) -> None:
+    async def _process_response(
+        self, raw_response: Optional[ParsedResult] = None, handle_context_shutdown: Optional[bool] = False
+    ) -> None:
         """
         **INTERNAL**
         """
-        json_response = await self._request_context.process_response(self.close,
-                                                                     raw_response=raw_response,
-                                                                     handle_context_shutdown=handle_context_shutdown)
+        json_response = await self._request_context.process_response(
+            self.close, raw_response=raw_response, handle_context_shutdown=handle_context_shutdown
+        )
         await self.set_metadata(json_data=json_response)
 
     async def close(self) -> None:
@@ -100,9 +99,7 @@ class AsyncHttpStreamingResponse:
             raise RuntimeError('Query metadata is only available after all rows have been iterated.')
         return self._metadata
 
-    async def set_metadata(self,
-                           json_data: Optional[Any]=None,
-                           raw_metadata: Optional[bytes]=None) -> None:
+    async def set_metadata(self, json_data: Optional[Any] = None, raw_metadata: Optional[bytes] = None) -> None:
         """
         **INTERNAL**
         """
@@ -112,9 +109,7 @@ class AsyncHttpStreamingResponse:
         except (AnalyticsError, ValueError) as err:
             await self._request_context.reraise_after_shutdown(err)
         except Exception as ex:
-            internal_err = InternalSDKError(cause=ex,
-                                            message=str(ex),
-                                            context=str(self._request_context.error_context))
+            internal_err = InternalSDKError(cause=ex, message=str(ex), context=str(self._request_context.error_context))
             await self._request_context.reraise_after_shutdown(internal_err)
         finally:
             await self.close()
@@ -123,9 +118,11 @@ class AsyncHttpStreamingResponse:
         """
         **INTERNAL**
         """
-        if not (hasattr(self, '_core_response')
-                and self._core_response is not None
-                and self._request_context.okay_to_iterate):
+        if not (
+            hasattr(self, '_core_response')
+            and self._core_response is not None
+            and self._request_context.okay_to_iterate
+        ):
             await self._handle_iteration_abort()
 
         self._request_context.maybe_continue_to_process_stream()
@@ -133,8 +130,10 @@ class AsyncHttpStreamingResponse:
         if raw_response.result_type == ParsedResultType.ROW:
             if raw_response.value is None:
                 await self.close()
-                raise AnalyticsError(message='Unexpected empty row response while streaming.',
-                                     context=str(self._request_context.error_context))
+                raise AnalyticsError(
+                    message='Unexpected empty row response while streaming.',
+                    context=str(self._request_context.error_context),
+                )
             return self._request_context.deserialize_result(raw_response.value)
         elif raw_response.result_type in [ParsedResultType.ERROR, ParsedResultType.UNKNOWN]:
             await self._process_response(raw_response=raw_response, handle_context_shutdown=True)

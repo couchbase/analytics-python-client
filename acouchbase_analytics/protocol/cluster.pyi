@@ -25,101 +25,58 @@ from acouchbase_analytics.protocol._core.client_adapter import _AsyncClientAdapt
 from acouchbase_analytics.protocol.database import AsyncDatabase
 from couchbase_analytics.common.credential import Credential
 from couchbase_analytics.common.result import AsyncQueryResult
-from couchbase_analytics.options import (ClusterOptions,
-                                         ClusterOptionsKwargs,
-                                         QueryOptions,
-                                         QueryOptionsKwargs)
+from couchbase_analytics.options import ClusterOptions, ClusterOptionsKwargs, QueryOptions, QueryOptionsKwargs
 
 class AsyncCluster:
     @overload
     def __init__(self, connstr: str, credential: Credential) -> None: ...
-
     @overload
-    def __init__(self,
-                 connstr: str,
-                 credential: Credential,
-                 options: ClusterOptions) -> None: ...
-
+    def __init__(self, connstr: str, credential: Credential, options: ClusterOptions) -> None: ...
     @overload
-    def __init__(self,
-                 connstr: str,
-                 credential: Credential,
-                 **kwargs: Unpack[ClusterOptionsKwargs]) -> None: ...
-
+    def __init__(self, connstr: str, credential: Credential, **kwargs: Unpack[ClusterOptionsKwargs]) -> None: ...
     @overload
-    def __init__(self,
-                 connstr: str,
-                 credential: Credential,
-                 options: ClusterOptions,
-                 **kwargs: Unpack[ClusterOptionsKwargs]) -> None: ...
-
+    def __init__(
+        self, connstr: str, credential: Credential, options: ClusterOptions, **kwargs: Unpack[ClusterOptionsKwargs]
+    ) -> None: ...
     @property
     def client_adapter(self) -> _AsyncClientAdapter: ...
-
     @property
     def connected(self) -> bool: ...
-
     def shutdown(self) -> None: ...
-
     def database(self, name: str) -> AsyncDatabase: ...
-
     @overload
     def execute_query(self, statement: str) -> Awaitable[AsyncQueryResult]: ...
-
     @overload
     def execute_query(self, statement: str, options: QueryOptions) -> Awaitable[AsyncQueryResult]: ...
-
     @overload
     def execute_query(self, statement: str, **kwargs: Unpack[QueryOptionsKwargs]) -> Awaitable[AsyncQueryResult]: ...
-
     @overload
-    def execute_query(self,
-                      statement: str,
-                      options: QueryOptions,
-                      **kwargs: Unpack[QueryOptionsKwargs]) -> Awaitable[AsyncQueryResult]: ...
-
+    def execute_query(
+        self, statement: str, options: QueryOptions, **kwargs: Unpack[QueryOptionsKwargs]
+    ) -> Awaitable[AsyncQueryResult]: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      options: QueryOptions,
-                      *args: str,
-                      **kwargs: Unpack[QueryOptionsKwargs]) -> Awaitable[AsyncQueryResult]: ...
-
+    def execute_query(
+        self, statement: str, options: QueryOptions, *args: str, **kwargs: Unpack[QueryOptionsKwargs]
+    ) -> Awaitable[AsyncQueryResult]: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      options: QueryOptions,
-                      *args: str,
-                      **kwargs: str) -> Awaitable[AsyncQueryResult]: ...
-
+    def execute_query(
+        self, statement: str, options: QueryOptions, *args: str, **kwargs: str
+    ) -> Awaitable[AsyncQueryResult]: ...
     @overload
-    def execute_query(self,
-                      statement: str,
-                      *args: str,
-                      **kwargs: str) -> Awaitable[AsyncQueryResult]: ...
-
+    def execute_query(self, statement: str, *args: str, **kwargs: str) -> Awaitable[AsyncQueryResult]: ...
     @overload
     @classmethod
     def create_instance(cls, connstr: str, credential: Credential) -> AsyncCluster: ...
-
     @overload
     @classmethod
-    def create_instance(cls,
-                        connstr: str,
-                        credential: Credential,
-                        options: ClusterOptions) -> AsyncCluster: ...
-
+    def create_instance(cls, connstr: str, credential: Credential, options: ClusterOptions) -> AsyncCluster: ...
     @overload
     @classmethod
-    def create_instance(cls,
-                        connstr: str,
-                        credential: Credential,
-                        **kwargs: Unpack[ClusterOptionsKwargs]) -> AsyncCluster: ...
-
+    def create_instance(
+        cls, connstr: str, credential: Credential, **kwargs: Unpack[ClusterOptionsKwargs]
+    ) -> AsyncCluster: ...
     @overload
     @classmethod
-    def create_instance(cls,
-                        connstr: str,
-                        credential: Credential,
-                        options: ClusterOptions,
-                        **kwargs: Unpack[ClusterOptionsKwargs]) -> AsyncCluster: ...
+    def create_instance(
+        cls, connstr: str, credential: Credential, options: ClusterOptions, **kwargs: Unpack[ClusterOptionsKwargs]
+    ) -> AsyncCluster: ...

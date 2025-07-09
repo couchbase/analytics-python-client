@@ -24,13 +24,15 @@ if sys.version_info < (3, 10):
 else:
     from typing import TypeAlias
 
-from couchbase_analytics.common.options_base import ClusterOptionsBase
+from couchbase_analytics.common.options_base import (
+    ClusterOptionsBase,
+    QueryOptionsBase,
+    SecurityOptionsBase,
+    TimeoutOptionsBase,
+)
 from couchbase_analytics.common.options_base import ClusterOptionsKwargs as ClusterOptionsKwargs  # noqa: F401
-from couchbase_analytics.common.options_base import QueryOptionsBase
 from couchbase_analytics.common.options_base import QueryOptionsKwargs as QueryOptionsKwargs  # noqa: F401
-from couchbase_analytics.common.options_base import SecurityOptionsBase
 from couchbase_analytics.common.options_base import SecurityOptionsKwargs as SecurityOptionsKwargs  # noqa: F401
-from couchbase_analytics.common.options_base import TimeoutOptionsBase
 from couchbase_analytics.common.options_base import TimeoutOptionsKwargs as TimeoutOptionsKwargs  # noqa: F401
 
 """

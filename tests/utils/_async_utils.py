@@ -16,17 +16,12 @@
 from __future__ import annotations
 
 from types import TracebackType
-from typing import (Any,
-                    Callable,
-                    List,
-                    Optional,
-                    Type)
+from typing import Any, Callable, List, Optional, Type
 
 import anyio
 
 
 class TaskGroupResultCollector:
-
     def __init__(self) -> None:
         self._results: List[Any] = []
 
@@ -46,12 +41,11 @@ class TaskGroupResultCollector:
         await self._taskgroup.__aenter__()
         return self
 
-    async def __aexit__(self,
-                        exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> Any:
+    async def __aexit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> Any:
         try:
-            res = await self._taskgroup.__aexit__(exc_type= exc_type, exc_val=exc_val, exc_tb=exc_tb)
+            res = await self._taskgroup.__aexit__(exc_type=exc_type, exc_val=exc_val, exc_tb=exc_tb)
             return res
         finally:
             del self._taskgroup

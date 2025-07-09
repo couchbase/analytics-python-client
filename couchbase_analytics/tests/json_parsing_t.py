@@ -20,9 +20,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from couchbase_analytics.common._core import (JsonStreamConfig,
-                                              ParsedResult,
-                                              ParsedResultType)
+from couchbase_analytics.common._core import JsonStreamConfig, ParsedResult, ParsedResultType
 from couchbase_analytics.protocol._core.json_stream import JsonStream
 from tests.environments.simple_environment import JsonDataType
 from tests.utils import BytesIterator
@@ -32,7 +30,6 @@ if TYPE_CHECKING:
 
 
 class JsonParsingTestSuite:
-
     TEST_MANIFEST = [
         'test_analytics_error',
         'test_analytics_error_mid_stream',
@@ -40,37 +37,30 @@ class JsonParsingTestSuite:
         'test_analytics_many_rows_raw',
         'test_analytics_multiple_errors',
         'test_analytics_simple_result',
-
         'test_array',
         'test_array_empty',
         'test_array_mixed_types',
         'test_array_of_objects',
-
         'test_invalid_empty',
         'test_invalid_garbage_between_objects',
         'test_invalid_leading_garbage',
         'test_invalid_trailing_garbage',
         'test_invalid_whitespace_only',
-
         'test_object',
         'test_object_complex_nested_structure',
         'test_object_empty',
         'test_object_simple_nested',
         'test_object_with_empty_key_and_value',
         'test_object_with_unicode',
-
         'test_value_bool',
         'test_value_null',
     ]
 
     @pytest.mark.parametrize('buffered_result', [True, False])
-    def test_analytics_error(self,
-                             test_env: SimpleEnvironment,
-                             buffered_result: bool) -> None:
+    def test_analytics_error(self, test_env: SimpleEnvironment, buffered_result: bool) -> None:
         json_object, bytes_data = test_env.get_json_data(JsonDataType.FAILED_REQUEST)
         if buffered_result:
-            parser = JsonStream(BytesIterator(bytes_data),
-                                stream_config=JsonStreamConfig(buffer_entire_result=True))
+            parser = JsonStream(BytesIterator(bytes_data), stream_config=JsonStreamConfig(buffer_entire_result=True))
         else:
             parser = JsonStream(BytesIterator(bytes_data))
         parser.start_parsing()
@@ -132,13 +122,10 @@ class JsonParsingTestSuite:
         assert parser.get_result(0.01) is None
 
     @pytest.mark.parametrize('buffered_result', [True, False])
-    def test_analytics_many_rows_raw(self,
-                                     test_env: SimpleEnvironment,
-                                     buffered_result: bool) -> None:
+    def test_analytics_many_rows_raw(self, test_env: SimpleEnvironment, buffered_result: bool) -> None:
         json_object, bytes_data = test_env.get_json_data(JsonDataType.MULTIPLE_RESULTS_RAW)
         if buffered_result:
-            parser = JsonStream(BytesIterator(bytes_data),
-                                stream_config=JsonStreamConfig(buffer_entire_result=True))
+            parser = JsonStream(BytesIterator(bytes_data), stream_config=JsonStreamConfig(buffer_entire_result=True))
         else:
             parser = JsonStream(BytesIterator(bytes_data))
 
@@ -167,13 +154,10 @@ class JsonParsingTestSuite:
         assert parser.get_result(0.01) is None
 
     @pytest.mark.parametrize('buffered_result', [True, False])
-    def test_analytics_multiple_errors(self,
-                                       test_env: SimpleEnvironment,
-                                       buffered_result: bool) -> None:
+    def test_analytics_multiple_errors(self, test_env: SimpleEnvironment, buffered_result: bool) -> None:
         json_object, bytes_data = test_env.get_json_data(JsonDataType.FAILED_REQUEST_MULTI_ERRORS)
         if buffered_result:
-            parser = JsonStream(BytesIterator(bytes_data),
-                                stream_config=JsonStreamConfig(buffer_entire_result=True))
+            parser = JsonStream(BytesIterator(bytes_data), stream_config=JsonStreamConfig(buffer_entire_result=True))
         else:
             parser = JsonStream(BytesIterator(bytes_data))
         parser.start_parsing()
@@ -185,13 +169,10 @@ class JsonParsingTestSuite:
         assert parser.get_result(0.01) is None
 
     @pytest.mark.parametrize('buffered_result', [True, False])
-    def test_analytics_simple_result(self,
-                                     test_env: SimpleEnvironment,
-                                     buffered_result: bool) -> None:
+    def test_analytics_simple_result(self, test_env: SimpleEnvironment, buffered_result: bool) -> None:
         json_object, bytes_data = test_env.get_json_data(JsonDataType.SIMPLE_REQUEST)
         if buffered_result:
-            parser = JsonStream(BytesIterator(bytes_data),
-                                stream_config=JsonStreamConfig(buffer_entire_result=True))
+            parser = JsonStream(BytesIterator(bytes_data), stream_config=JsonStreamConfig(buffer_entire_result=True))
         else:
             parser = JsonStream(BytesIterator(bytes_data))
         parser.start_parsing()
@@ -215,8 +196,9 @@ class JsonParsingTestSuite:
 
     def test_array(self) -> None:
         data = '[1,2,"three"]'
-        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = JsonStream(
+            BytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         parser.start_parsing()
         result = parser.get_result(0.01)
         assert isinstance(result, ParsedResult)
@@ -227,8 +209,9 @@ class JsonParsingTestSuite:
 
     def test_array_empty(self) -> None:
         data = '[]'
-        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = JsonStream(
+            BytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         parser.start_parsing()
         result = parser.get_result(0.01)
         assert isinstance(result, ParsedResult)
@@ -239,8 +222,9 @@ class JsonParsingTestSuite:
 
     def test_array_mixed_types(self) -> None:
         data = '[123,"text",true,null,{"key":"value"}]'
-        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = JsonStream(
+            BytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         parser.start_parsing()
         result = parser.get_result(0.01)
         assert isinstance(result, ParsedResult)
@@ -251,8 +235,9 @@ class JsonParsingTestSuite:
 
     def test_array_of_objects(self) -> None:
         data = '[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]'
-        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = JsonStream(
+            BytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         parser.start_parsing()
         result = parser.get_result(0.01)
         assert isinstance(result, ParsedResult)
@@ -263,8 +248,9 @@ class JsonParsingTestSuite:
 
     def test_invalid_empty(self) -> None:
         data = ''
-        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = JsonStream(
+            BytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         parser.start_parsing()
         res = parser.get_result(0.01)
         assert isinstance(res, ParsedResult)
@@ -274,8 +260,9 @@ class JsonParsingTestSuite:
 
     def test_invalid_garbage_between_objects(self) -> None:
         data = '[{"id":1,"name":"Alice"},garbage,{"id":2,"name":"Bob"}]'
-        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = JsonStream(
+            BytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         parser.start_parsing()
         res = parser.get_result(0.01)
         assert isinstance(res, ParsedResult)
@@ -285,8 +272,9 @@ class JsonParsingTestSuite:
 
     def test_invalid_leading_garbage(self) -> None:
         data = 'garbage{"key":"value"}'
-        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = JsonStream(
+            BytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         parser.start_parsing()
         res = parser.get_result(0.01)
         assert isinstance(res, ParsedResult)
@@ -296,8 +284,9 @@ class JsonParsingTestSuite:
 
     def test_invalid_trailing_garbage(self) -> None:
         data = '{"key":"value"}garbage'
-        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = JsonStream(
+            BytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         parser.start_parsing()
         res = parser.get_result(0.01)
         assert isinstance(res, ParsedResult)
@@ -307,8 +296,9 @@ class JsonParsingTestSuite:
 
     def test_invalid_whitespace_only(self) -> None:
         data = '   \n\t  '
-        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = JsonStream(
+            BytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         parser.start_parsing()
         res = parser.get_result(0.01)
         assert isinstance(res, ParsedResult)
@@ -318,8 +308,9 @@ class JsonParsingTestSuite:
 
     def test_object(self) -> None:
         data = '{"name":"John","age":30,"city":"New York"}'
-        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = JsonStream(
+            BytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         parser.start_parsing()
         result = parser.get_result(0.01)
         assert isinstance(result, ParsedResult)
@@ -329,12 +320,14 @@ class JsonParsingTestSuite:
         assert parser.get_result(0.01) is None
 
     def test_object_complex_nested_structure(self) -> None:
-        data_list = ['{"users":[{"id":1,"name":"Alice","roles":["admin","editor"]},'
-                     '{"id":2,"name":"Bob","roles":["viewer"]}],',
-                     '"meta":{"count":2,"status":"success"}}']
+        data_list = [
+            '{"users":[{"id":1,"name":"Alice","roles":["admin","editor"]},{"id":2,"name":"Bob","roles":["viewer"]}],',
+            '"meta":{"count":2,"status":"success"}}',
+        ]
         data = ''.join(data_list)
-        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = JsonStream(
+            BytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         parser.start_parsing()
         result = parser.get_result(0.01)
         assert isinstance(result, ParsedResult)
@@ -345,8 +338,9 @@ class JsonParsingTestSuite:
 
     def test_object_empty(self) -> None:
         data = '{}'
-        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = JsonStream(
+            BytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         parser.start_parsing()
         result = parser.get_result(0.01)
         assert isinstance(result, ParsedResult)
@@ -357,8 +351,9 @@ class JsonParsingTestSuite:
 
     def test_object_simple_nested(self) -> None:
         data = '{"outer":{"inner":{"key":"value"}}}'
-        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = JsonStream(
+            BytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         parser.start_parsing()
         result = parser.get_result(0.01)
         assert isinstance(result, ParsedResult)
@@ -369,8 +364,9 @@ class JsonParsingTestSuite:
 
     def test_object_with_empty_key_and_value(self) -> None:
         data = '{"":""}'
-        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = JsonStream(
+            BytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         parser.start_parsing()
         result = parser.get_result(0.01)
         assert isinstance(result, ParsedResult)
@@ -381,8 +377,9 @@ class JsonParsingTestSuite:
 
     def test_object_with_unicode(self) -> None:
         data = '{"name":"你好","city":"Denver"}'
-        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = JsonStream(
+            BytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         parser.start_parsing()
         result = parser.get_result(0.01)
         assert isinstance(result, ParsedResult)
@@ -393,8 +390,9 @@ class JsonParsingTestSuite:
 
     def test_value_bool(self) -> None:
         data = 'true'
-        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = JsonStream(
+            BytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         parser.start_parsing()
         result = parser.get_result(0.01)
         assert isinstance(result, ParsedResult)
@@ -405,8 +403,9 @@ class JsonParsingTestSuite:
 
     def test_value_null(self) -> None:
         data = 'null'
-        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser = JsonStream(
+            BytesIterator(bytes(data, 'utf-8')), stream_config=JsonStreamConfig(buffer_entire_result=True)
+        )
         parser.start_parsing()
         result = parser.get_result(0.01)
         assert isinstance(result, ParsedResult)
@@ -415,13 +414,14 @@ class JsonParsingTestSuite:
         assert result.value.decode('utf-8') == data
         assert parser.get_result(0.01) is None
 
-class JsonParsingTests(JsonParsingTestSuite):
 
+class JsonParsingTests(JsonParsingTestSuite):
     @pytest.fixture(scope='class', autouse=True)
     def validate_test_manifest(self) -> None:
         def valid_test_method(meth: str) -> bool:
             attr = getattr(JsonParsingTests, meth)
             return callable(attr) and not meth.startswith('__') and meth.startswith('test')
+
         method_list = [meth for meth in dir(JsonParsingTests) if valid_test_method(meth)]
         test_list = set(JsonParsingTestSuite.TEST_MANIFEST).symmetric_difference(method_list)
         if test_list:

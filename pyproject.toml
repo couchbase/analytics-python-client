@@ -1,31 +1,36 @@
 [build-system]
 requires = [
-  "setuptools>=65",
-  "wheel",
+    "setuptools>=65",
+    "wheel",
 ]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "couchbase-analytics"
-version = "1.0.0-dev.1"
+version = "1.0.0.dev1"
 dependencies = [
-  "anyio~=4.9.0",
-  "httpx~=0.28.1",
-  "ijson~=3.3.0",
-  "sniffio~=1.3.1",
-  "typing-extensions~=4.11; python_version<'3.11'"
+    "anyio~=4.9.0",
+    "httpx~=0.28.1",
+    "ijson~=3.3.0",
+    "sniffio~=1.3.1",
+    "typing-extensions~=4.11; python_version<'3.11'",
 ]
 requires-python = ">=3.9"
 authors = [
-  {name = "Couchbase, Inc.", email = "PythonPackage@couchbase.com"}
+    { name = "Couchbase, Inc.", email = "PythonPackage@couchbase.com" },
 ]
 maintainers = [
-  {name = "Couchbase, Inc.", email = "PythonPackage@couchbase.com"}
+    { name = "Couchbase, Inc.", email = "PythonPackage@couchbase.com" },
 ]
 description = "Python Client for Couchbase Analytics"
 readme = "README.md"
-license = {file = "LICENSE"}
-keywords = ["couchbase", "nosql", "pycouchbase", "couchbase++", "analytics"]
+keywords = [
+    "couchbase",
+    "nosql",
+    "pycouchbase",
+    "couchbase++",
+    "analytics",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -40,8 +45,11 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Topic :: Database",
     "Topic :: Software Development :: Libraries",
-    "Topic :: Software Development :: Libraries :: Python Modules"
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
+
+[project.license]
+file = "LICENSE"
 
 [project.urls]
 Homepage = "https://couchbase.com"
@@ -53,18 +61,20 @@ Repository = "https://github.com/couchbase/analytics-python-client"
 
 [dependency-groups]
 dev = [
-  "aiohttp~=3.11.10",
-  "mypy~=1.16.1",
-  "pre-commit~=4.2.0",
-  "pytest~=8.3.5",
-  "ruff~=0.12.0",
+    "aiohttp~=3.11.10",
+    "mypy~=1.16.1",
+    "pre-commit~=4.2.0",
+    "pytest~=8.3.5",
+    "ruff~=0.12.0",
+    "tomli~=2.2.1",
+    "tomli-w~=1.2.0",
 ]
 sphinx = [
-  "Sphinx~=7.4.7",
-  "sphinx-rtd-theme~=2.0",
-  "sphinx-copybutton~=0.5",
-  "enum-tools~=0.12",
-  "sphinx-toolbox~=3.7"
+    "Sphinx~=7.4.7",
+    "sphinx-rtd-theme~=2.0",
+    "sphinx-copybutton~=0.5",
+    "enum-tools~=0.12",
+    "sphinx-toolbox~=3.7",
 ]
 
 [tool.pytest.ini_options]
@@ -76,10 +86,10 @@ testpaths = [
     "couchbase_analytics/tests",
 ]
 python_classes = [
-    "*Tests"
+    "*Tests",
 ]
 python_files = [
-    "*_t.py"
+    "*_t.py",
 ]
 markers = [
     "pycbac_couchbase: marks a test for the couchbase API (deselect with '-m \"not pycbac_couchbase\"')",
@@ -90,19 +100,19 @@ markers = [
 
 [tool.ruff]
 line-length = 120
-extend-exclude = ["tests/test_config.ini", "test*.py", "*_tests.py"]
+extend-exclude = [
+    "tests/test_config.ini",
+]
 
 [tool.ruff.lint]
-select = ["E", "F", "B", "C"]
+select = [
+    "E",
+    "F",
+    "B",
+    "C",
+    "I",
+]
 
 [tool.ruff.format]
 quote-style = "single"
 docstring-code-format = false
-
-[tool.isort]
-multi_line_output = 1
-force_grid_wrap = 3
-use_parentheses = true
-ensure_newline_before_comments = true
-line_length = 120
-order_by_type = true

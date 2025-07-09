@@ -17,13 +17,7 @@ from __future__ import annotations
 
 import ssl
 from dataclasses import dataclass
-from typing import (TYPE_CHECKING,
-                    Dict,
-                    List,
-                    Optional,
-                    Tuple,
-                    TypedDict,
-                    cast)
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, TypedDict, cast
 from urllib.parse import parse_qs, urlparse
 
 from couchbase_analytics.common._core._certificates import _Certificates
@@ -31,14 +25,14 @@ from couchbase_analytics.common._core.duration_str_utils import parse_duration_s
 from couchbase_analytics.common._core.utils import is_null_or_empty
 from couchbase_analytics.common.credential import Credential
 from couchbase_analytics.common.deserializer import DefaultJsonDeserializer, Deserializer
-from couchbase_analytics.common.options import (ClusterOptions,
-                                                SecurityOptions,
-                                                TimeoutOptions)
+from couchbase_analytics.common.options import ClusterOptions, SecurityOptions, TimeoutOptions
 from couchbase_analytics.common.request import RequestURL
-from couchbase_analytics.protocol.options import (ClusterOptionsTransformedKwargs,
-                                                  QueryStrVal,
-                                                  SecurityOptionsTransformedKwargs,
-                                                  TimeoutOptionsTransformedKwargs)
+from couchbase_analytics.protocol.options import (
+    ClusterOptionsTransformedKwargs,
+    QueryStrVal,
+    SecurityOptionsTransformedKwargs,
+    TimeoutOptionsTransformedKwargs,
+)
 
 if TYPE_CHECKING:
     from couchbase_analytics.protocol.options import OptionsBuilder
@@ -60,8 +54,9 @@ DEFAULT_TIMEOUTS: DefaultTimeouts = {
 
 DEFAULT_MAX_RETRIES: int = 7
 
+
 def parse_http_endpoint(http_endpoint: str) -> Tuple[RequestURL, Dict[str, List[str]]]:
-    """ **INTERNAL**
+    """**INTERNAL**
 
     Parse the provided HTTP endpoint
 
@@ -96,14 +91,12 @@ def parse_http_endpoint(http_endpoint: str) -> Tuple[RequestURL, Dict[str, List[
     if not is_null_or_empty(parsed_endpoint.path):
         raise ValueError('The SDK does not currently support HTTP endpoint paths.')
 
-    url = RequestURL(scheme=parsed_endpoint.scheme,
-                     host=host,
-                     port=port)
+    url = RequestURL(scheme=parsed_endpoint.scheme, host=host, port=port)
 
     return url, parse_qs(parsed_endpoint.query)
 
 
-def parse_query_string_value(value: List[str], enforce_str: Optional[bool]=False) -> QueryStrVal:
+def parse_query_string_value(value: List[str], enforce_str: Optional[bool] = False) -> QueryStrVal:
     """Parse a query string value
 
     The provided value is a list of at least one element. Returns either a list of strings or a single element
@@ -158,6 +151,7 @@ class _ConnectionDetails:
     """
     **INTERNAL**
     """
+
     url: RequestURL
     cluster_options: ClusterOptionsTransformedKwargs
     credential: Tuple[bytes, bytes]
@@ -194,10 +188,16 @@ class _ConnectionDetails:
             # separate between value options and boolean option (trust_only_capella)
             solo_security_opts = ['trust_only_pem_file', 'trust_only_pem_str', 'trust_only_certificates']
             trust_capella = security_opts.get('trust_only_capella', None)
-            security_opt_count = sum((1 if security_opts.get(opt, None) is not None else 0 for opt in solo_security_opts))  # noqa: E501
+            security_opt_count = sum(
+                (1 if security_opts.get(opt, None) is not None else 0 for opt in solo_security_opts)
+            )  # noqa: E501
             if security_opt_count > 1 or (security_opt_count == 1 and trust_capella is True):
-                raise ValueError(('Can only set one of the following options: '
-                                f'[{", ".join(["trust_only_capella"] + solo_security_opts)}]'))
+                raise ValueError(
+                    (
+                        'Can only set one of the following options: '
+                        f'[{", ".join(["trust_only_capella"] + solo_security_opts)}]'
+                    )
+                )
 
         if not self.is_secure():
             return
@@ -231,29 +231,29 @@ class _ConnectionDetails:
             self.ssl_context.check_hostname = True
             self.ssl_context.verify_mode = ssl.CERT_REQUIRED
 
-
     @classmethod
-    def create(cls,
-               opts_builder: OptionsBuilder,
-               http_endpoint: str,
-               credential: Credential,
-               options: Optional[object] = None,
-               **kwargs: object) -> _ConnectionDetails:
+    def create(
+        cls,
+        opts_builder: OptionsBuilder,
+        http_endpoint: str,
+        credential: Credential,
+        options: Optional[object] = None,
+        **kwargs: object,
+    ) -> _ConnectionDetails:
         url, query_str_opts = parse_http_endpoint(http_endpoint)
 
-        cluster_opts = opts_builder.build_cluster_options(ClusterOptions,
-                                                          ClusterOptionsTransformedKwargs,
-                                                          kwargs,
-                                                          options,
-                                                          query_str_opts=parse_query_str_options(query_str_opts))
+        cluster_opts = opts_builder.build_cluster_options(
+            ClusterOptions,
+            ClusterOptionsTransformedKwargs,
+            kwargs,
+            options,
+            query_str_opts=parse_query_str_options(query_str_opts),
+        )
 
         default_deserializer = cluster_opts.pop('deserializer', None)
         if default_deserializer is None:
             default_deserializer = DefaultJsonDeserializer()
 
-        conn_dtls = cls(url,
-                        cluster_opts,
-                        credential.astuple(),
-                        default_deserializer)
+        conn_dtls = cls(url, cluster_opts, credential.astuple(), default_deserializer)
         conn_dtls.validate_security_options()
         return conn_dtls
