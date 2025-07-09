@@ -32,6 +32,7 @@ TEST_CERT_PATH = get_test_cert_path()
 class ConnectionTestSuite:
     TEST_MANIFEST = [
         'test_connstr_options_fail',
+        'test_connstr_options_max_retries',
         'test_connstr_options_timeout',
         'test_connstr_options_timeout_fail',
         'test_connstr_options_timeout_invalid_duration',
@@ -50,12 +51,20 @@ class ConnectionTestSuite:
                               'trust_only_pem_file=/path/to/file',
                               'disable_server_certificate_verification=True'
                               ])
-    def test_connstr_options_fail(self,
-                                          connstr_opt: str) -> None:
+    def test_connstr_options_fail(self, connstr_opt: str) -> None:
         cred = Credential.from_username_and_password('Administrator', 'password')
         connstr = f'https://localhost?{connstr_opt}'
         with pytest.raises(ValueError):
             _AsyncClientAdapter(connstr, cred)
+
+    def test_connstr_options_max_retries(self) -> None:
+        cred = Credential.from_username_and_password('Administrator', 'password')
+        max_retries = 10
+        connstr = f'https://localhost?max_retries={max_retries}'
+        client = _AsyncClientAdapter(connstr, cred)
+        req_builder = _RequestBuilder(client)
+        req = req_builder.build_base_query_request('SELECT 1=1')
+        assert req.max_retries == max_retries
 
     @pytest.mark.parametrize('duration, expected_seconds',
                              [('1h', '3600'),

@@ -17,7 +17,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any, Dict, List, Optional, Union
+from typing import (Any,
+                    Dict,
+                    List,
+                    Optional,
+                    Union)
 
 import pytest
 
@@ -46,6 +50,8 @@ class QueryOptionsTestSuite:
     TEST_MANIFEST = [
         'test_options_deserializer',
         'test_options_deserializer_kwargs',
+        'test_options_max_retries',
+        'test_options_max_retries_kwargs',
         'test_options_named_parameters',
         'test_options_named_parameters_kwargs',
         'test_options_positional_parameters',
@@ -90,6 +96,38 @@ class QueryOptionsTestSuite:
         exp_opts: QueryOptionsTransformedKwargs = {}
         assert req.options == exp_opts
         assert req.deserializer == deserializer
+        query_ctx.validate_query_context(req.body)
+
+    @pytest.mark.parametrize('max_retries', [5, 10, None])
+    def test_options_max_retries(self,
+                                 query_statment: str,
+                                 request_builder: _RequestBuilder,
+                                 query_ctx: QueryContext,
+                                 max_retries: Optional[int]) -> None:
+        if max_retries is not None:
+            q_opts = QueryOptions(max_retries=max_retries)
+            req = request_builder.build_base_query_request(query_statment, q_opts)
+        else:
+            req = request_builder.build_base_query_request(query_statment)
+        exp_opts: QueryOptionsTransformedKwargs = {}
+        assert req.options == exp_opts
+        assert req.max_retries == (max_retries if max_retries is not None else 7)
+        query_ctx.validate_query_context(req.body)
+
+    @pytest.mark.parametrize('max_retries', [5, 10, None])
+    def test_options_max_retries_kwargs(self,
+                                         query_statment: str,
+                                         request_builder: _RequestBuilder,
+                                         query_ctx: QueryContext,
+                                         max_retries: Optional[int]) -> None:
+        if max_retries is not None:
+            kwargs: QueryOptionsKwargs = {'max_retries': max_retries}
+            req = request_builder.build_base_query_request(query_statment, **kwargs)
+        else:
+            req = request_builder.build_base_query_request(query_statment)
+        exp_opts: QueryOptionsTransformedKwargs = {}
+        assert req.options == exp_opts
+        assert req.max_retries == (max_retries if max_retries is not None else 7)
         query_ctx.validate_query_context(req.body)
 
     def test_options_named_parameters(self,

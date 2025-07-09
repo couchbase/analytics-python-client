@@ -17,15 +17,21 @@ from __future__ import annotations
 
 from concurrent.futures import Future
 from datetime import timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 import pytest
 
-from couchbase_analytics.errors import InvalidCredentialError, QueryError, TimeoutError
+from couchbase_analytics.errors import (AnalyticsError,
+                                        InvalidCredentialError,
+                                        QueryError,
+                                        TimeoutError)
 from couchbase_analytics.options import QueryOptions
 from couchbase_analytics.result import BlockingQueryResult
 from tests import SyncQueryType, YieldFixture
-from tests.test_server import ErrorType, NonRetriableSpecificationType, ResultType, RetriableGroupType
+from tests.test_server import (ErrorType,
+                               NonRetriableSpecificationType,
+                               ResultType,
+                               RetriableGroupType)
 
 if TYPE_CHECKING:
     from tests.environments.base_environment import BlockingTestEnvironment
@@ -37,7 +43,9 @@ class TestServerTestSuite:
         'test_auth_error_unauthorized',
         'test_auth_error_insufficient_permissions',
         'test_error_non_retriable_response',
-        'test_error_retriable_response',
+        'test_error_retriable_response_timeout',
+        'test_error_retriable_response_retries_exceeded',
+        'test_error_retriable_http503',
         'test_error_timeout',
         'test_results_object_values',
         'test_results_raw_values'
@@ -86,16 +94,51 @@ class TestServerTestSuite:
         test_env.assert_error_context_num_attempts(1, ex.value._context)
         test_env.assert_error_context_contains_last_dispatch(ex.value._context)
 
-    def test_error_retriable_response(self, test_env: BlockingTestEnvironment) -> None:
+    def test_error_retriable_response_timeout(self, test_env: BlockingTestEnvironment) -> None:
         test_env.set_url_path('/test_error')
         test_env.update_request_json({'error_type': ErrorType.Retriable.value,
                                       'retry_group_type': RetriableGroupType.All.value})
         statement = 'SELECT "Hello, data!" AS greeting'
         with pytest.raises(TimeoutError) as ex:
-            test_env.cluster_or_scope.execute_query(statement, QueryOptions(timeout=timedelta(seconds=2)))
+            # just-in-case, increase the max_retries to ensure we hit the timeout
+            test_env.cluster_or_scope.execute_query(statement, QueryOptions(max_retries=10, timeout=timedelta(seconds=1.5)))
 
         test_env.assert_error_context_num_attempts(4 , ex.value._context, exact=False)
         test_env.assert_error_context_contains_last_dispatch(ex.value._context)
+
+    def test_error_retriable_response_retries_exceeded(self, test_env: BlockingTestEnvironment) -> None:
+        test_env.set_url_path('/test_error')
+        test_env.update_request_json({'error_type': ErrorType.Retriable.value,
+                                      'retry_group_type': RetriableGroupType.All.value})
+        statement = 'SELECT "Hello, data!" AS greeting'
+        allowed_retries = 5
+        q_opts = QueryOptions(max_retries=allowed_retries, timeout=timedelta(seconds=10))
+        with pytest.raises(QueryError) as ex:
+            test_env.cluster_or_scope.execute_query(statement, q_opts)
+
+        print(ex.value)
+        test_env.assert_error_context_num_attempts(allowed_retries+1 , ex.value._context)
+        test_env.assert_error_context_contains_last_dispatch(ex.value._context)
+
+    @pytest.mark.parametrize('analytics_error', [False, True])
+    def test_error_retriable_http503(self, test_env: BlockingTestEnvironment, analytics_error: bool) -> None:
+        test_env.set_url_path('/test_error')
+        test_env.update_request_json({'error_type': ErrorType.Http503.value,
+                                      'analytics_error': analytics_error})
+        statement = 'SELECT "Hello, data!" AS greeting'
+        allowed_retries = 5
+        q_opts = QueryOptions(max_retries=allowed_retries, timeout=timedelta(seconds=10))
+        ex: Union[pytest.ExceptionInfo[AnalyticsError], pytest.ExceptionInfo[QueryError]]
+        if analytics_error:
+            with pytest.raises(QueryError) as ex:
+                test_env.cluster_or_scope.execute_query(statement, q_opts)
+        else:
+            with pytest.raises(AnalyticsError) as ex:
+                test_env.cluster_or_scope.execute_query(statement, q_opts)
+
+        test_env.assert_error_context_num_attempts(allowed_retries+1 , ex.value._context)
+        test_env.assert_error_context_contains_last_dispatch(ex.value._context)
+
 
     @pytest.mark.parametrize('server_side', [False, True])
     def test_error_timeout(self, test_env: BlockingTestEnvironment, server_side: bool) -> None:

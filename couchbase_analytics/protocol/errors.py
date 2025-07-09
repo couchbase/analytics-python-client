@@ -18,7 +18,13 @@ from __future__ import annotations
 import socket
 import sys
 from functools import wraps
-from typing import Any, Callable, Dict, List, NamedTuple, Optional, Set, Union
+from typing import (Any,
+                    Callable,
+                    Dict,
+                    List,
+                    NamedTuple,
+                    Optional,
+                    Union)
 
 if sys.version_info < (3, 10):
     from typing_extensions import TypeAlias
@@ -26,13 +32,11 @@ else:
     from typing import TypeAlias
 
 from couchbase_analytics.common._core.error_context import ErrorContext
-from couchbase_analytics.common.errors import (
-    AnalyticsError,
-    InternalSDKError,
-    InvalidCredentialError,
-    QueryError,
-    TimeoutError,
-)
+from couchbase_analytics.common.errors import (AnalyticsError,
+                                               InternalSDKError,
+                                               InvalidCredentialError,
+                                               QueryError,
+                                               TimeoutError)
 
 AnalyticsClientError: TypeAlias = Union[AnalyticsError,
                                         InternalSDKError,
@@ -84,6 +88,10 @@ class WrappedError(Exception):
         self._retriable = retriable
 
     @property
+    def is_cause_query_err(self) -> bool:
+        return isinstance(self._cause, QueryError)
+
+    @property
     def retriable(self) -> bool:
         return self._retriable
 
@@ -110,25 +118,19 @@ class WrappedError(Exception):
     def __str__(self) -> str:
         return self.__repr__()
 
+# Python does not specify which socket errors are retriable or not, although there is a EAI_AGAIN error
+# that is commented to be temporary.  The current version of the RFC has connect failures as retriable.
 # https://github.com/python/cpython/blob/0f866cbfefd797b4dae25962457c5579bb90dde5/Modules/addrinfo.h#L58-L71
-_NON_RETRYABLE_SOCKET_ERRORS: List[int] = [
-    socket.EAI_ADDRFAMILY,
-    socket.EAI_BADFLAGS,
-    socket.EAI_FAIL,
-    socket.EAI_FAMILY,
-    socket.EAI_MEMORY,
-    socket.EAI_NODATA,
-    socket.EAI_NONAME,
-    socket.EAI_SERVICE,
-    socket.EAI_SOCKTYPE,
-    socket.EAI_SYSTEM,
-    socket.EAI_BADHINTS,
-    socket.EAI_PROTOCOL,
-    socket.EAI_MAX
-]
-
 
 class ErrorMapper:
+
+    @staticmethod
+    def build_error_from_http_status_code(message: str, context: ErrorContext) -> WrappedError:
+
+        if context.status_code == 503:
+            return WrappedError(AnalyticsError(context=str(context), message=message), retriable=True)
+
+        return WrappedError(AnalyticsError(context=str(context), message=message))
 
     @staticmethod  # noqa: C901
     def build_error_from_json(json_data: List[Dict[str, Any]], context: ErrorContext) -> WrappedError:
@@ -161,25 +163,22 @@ class ErrorMapper:
         if first_err.code == 21002:
             return WrappedError(TimeoutError(context=str(context), message='Received timeout error from server.'))
 
+        q_err = QueryError(code=first_err.code, server_message=first_err.message, context=str(context))
+        if context.status_code == 503:
+            return WrappedError(q_err, retriable=True)
+
         retriable = first_non_retriable_error is None and first_retriable_error is not None
-        return WrappedError(QueryError(code=first_err.code,
-                                       server_message=first_err.message,
-                                       context=str(context)),
-                                       retriable=retriable)
+        return WrappedError(q_err, retriable=retriable)
 
     @staticmethod
-    def handle_socket_error(fn: Callable[[str, int, Optional[Set[str]]], Optional[str]]
-                            ) -> Callable[[str, int, Optional[Set[str]]], Optional[str]]:
+    def handle_socket_error(fn: Callable[[str, int], str]) -> Callable[[str, int], str]:
         @wraps(fn)
-        def wrapped_fn(host: str,
-                    port: int,
-                    previous_ips: Optional[Set[str]]=None) -> Optional[str]:
+        def wrapped_fn(host: str, port: int) -> str:
             try:
-                return fn(host, port, previous_ips)
+                return fn(host, port)
             except socket.gaierror as ex:
-                # print(f'getaddrinfo failed for {host}:{port} with error: {ex}')
+                print(f'getaddrinfo failed for {host}:{port} with error: {ex}')
                 msg='Connection error occurred while sending request.'
-                raise WrappedError(AnalyticsError(cause=ex, message=msg),
-                                   retriable=(ex.errno not in _NON_RETRYABLE_SOCKET_ERRORS)) from None
+                raise WrappedError(AnalyticsError(cause=ex, message=msg), retriable=True) from None
 
         return wrapped_fn

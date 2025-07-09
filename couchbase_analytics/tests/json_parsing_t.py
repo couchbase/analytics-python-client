@@ -20,7 +20,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from couchbase_analytics.common._core import JsonParsingError, JsonStreamConfig, ParsedResult, ParsedResultType
+from couchbase_analytics.common._core import (JsonStreamConfig,
+                                              ParsedResult,
+                                              ParsedResultType)
 from couchbase_analytics.protocol._core.json_stream import JsonStream
 from tests.environments.simple_environment import JsonDataType
 from tests.utils import BytesIterator
@@ -260,59 +262,59 @@ class JsonParsingTestSuite:
         assert parser.get_result(0.01) is None
 
     def test_invalid_empty(self) -> None:
-        try:
-            data = ''
-            parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                                stream_config=JsonStreamConfig(buffer_entire_result=True))
-            parser.start_parsing()
-        except JsonParsingError as err:
-            assert isinstance(err, JsonParsingError)
-            assert err.cause is not None
-            assert 'parse error' in str(err.cause)
+        data = ''
+        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
+                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser.start_parsing()
+        res = parser.get_result(0.01)
+        assert isinstance(res, ParsedResult)
+        assert res.result_type == ParsedResultType.ERROR
+        assert res.value is not None
+        assert 'parse error' in str(res.value.decode('utf-8'))
 
     def test_invalid_garbage_between_objects(self) -> None:
-        try:
-            data = '[{"id":1,"name":"Alice"},garbage,{"id":2,"name":"Bob"}]'
-            parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                                stream_config=JsonStreamConfig(buffer_entire_result=True))
-            parser.start_parsing()
-        except JsonParsingError as err:
-            assert isinstance(err, JsonParsingError)
-            assert err.cause is not None
-            assert 'lexical error' in str(err.cause)
+        data = '[{"id":1,"name":"Alice"},garbage,{"id":2,"name":"Bob"}]'
+        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
+                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser.start_parsing()
+        res = parser.get_result(0.01)
+        assert isinstance(res, ParsedResult)
+        assert res.result_type == ParsedResultType.ERROR
+        assert res.value is not None
+        assert 'lexical error' in str(res.value.decode('utf-8'))
 
     def test_invalid_leading_garbage(self) -> None:
-        try:
-            data = 'garbage{"key":"value"}'
-            parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                                stream_config=JsonStreamConfig(buffer_entire_result=True))
-            parser.start_parsing()
-        except JsonParsingError as err:
-            assert isinstance(err, JsonParsingError)
-            assert err.cause is not None
-            assert 'lexical error' in str(err.cause)
+        data = 'garbage{"key":"value"}'
+        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
+                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser.start_parsing()
+        res = parser.get_result(0.01)
+        assert isinstance(res, ParsedResult)
+        assert res.result_type == ParsedResultType.ERROR
+        assert res.value is not None
+        assert 'lexical error' in str(res.value.decode('utf-8'))
 
     def test_invalid_trailing_garbage(self) -> None:
-        try:
-            data = '{"key":"value"}garbage'
-            parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                                stream_config=JsonStreamConfig(buffer_entire_result=True))
-            parser.start_parsing()
-        except JsonParsingError as err:
-            assert isinstance(err, JsonParsingError)
-            assert err.cause is not None
-            assert 'parse error' in str(err.cause)
+        data = '{"key":"value"}garbage'
+        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
+                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser.start_parsing()
+        res = parser.get_result(0.01)
+        assert isinstance(res, ParsedResult)
+        assert res.result_type == ParsedResultType.ERROR
+        assert res.value is not None
+        assert 'parse error' in str(res.value.decode('utf-8'))
 
     def test_invalid_whitespace_only(self) -> None:
-        try:
-            data = '   \n\t  '
-            parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
-                                stream_config=JsonStreamConfig(buffer_entire_result=True))
-            parser.start_parsing()
-        except JsonParsingError as err:
-            assert isinstance(err, JsonParsingError)
-            assert err.cause is not None
-            assert 'parse error' in str(err.cause)
+        data = '   \n\t  '
+        parser = JsonStream(BytesIterator(bytes(data, 'utf-8')),
+                            stream_config=JsonStreamConfig(buffer_entire_result=True))
+        parser.start_parsing()
+        res = parser.get_result(0.01)
+        assert isinstance(res, ParsedResult)
+        assert res.result_type == ParsedResultType.ERROR
+        assert res.value is not None
+        assert 'parse error' in str(res.value.decode('utf-8'))
 
     def test_object(self) -> None:
         data = '{"name":"John","age":30,"city":"New York"}'

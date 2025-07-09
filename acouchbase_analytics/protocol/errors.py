@@ -17,26 +17,25 @@ from __future__ import annotations
 
 import socket
 from functools import wraps
-from typing import Any, Callable, Coroutine, Optional, Set
+from typing import (Any,
+                    Callable,
+                    Coroutine)
 
 from couchbase_analytics.common.errors import AnalyticsError
-from couchbase_analytics.protocol.errors import _NON_RETRYABLE_SOCKET_ERRORS, WrappedError
+from couchbase_analytics.protocol.errors import WrappedError
 
 
 class ErrorMapper:
     @staticmethod
-    def handle_socket_error_async(fn: Callable[[str, int, Optional[Set[str]]], Coroutine[Any, Any, Optional[str]]]
-                                  ) -> Callable[[str, int, Optional[Set[str]]], Coroutine[Any, Any, Optional[str]]]:
+    def handle_socket_error_async(fn: Callable[[str, int], Coroutine[Any, Any, str]]
+                                  ) -> Callable[[str, int], Coroutine[Any, Any, str]]:
         @wraps(fn)
-        async def wrapped_fn(host: str,
-                            port: int,
-                            previous_ips: Optional[Set[str]]=None) -> Optional[str]:
+        async def wrapped_fn(host: str, port: int) -> str:
             try:
-                return await fn(host, port, previous_ips)
+                return await fn(host, port)
             except socket.gaierror as ex:
                 # print(f'getaddrinfo failed for {host}:{port} with error: {ex}')
                 msg='Connection error occurred while sending request.'
-                raise WrappedError(AnalyticsError(cause=ex, message=msg),
-                                   retriable=(ex.errno not in _NON_RETRYABLE_SOCKET_ERRORS)) from None
+                raise WrappedError(AnalyticsError(cause=ex, message=msg), retriable=True) from None
 
         return wrapped_fn

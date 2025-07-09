@@ -16,7 +16,9 @@
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING, Awaitable, Optional
+from typing import (TYPE_CHECKING,
+                    Awaitable,
+                    Optional)
 from uuid import uuid4
 
 if sys.version_info < (3, 10):
@@ -43,7 +45,6 @@ class AsyncCluster:
                  credential: Credential,
                  options: Optional[ClusterOptions] = None,
                  **kwargs: object) -> None:
-        print(f'Adapter module: {_AsyncClientAdapter.__module__}')
         self._client_adapter = _AsyncClientAdapter(connstr, credential, options, **kwargs)
         self._cluster_id = str(uuid4())
         self._request_builder = _RequestBuilder(self._client_adapter)

@@ -18,7 +18,9 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import List, Optional
 
-from couchbase_analytics.common._core.query import QueryMetadataCore, QueryMetricsCore, QueryWarningCore
+from couchbase_analytics.common._core.query import (QueryMetadataCore,
+                                                    QueryMetricsCore,
+                                                    QueryWarningCore)
 
 
 class QueryWarning:

@@ -16,7 +16,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import (Any,
+                    Dict,
+                    List,
+                    Optional)
 
 from httpx import Response as HttpCoreResponse
 
@@ -47,8 +50,10 @@ class ErrorContext:
         if self.first_error is not None:
             self.errors = [self.first_error]
 
-    def update_request_context(self, request: QueryRequest) -> None:
+    def update_num_attempts(self) -> None:
         self.num_attempts += 1
+
+    def update_request_context(self, request: QueryRequest) -> None:
         self.path = request.url.path
 
     def update_response_context(self, response: HttpCoreResponse) -> None:

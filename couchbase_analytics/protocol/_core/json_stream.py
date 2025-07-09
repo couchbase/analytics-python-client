@@ -19,16 +19,15 @@ from concurrent.futures import Future
 from queue import Empty as QueueEmpty
 from queue import Full as QueueFull
 from queue import Queue
-from typing import TYPE_CHECKING, Iterator, Optional
+from typing import (TYPE_CHECKING,
+                    Iterator,
+                    Optional)
 
 import ijson
 
-from couchbase_analytics.common._core.json_parsing import (
-    JsonParsingError,
-    JsonStreamConfig,
-    ParsedResult,
-    ParsedResultType,
-)
+from couchbase_analytics.common._core.json_parsing import (JsonStreamConfig,
+                                                           ParsedResult,
+                                                           ParsedResultType)
 from couchbase_analytics.protocol._core.json_token_parser import JsonTokenParser
 
 if TYPE_CHECKING:
@@ -132,7 +131,11 @@ class JsonStream:
             except StopIteration:
                 self._token_stream_exhausted = True
             except ijson.common.IncompleteJSONError as ex:
-                raise JsonParsingError(cause=ex) from None
+                # TODO: log this error
+                self._token_stream_exhausted = True
+                self._put(ParsedResult(str(ex).encode('utf-8'), ParsedResultType.ERROR))
+                self._handle_notification(ParsedResultType.ERROR)
+                return
 
         if self._token_stream_exhausted:
             result_type = ParsedResultType.ERROR if self._json_token_parser.has_errors else ParsedResultType.END

@@ -22,7 +22,9 @@ from typing import TYPE_CHECKING, Dict
 import pytest
 
 from acouchbase_analytics.protocol._core.async_json_stream import AsyncJsonStream
-from couchbase_analytics.common._core import JsonParsingError, JsonStreamConfig, ParsedResult, ParsedResultType
+from couchbase_analytics.common._core import (JsonStreamConfig,
+                                              ParsedResult,
+                                              ParsedResultType)
 from couchbase_analytics.common.errors import AnalyticsError
 from tests.environments.simple_environment import JsonDataType
 from tests.utils import AsyncBytesIterator
@@ -305,63 +307,58 @@ class JsonParsingTestSuite:
 
     @pytest.mark.anyio
     async def test_invalid_empty(self) -> None:
-        try:
-            data = ''
-            parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                     stream_config=JsonStreamConfig(buffer_entire_result=True))
-            await parser.start_parsing()
-        except JsonParsingError as err:
-            assert isinstance(err, JsonParsingError)
-            assert err.cause is not None
-            assert 'parse error' in str(err.cause)
+        data = ''
+        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
+                                    stream_config=JsonStreamConfig(buffer_entire_result=True))
+        await parser.start_parsing()
+        res = await parser.get_result()
+        assert res.result_type == ParsedResultType.ERROR
+        assert res.value is not None
+        assert 'parse error' in str(res.value.decode('utf-8'))
 
     @pytest.mark.anyio
     async def test_invalid_garbage_between_objects(self) -> None:
-        try:
-            data = '[{"id":1,"name":"Alice"},garbage,{"id":2,"name":"Bob"}]'
-            parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                     stream_config=JsonStreamConfig(buffer_entire_result=True))
-            await parser.start_parsing()
-        except JsonParsingError as err:
-            assert isinstance(err, JsonParsingError)
-            assert err.cause is not None
-            assert 'lexical error' in str(err.cause)
+        data = '[{"id":1,"name":"Alice"},garbage,{"id":2,"name":"Bob"}]'
+        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
+                                    stream_config=JsonStreamConfig(buffer_entire_result=True))
+        await parser.start_parsing()
+        res = await parser.get_result()
+        assert res.result_type == ParsedResultType.ERROR
+        assert res.value is not None
+        assert 'lexical error' in str(res.value.decode('utf-8'))
 
     @pytest.mark.anyio
     async def test_invalid_leading_garbage(self) -> None:
-        try:
-            data = 'garbage{"key":"value"}'
-            parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                     stream_config=JsonStreamConfig(buffer_entire_result=True))
-            await parser.start_parsing()
-        except JsonParsingError as err:
-            assert isinstance(err, JsonParsingError)
-            assert err.cause is not None
-            assert 'lexical error' in str(err.cause)
+        data = 'garbage{"key":"value"}'
+        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
+                                    stream_config=JsonStreamConfig(buffer_entire_result=True))
+        await parser.start_parsing()
+        res = await parser.get_result()
+        assert res.result_type == ParsedResultType.ERROR
+        assert res.value is not None
+        assert 'lexical error' in str(res.value.decode('utf-8'))
 
     @pytest.mark.anyio
     async def test_invalid_trailing_garbage(self) -> None:
-        try:
-            data = '{"key":"value"}garbage'
-            parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                     stream_config=JsonStreamConfig(buffer_entire_result=True))
-            await parser.start_parsing()
-        except JsonParsingError as err:
-            assert isinstance(err, JsonParsingError)
-            assert err.cause is not None
-            assert 'parse error' in str(err.cause)
+        data = '{"key":"value"}garbage'
+        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
+                                    stream_config=JsonStreamConfig(buffer_entire_result=True))
+        await parser.start_parsing()
+        res = await parser.get_result()
+        assert res.result_type == ParsedResultType.ERROR
+        assert res.value is not None
+        assert 'parse error' in str(res.value.decode('utf-8'))
 
     @pytest.mark.anyio
     async def test_invalid_whitespace_only(self) -> None:
-        try:
-            data = '   \n\t  '
-            parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
-                                     stream_config=JsonStreamConfig(buffer_entire_result=True))
-            await parser.start_parsing()
-        except JsonParsingError as err:
-            assert isinstance(err, JsonParsingError)
-            assert err.cause is not None
-            assert 'parse error' in str(err.cause)
+        data = '   \n\t  '
+        parser = AsyncJsonStream(AsyncBytesIterator(bytes(data, 'utf-8')),
+                                    stream_config=JsonStreamConfig(buffer_entire_result=True))
+        await parser.start_parsing()
+        res = await parser.get_result()
+        assert res.result_type == ParsedResultType.ERROR
+        assert res.value is not None
+        assert 'parse error' in str(res.value.decode('utf-8'))
 
     @pytest.mark.anyio
     async def test_value_bool(self) -> None:

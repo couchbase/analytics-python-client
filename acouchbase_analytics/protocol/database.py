@@ -23,7 +23,6 @@ if sys.version_info < (3, 10):
 else:
     from typing import TypeAlias
 
-
 from acouchbase_analytics.protocol._core.client_adapter import _AsyncClientAdapter
 from acouchbase_analytics.protocol.scope import AsyncScope
 

@@ -17,7 +17,13 @@ from __future__ import annotations
 
 import ssl
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, TypedDict, cast
+from typing import (TYPE_CHECKING,
+                    Dict,
+                    List,
+                    Optional,
+                    Tuple,
+                    TypedDict,
+                    cast)
 from urllib.parse import parse_qs, urlparse
 
 from couchbase_analytics.common._core._certificates import _Certificates
@@ -25,14 +31,14 @@ from couchbase_analytics.common._core.duration_str_utils import parse_duration_s
 from couchbase_analytics.common._core.utils import is_null_or_empty
 from couchbase_analytics.common.credential import Credential
 from couchbase_analytics.common.deserializer import DefaultJsonDeserializer, Deserializer
-from couchbase_analytics.common.options import ClusterOptions, SecurityOptions, TimeoutOptions
+from couchbase_analytics.common.options import (ClusterOptions,
+                                                SecurityOptions,
+                                                TimeoutOptions)
 from couchbase_analytics.common.request import RequestURL
-from couchbase_analytics.protocol.options import (
-    ClusterOptionsTransformedKwargs,
-    QueryStrVal,
-    SecurityOptionsTransformedKwargs,
-    TimeoutOptionsTransformedKwargs,
-)
+from couchbase_analytics.protocol.options import (ClusterOptionsTransformedKwargs,
+                                                  QueryStrVal,
+                                                  SecurityOptionsTransformedKwargs,
+                                                  TimeoutOptionsTransformedKwargs)
 
 if TYPE_CHECKING:
     from couchbase_analytics.protocol.options import OptionsBuilder
@@ -51,6 +57,8 @@ DEFAULT_TIMEOUTS: DefaultTimeouts = {
     'connect_timeout': 10,
     'query_timeout': 60 * 10,
 }
+
+DEFAULT_MAX_RETRIES: int = 7
 
 def parse_http_endpoint(http_endpoint: str) -> Tuple[RequestURL, Dict[str, List[str]]]:
     """ **INTERNAL**
@@ -164,6 +172,9 @@ class _ConnectionDetails:
             if connect_timeout is not None:
                 return connect_timeout
         return DEFAULT_TIMEOUTS['connect_timeout']
+
+    def get_max_retries(self) -> int:
+        return self.cluster_options.get('max_retries', None) or DEFAULT_MAX_RETRIES
 
     def get_query_timeout(self) -> float:
         timeout_opts: Optional[TimeoutOptionsTransformedKwargs] = self.cluster_options.get('timeout_options')

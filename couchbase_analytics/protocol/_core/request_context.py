@@ -3,22 +3,34 @@ from __future__ import annotations
 import json
 import math
 import time
-from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
+from concurrent.futures import (CancelledError,
+                                Future,
+                                ThreadPoolExecutor)
 from threading import Event, Lock
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Optional, Union
+from typing import (TYPE_CHECKING,
+                    Any,
+                    Callable,
+                    Dict,
+                    Iterator,
+                    List,
+                    Optional,
+                    Union)
 from uuid import uuid4
 
 from httpx import Response as HttpCoreResponse
 
-from couchbase_analytics.common._core import JsonStreamConfig, ParsedResult, ParsedResultType
+from couchbase_analytics.common._core import (JsonStreamConfig,
+                                              ParsedResult,
+                                              ParsedResultType)
 from couchbase_analytics.common._core.error_context import ErrorContext
-from couchbase_analytics.common.errors import AnalyticsError, InvalidCredentialError, TimeoutError
+from couchbase_analytics.common.backoff_calculator import DefaultBackoffCalculator
+from couchbase_analytics.common.errors import AnalyticsError, TimeoutError
 from couchbase_analytics.common.result import BlockingQueryResult
 from couchbase_analytics.common.streaming import StreamingState
 from couchbase_analytics.protocol._core.json_stream import JsonStream
 from couchbase_analytics.protocol._core.net_utils import get_request_ip
 from couchbase_analytics.protocol.connection import DEFAULT_TIMEOUTS
-from couchbase_analytics.protocol.errors import ErrorMapper
+from couchbase_analytics.protocol.errors import ErrorMapper, WrappedError
 
 if TYPE_CHECKING:
     from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter
@@ -97,6 +109,7 @@ class RequestContext:
         self._id = str(uuid4())
         self._client_adapter = client_adapter
         self._request = request
+        self._backoff_calc = DefaultBackoffCalculator()
         self._error_ctx = ErrorContext(num_attempts=0,
                                        method=request.method,
                                        statement=request.get_request_statement())
@@ -104,7 +117,6 @@ class RequestContext:
         self._stream_config = stream_config or JsonStreamConfig()
         self._json_stream: JsonStream
         self._cancel_event = Event()
-        self._request_error: Optional[Exception] = None
         self._tp_executor = tp_executor
         self._stage_completed_ft: Optional[Future[Any]] = None
         self._stage_notification_ft: Optional[Future[ParsedResultType]] = None
@@ -146,12 +158,12 @@ class RequestContext:
         return StreamingState.okay_to_stream(self._request_state)
 
     @property
-    def request_error(self) -> Optional[Exception]:
-        return self._request_error
-
-    @property
     def request_state(self) -> StreamingState:
         return self._request_state
+
+    @property
+    def retry_limit_exceeded(self) -> bool:
+        return self.error_context.num_attempts > self._request.max_retries
 
     @property
     def timed_out(self) -> bool:
@@ -183,23 +195,25 @@ class RequestContext:
         self._stage_notification_ft = Future[ParsedResultType]()
 
     def _process_error(self,
-                       json_data: List[Dict[str, Any]],
+                       json_data: Union[str, List[Dict[str, Any]]],
                        handle_context_shutdown: Optional[bool]=False) -> None:
         self._request_state = StreamingState.Error
-        if not isinstance(json_data, list):
-            self._request_error = AnalyticsError(message='Cannot parse error response; expected JSON array',
-                                                 context=str(self._request_context.error_context))
+        request_error: Union[AnalyticsError, WrappedError]
+        if isinstance(json_data, str):
+            request_error = ErrorMapper.build_error_from_http_status_code(json_data, self._error_ctx)
+        elif not isinstance(json_data, list):
+            request_error = AnalyticsError(message='Cannot parse error response; expected JSON array',
+                                           context=str(self._error_ctx))
         else:
-            self._request_error = ErrorMapper.build_error_from_json(json_data, self._error_ctx)
+            request_error = ErrorMapper.build_error_from_json(json_data, self._error_ctx)
         if handle_context_shutdown is True:
             self.shutdown()
-        raise self._request_error
+        raise request_error
 
     def _reset_stream(self) -> None:
         if hasattr(self, '_json_stream'):
             del self._json_stream
         self._request_state = StreamingState.ResetAndNotStarted
-        self._request.previous_ips = set()
         self._stage_notification_ft = None
 
     def _start_next_stage(self,
@@ -230,6 +244,9 @@ class RequestContext:
         if self._stage_completed_ft is None:
             raise RuntimeError('Stage completed future not created for this context.')
         self._stage_completed_ft.result()
+
+    def calculate_backoff(self) -> float:
+        return self._backoff_calc.calculate_backoff(self._error_ctx.num_attempts) / 1000
 
     def cancel_request(self) -> None:
         if self._request_state == StreamingState.Timeout:
@@ -288,6 +305,9 @@ class RequestContext:
         if will_time_out:
             self._request_state = StreamingState.Timeout
             return False
+        elif self.retry_limit_exceeded:
+            self._request_state = StreamingState.Error
+            return False
         else:
             self._reset_stream()
             return True
@@ -310,31 +330,28 @@ class RequestContext:
 
         # we have all the data, close the core response/stream
         close_handler()
-        json_response = json.loads(raw_response.value)
-        if 'errors' in json_response:
-            self._process_error(json_response['errors'], handle_context_shutdown=handle_context_shutdown)
-        return json_response
+        try:
+            json_response = json.loads(raw_response.value)
+        except json.JSONDecodeError:
+            self._process_error(str(raw_response.value),
+                                 handle_context_shutdown=handle_context_shutdown)
+        else:
+            if 'errors' in json_response:
+                self._process_error(json_response['errors'], handle_context_shutdown=handle_context_shutdown)
+            return json_response
 
     def send_request(self, enable_trace_handling: Optional[bool]=False) -> HttpCoreResponse:
-        ip = get_request_ip(self._request.url.host, self._request.url.port, self._request.previous_ips)
-        if ip is None:
-            attempted_ips = ', '.join(self._request.previous_ips or [])
-            raise AnalyticsError(message=f'Connect failure.  Unable to connect to any resolved IPs: {attempted_ips}.',
-                                 context=str(self._error_ctx))
-
+        self._error_ctx.update_num_attempts()
+        ip = get_request_ip(self._request.url.host, self._request.url.port)
         if enable_trace_handling is True:
             (self._request.update_url(ip, self._client_adapter.analytics_path)
-                          .add_trace_to_extensions(self._trace_handler)
-                          .update_previous_ips(ip))
+                          .add_trace_to_extensions(self._trace_handler))
         else:
-            self._request.update_url(ip, self._client_adapter.analytics_path).update_previous_ips(ip)
+            self._request.update_url(ip, self._client_adapter.analytics_path)
         self._error_ctx.update_request_context(self._request)
         response = self._client_adapter.send_request(self._request)
         self._error_ctx.update_response_context(response)
         # print(f'Response received: {response.status_code} for request {self._id}, body={self._request.body}.')
-        if response.status_code == 401:
-            raise InvalidCredentialError(context=str(self._error_ctx))
-
         return response
 
     def send_request_in_background(self,

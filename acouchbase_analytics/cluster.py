@@ -16,7 +16,9 @@
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING, Awaitable, Optional
+from typing import (TYPE_CHECKING,
+                    Awaitable,
+                    Optional)
 
 if sys.version_info < (3, 10):
     from typing_extensions import TypeAlias

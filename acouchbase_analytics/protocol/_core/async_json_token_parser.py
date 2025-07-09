@@ -15,16 +15,18 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Coroutine, List, Optional
+from typing import (Any,
+                    Callable,
+                    Coroutine,
+                    List,
+                    Optional)
 
-from couchbase_analytics.common._core.json_token_parser_base import (
-    POP_EVENTS,
-    START_EVENTS,
-    VALUE_TOKENS,
-    JsonTokenParserBase,
-    ParsingState,
-    TokenType,
-)
+from couchbase_analytics.common._core.json_token_parser_base import (POP_EVENTS,
+                                                                     START_EVENTS,
+                                                                     VALUE_TOKENS,
+                                                                     JsonTokenParserBase,
+                                                                     ParsingState,
+                                                                     TokenType)
 
 
 class AsyncJsonTokenParser(JsonTokenParserBase):

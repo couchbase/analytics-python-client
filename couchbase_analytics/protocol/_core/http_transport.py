@@ -2,22 +2,32 @@
 import ssl
 import time
 from types import TracebackType
-from typing import Iterable, Optional, TypeVar, Union
+from typing import (Iterable,
+                    Optional,
+                    TypeVar,
+                    Union)
 
-from httpcore import (
-    ConnectionInterface,
-    ConnectionPool,
-    HTTP2Connection,
-    HTTP11Connection,
-    HTTPConnection,
-    Origin,
-    Request,
-)
+from httpcore import (ConnectionInterface,
+                      ConnectionPool,
+                      HTTP2Connection,
+                      HTTP11Connection,
+                      HTTPConnection,
+                      Origin,
+                      Request)
 from httpcore import Response as CoreResponse
 from httpcore._exceptions import ConnectionNotAvailable, UnsupportedProtocol
 from httpcore._sync.connection_pool import PoolByteStream, PoolRequest
-from httpx import URL, BaseTransport, HTTPTransport, Limits, Proxy, Response, SyncByteStream, create_ssl_context
-from httpx._transports.default import SOCKET_OPTION, ResponseStream, map_httpcore_exceptions
+from httpx import (URL,
+                   BaseTransport,
+                   HTTPTransport,
+                   Limits,
+                   Proxy,
+                   Response,
+                   SyncByteStream,
+                   create_ssl_context)
+from httpx._transports.default import (SOCKET_OPTION,
+                                       ResponseStream,
+                                       map_httpcore_exceptions)
 from httpx._types import CertTypes, ProxyTypes
 
 # httpx._transports.default.py
@@ -152,7 +162,7 @@ class AnalyticsConnectionPool(ConnectionPool):
 
         # Return the response. Note that in this case we still have to manage
         # the point at which the response is closed.
-        assert isinstance(response.stream, Iterable)
+        assert isinstance(response.stream, Iterable)  # nosec B101
         return CoreResponse(
             status=response.status,
             headers=response.headers,
@@ -227,7 +237,7 @@ class AnalyticsHTTPTransport(BaseTransport):
         self,
         request: Request,  # type: ignore
     ) -> Response:
-        assert isinstance(request.stream, SyncByteStream)
+        assert isinstance(request.stream, SyncByteStream)  # nosec B101
         import httpcore
 
         req = httpcore.Request(
@@ -245,7 +255,7 @@ class AnalyticsHTTPTransport(BaseTransport):
         with map_httpcore_exceptions():
             resp = self._pool.handle_request(req)
 
-        assert isinstance(resp.stream, Iterable)
+        assert isinstance(resp.stream, Iterable)  # nosec B101
 
         return Response(
             status_code=resp.status,

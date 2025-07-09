@@ -18,15 +18,14 @@ from __future__ import annotations
 from typing import AsyncIterator, Optional
 
 import ijson
-from anyio import EndOfStream, Event, create_memory_object_stream
+from anyio import (EndOfStream,
+                   Event,
+                   create_memory_object_stream)
 
 from acouchbase_analytics.protocol._core.async_json_token_parser import AsyncJsonTokenParser
-from couchbase_analytics.common._core.json_parsing import (
-    JsonParsingError,
-    JsonStreamConfig,
-    ParsedResult,
-    ParsedResultType,
-)
+from couchbase_analytics.common._core.json_parsing import (JsonStreamConfig,
+                                                           ParsedResult,
+                                                           ParsedResultType)
 from couchbase_analytics.common.errors import AnalyticsError
 
 
@@ -133,7 +132,11 @@ class AsyncJsonStream:
             except StopAsyncIteration:
                 self._token_stream_exhausted = True
             except ijson.common.IncompleteJSONError as ex:
-                raise JsonParsingError(cause=ex) from None
+                # TODO: log this error
+                self._token_stream_exhausted = True
+                await self._send_to_stream(ParsedResult(str(ex).encode('utf-8'), ParsedResultType.ERROR), close=True)
+                self._handle_notification(ParsedResultType.ERROR)
+                return
 
 
         if self._token_stream_exhausted:

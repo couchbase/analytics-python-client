@@ -14,5 +14,6 @@
 #  limitations under the License.
 
 from couchbase_analytics.common import JSONType as JSONType  # noqa: F401
+
 # TODO: logging
 # from couchbase_analytics.protocol import configure_logging as configure_logging  # noqa: F401

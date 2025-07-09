@@ -16,7 +16,9 @@
 from __future__ import annotations
 
 from concurrent.futures import Future
-from typing import TYPE_CHECKING, Optional, Union
+from typing import (TYPE_CHECKING,
+                    Optional,
+                    Union)
 
 from couchbase_analytics.database import Database
 from couchbase_analytics.result import BlockingQueryResult

@@ -18,7 +18,13 @@ from __future__ import annotations
 from datetime import timedelta
 from enum import Enum
 from os import path
-from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
+from typing import (Any,
+                    Dict,
+                    Generic,
+                    List,
+                    Optional,
+                    TypeVar,
+                    Union)
 
 from couchbase_analytics.common.deserializer import Deserializer
 

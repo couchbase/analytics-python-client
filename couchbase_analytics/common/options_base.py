@@ -18,7 +18,14 @@ from __future__ import annotations
 
 import sys
 from datetime import timedelta
-from typing import Any, Dict, Iterable, List, Literal, Optional, TypedDict, Union
+from typing import (Any,
+                    Dict,
+                    Iterable,
+                    List,
+                    Literal,
+                    Optional,
+                    TypedDict,
+                    Union)
 
 if sys.version_info < (3, 10):
     from typing_extensions import TypeAlias, Unpack
@@ -42,12 +49,14 @@ from couchbase_analytics.common.enums import QueryScanConsistency
 
 class ClusterOptionsKwargs(TypedDict, total=False):
     deserializer: Optional[Deserializer]
+    max_retries: Optional[int]
     security_options: Optional[SecurityOptionsBase]
     timeout_options: Optional[TimeoutOptionsBase]
 
 
 ClusterOptionsValidKeys: TypeAlias = Literal[
     'deserializer',
+    'max_retries',
     'security_options',
     'timeout_options',
 ]
@@ -60,6 +69,7 @@ class ClusterOptionsBase(Dict[str, Any]):
 
     VALID_OPTION_KEYS: List[ClusterOptionsValidKeys] = [
         'deserializer',
+        'max_retries',
         'security_options',
         'timeout_options',
     ]
@@ -134,6 +144,7 @@ class QueryOptionsKwargs(TypedDict, total=False):
     client_context_id: Optional[str]
     deserializer: Optional[Deserializer]
     lazy_execute: Optional[bool]
+    max_retries: Optional[int]
     named_parameters: Optional[Dict[str, JSONType]]
     positional_parameters: Optional[Iterable[JSONType]]
     query_context: Optional[str]
@@ -148,6 +159,7 @@ QueryOptionsValidKeys: TypeAlias = Literal[
     'client_context_id',
     'deserializer',
     'lazy_execute',
+    'max_retries',
     'named_parameters',
     'positional_parameters',
     'query_context',
@@ -165,6 +177,7 @@ class QueryOptionsBase(Dict[str, object]):
         'client_context_id',
         'deserializer',
         'lazy_execute',
+        'max_retries',
         'named_parameters',
         'positional_parameters',
         'query_context',

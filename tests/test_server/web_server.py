@@ -31,6 +31,7 @@ sys.path.append(str(CLIENT_ROOT))
 
 from tests.test_server import ErrorType
 from tests.test_server.request import (ServerErrorRequest,
+                                       ServerHttp503Request,
                                        ServerResultsRequest,
                                        ServerTimeoutRequest)
 from tests.test_server.response import (ServerResponse,
@@ -80,6 +81,17 @@ class AsyncWebServer:
         elapsed = end - start
         resp.update_elapsed_time(elapsed)
         return web.json_response(resp.to_json_repr())
+
+    def _handle_http503_error_request(self, request: ServerHttp503Request) -> web.Response:
+        if request.analytics_error is False:
+            return web.Response(status=503, text='Service Unavailable')
+        start = perf_counter()
+        resp = ServerResponse.create()
+        ServerResponseError.build_errors(resp, request.error_type)
+        end = perf_counter()
+        elapsed = end - start
+        resp.update_elapsed_time(elapsed)
+        return web.json_response(resp.to_json_repr(), status=resp.http_status)
 
     async def _handle_retry_error_request(self, request: ServerErrorRequest) -> web.Response:
         start = perf_counter()
@@ -157,6 +169,9 @@ class AsyncWebServer:
                 return self._handle_auth_error_request(error_req.error_type)
             elif error_req.error_type == ErrorType.Retriable:
                 return await self._handle_retry_error_request(error_req)
+            elif error_req.error_type == ErrorType.Http503:
+                http503_req = ServerHttp503Request.from_json(received_json)
+                return self._handle_http503_error_request(http503_req)
             logger.info(f"Received JSON: {received_json}")
             return web.json_response({
                 'status': 'success',

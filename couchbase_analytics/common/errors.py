@@ -15,7 +15,9 @@
 
 from __future__ import annotations
 
-from typing import Dict, Optional, Union
+from typing import (Dict,
+                    Optional,
+                    Union)
 
 """
 
@@ -40,12 +42,12 @@ class AnalyticsError(Exception):
 
     def _err_details(self) -> Dict[str, str]:
         details: Dict[str, str] = {}
+        if self._message is not None and not self._message.isspace():
+            details['message'] = self._message
         if self._context is not None:
             details['context'] = self._context
         if self._cause is not None:
             details['cause'] = self._cause.__repr__()
-        if self._message is not None and not self._message.isspace():
-            details['message'] = self._message
         return details
 
     def __repr__(self) -> str:
@@ -171,12 +173,12 @@ class InternalSDKError(Exception):
 
     def __repr__(self) -> str:
         details: Dict[str, str] = {}
+        if self._message is not None and not self._message.isspace():
+            details['message'] = self._message
         if self._context is not None:
             details['context'] = self._context
         if self._cause is not None:
             details['cause'] = self._cause.__repr__()
-        if self._message is not None and not self._message.isspace():
-            details['message'] = self._message
         if details:
             return f'{type(self).__name__}({details})'
         return f'{type(self).__name__}()'

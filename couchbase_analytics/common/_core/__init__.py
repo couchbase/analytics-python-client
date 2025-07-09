@@ -13,7 +13,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from .json_parsing import JsonParsingError as JsonParsingError  # noqa: F401
 from .json_parsing import JsonStreamConfig as JsonStreamConfig  # noqa: F401
 from .json_parsing import ParsedResult as ParsedResult  # noqa: F401
 from .json_parsing import ParsedResultType as ParsedResultType  # noqa: F401

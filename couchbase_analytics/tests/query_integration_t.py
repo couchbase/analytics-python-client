@@ -18,7 +18,10 @@ from __future__ import annotations
 import json
 from concurrent.futures import CancelledError, Future
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import (TYPE_CHECKING,
+                    Any,
+                    Dict,
+                    Optional)
 
 import pytest
 

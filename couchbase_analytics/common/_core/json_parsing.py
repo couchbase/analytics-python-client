@@ -19,23 +19,6 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import NamedTuple, Optional
 
-
-class JsonParsingError(Exception):
-    def __init__(self, cause: Optional[Exception]=None) -> None:
-        super().__init__(cause)
-        self._cause = cause
-
-    @property
-    def cause(self) -> Optional[Exception]:
-        return self._cause
-
-    def __repr__(self) -> str:
-        return f'JsonParsingError(cause={self._cause})'
-
-    def __str__(self) -> str:
-        return self.__repr__()
-
-
 # buffer size in httpcore is 2 ** 16 (65kiB) which matches the default buffer size in ijson
 # passing in a chunk_size is only applying an abstraction over the httpcore stream
 DEFAULT_HTTP_STREAM_BUFFER_SIZE = 2**16
