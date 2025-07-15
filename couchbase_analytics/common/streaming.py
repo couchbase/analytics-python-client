@@ -27,56 +27,6 @@ if TYPE_CHECKING:
     from couchbase_analytics.protocol.streaming import HttpStreamingResponse
 
 
-class StreamingState(IntEnum):
-    """
-    **INTERNAL
-    """
-
-    NotStarted = 0
-    ResetAndNotStarted = 1
-    Started = 2
-    Cancelled = 3
-    Completed = 4
-    StreamingResults = 5
-    Error = 6
-    Timeout = 7
-    AsyncCancelledPriorToTimeout = 8
-    SyncCancelledPriorToTimeout = 9
-
-    @staticmethod
-    def okay_to_stream(state: StreamingState) -> bool:
-        """
-        **INTERNAL
-        """
-        return state in [StreamingState.NotStarted, StreamingState.ResetAndNotStarted]
-
-    @staticmethod
-    def okay_to_iterate(state: StreamingState) -> bool:
-        """
-        **INTERNAL
-        """
-        return state == StreamingState.StreamingResults
-
-    @staticmethod
-    def is_okay(state: StreamingState) -> bool:
-        """
-        **INTERNAL
-        """
-        return state not in [StreamingState.Cancelled, StreamingState.Error, StreamingState.Timeout]
-
-    @staticmethod
-    def is_timeout_or_cancelled(state: StreamingState) -> bool:
-        """
-        **INTERNAL
-        """
-        return state in [
-            StreamingState.Cancelled,
-            StreamingState.Timeout,
-            StreamingState.AsyncCancelledPriorToTimeout,
-            StreamingState.SyncCancelledPriorToTimeout,
-        ]
-
-
 class BlockingIterator(Iterator[Any]):
     """
     **INTERNAL

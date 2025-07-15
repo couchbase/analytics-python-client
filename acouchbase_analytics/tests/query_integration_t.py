@@ -26,7 +26,7 @@ from acouchbase_analytics.deserializer import PassthroughDeserializer
 from acouchbase_analytics.errors import QueryError, TimeoutError
 from acouchbase_analytics.options import QueryOptions
 from acouchbase_analytics.result import AsyncQueryResult
-from couchbase_analytics.common.streaming import StreamingState
+from couchbase_analytics.common.request import RequestState
 from tests import AsyncYieldFixture
 
 if TYPE_CHECKING:
@@ -99,7 +99,7 @@ class QueryTestSuite:
         assert isinstance(qtask, Task)
         res = await qtask
         assert isinstance(res, AsyncQueryResult)
-        expected_state = StreamingState.StreamingResults
+        expected_state = RequestState.StreamingResults
         assert res._http_response._request_context.request_state == expected_state
         rows = []
         count = 0
@@ -111,7 +111,7 @@ class QueryTestSuite:
             count += 1
 
         assert len(rows) == count
-        expected_state = StreamingState.Cancelled
+        expected_state = RequestState.Cancelled
         assert res._http_response._request_context.request_state == expected_state
         with pytest.raises(RuntimeError):
             res.metadata()
@@ -124,7 +124,7 @@ class QueryTestSuite:
         assert isinstance(qtask, Task)
         res = await qtask
         assert isinstance(res, AsyncQueryResult)
-        expected_state = StreamingState.StreamingResults
+        expected_state = RequestState.StreamingResults
         assert res._http_response._request_context.request_state == expected_state
         rows = []
         count = 0
@@ -136,7 +136,7 @@ class QueryTestSuite:
             count += 1
 
         assert len(rows) == count
-        expected_state = StreamingState.Cancelled
+        expected_state = RequestState.Cancelled
         assert res._http_response._request_context.request_state == expected_state
         with pytest.raises(RuntimeError):
             res.metadata()

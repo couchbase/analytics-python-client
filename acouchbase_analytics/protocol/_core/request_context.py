@@ -17,7 +17,7 @@ from couchbase_analytics.common._core import JsonStreamConfig, ParsedResult, Par
 from couchbase_analytics.common._core.error_context import ErrorContext
 from couchbase_analytics.common.backoff_calculator import DefaultBackoffCalculator
 from couchbase_analytics.common.errors import AnalyticsError
-from couchbase_analytics.common.streaming import StreamingState
+from couchbase_analytics.common.request import RequestState
 from couchbase_analytics.protocol.connection import DEFAULT_TIMEOUTS
 from couchbase_analytics.protocol.errors import ErrorMapper
 
@@ -43,7 +43,7 @@ class AsyncRequestContext:
         self._backend = backend or current_async_library()
         self._backoff_calc = DefaultBackoffCalculator()
         self._error_ctx = ErrorContext(num_attempts=0, method=request.method, statement=request.get_request_statement())
-        self._request_state = StreamingState.NotStarted
+        self._request_state = RequestState.NotStarted
         self._stream_config = stream_config or JsonStreamConfig()
         self._json_stream: AsyncJsonStream
         self._stage_completed: Optional[anyio.Event] = None
@@ -56,7 +56,7 @@ class AsyncRequestContext:
     @property
     def cancelled(self) -> bool:
         self._check_cancelled_or_timed_out()
-        return self._request_state in [StreamingState.Cancelled, StreamingState.AsyncCancelledPriorToTimeout]
+        return self._request_state in [RequestState.Cancelled, RequestState.AsyncCancelledPriorToTimeout]
 
     @property
     def error_context(self) -> ErrorContext:
@@ -73,19 +73,19 @@ class AsyncRequestContext:
     @property
     def okay_to_iterate(self) -> bool:
         self._check_cancelled_or_timed_out()
-        return StreamingState.okay_to_iterate(self._request_state)
+        return RequestState.okay_to_iterate(self._request_state)
 
     @property
     def okay_to_stream(self) -> bool:
         self._check_cancelled_or_timed_out()
-        return StreamingState.okay_to_stream(self._request_state)
+        return RequestState.okay_to_stream(self._request_state)
 
     @property
     def request_error(self) -> Optional[Union[BaseException, Exception]]:
         return self._request_error
 
     @property
-    def request_state(self) -> StreamingState:
+    def request_state(self) -> RequestState:
         return self._request_state
 
     @property
@@ -99,10 +99,10 @@ class AsyncRequestContext:
     @property
     def timed_out(self) -> bool:
         self._check_cancelled_or_timed_out()
-        return self._request_state == StreamingState.Timeout
+        return self._request_state == RequestState.Timeout
 
     def _check_cancelled_or_timed_out(self) -> None:
-        if self._request_state in [StreamingState.Timeout, StreamingState.Cancelled, StreamingState.Error]:
+        if self._request_state in [RequestState.Timeout, RequestState.Cancelled, RequestState.Error]:
             return
 
         if hasattr(self, '_request_deadline') is False:
@@ -115,10 +115,10 @@ class AsyncRequestContext:
             timed_out = current_time >= self._request_deadline
 
         if timed_out:
-            if self._request_state == StreamingState.Cancelled:
-                self._request_state = StreamingState.AsyncCancelledPriorToTimeout
+            if self._request_state == RequestState.Cancelled:
+                self._request_state = RequestState.AsyncCancelledPriorToTimeout
             else:
-                self._request_state = StreamingState.Timeout
+                self._request_state = RequestState.Timeout
 
     async def _execute(self, fn: Callable[..., Awaitable[Any]], *args: object) -> None:
         await fn(*args)
@@ -131,22 +131,22 @@ class AsyncRequestContext:
         self._check_cancelled_or_timed_out()
         if exc_val is None:
             return
-        if not StreamingState.is_timeout_or_cancelled(self._request_state):
+        if not RequestState.is_timeout_or_cancelled(self._request_state):
             # This handles httpx timeouts
             if exc_type is not None and issubclass(exc_type, TimeoutException):
-                self._request_state = StreamingState.Timeout
+                self._request_state = RequestState.Timeout
             elif issubclass(type(exc_val), TimeoutException):
-                self._request_state = StreamingState.Timeout
+                self._request_state = RequestState.Timeout
             elif isinstance(exc_val, CancelledError):
-                self._request_state = StreamingState.Cancelled
+                self._request_state = RequestState.Cancelled
             else:
-                self._request_state = StreamingState.Error
+                self._request_state = RequestState.Error
             self._request_error = exc_val
 
     async def _process_error(
         self, json_data: Union[str, List[Dict[str, Any]]], handle_context_shutdown: Optional[bool] = False
     ) -> None:
-        self._request_state = StreamingState.Error
+        self._request_state = RequestState.Error
         if isinstance(json_data, str):
             self._request_error = ErrorMapper.build_error_from_http_status_code(json_data, self._error_ctx)
         elif not isinstance(json_data, list):
@@ -163,7 +163,7 @@ class AsyncRequestContext:
     def _reset_stream(self) -> None:
         if hasattr(self, '_json_stream'):
             del self._json_stream
-        self._request_state = StreamingState.ResetAndNotStarted
+        self._request_state = RequestState.ResetAndNotStarted
         self._stage_completed = None
         self._cancel_scope_deadline_updated = False
 
@@ -211,10 +211,10 @@ class AsyncRequestContext:
     def cancel_request(self, fn: Optional[Callable[..., Awaitable[Any]]] = None, *args: object) -> None:
         if fn is not None:
             self._taskgroup.start_soon(fn, *args)
-        if self._request_state == StreamingState.Timeout:
+        if self._request_state == RequestState.Timeout:
             return
         self._taskgroup.cancel_scope.cancel()
-        self._request_state = StreamingState.Cancelled
+        self._request_state = RequestState.Cancelled
 
     def create_response_task(self, fn: Callable[..., Coroutine[Any, Any, Any]], *args: object) -> Task[Any]:
         if self._backend is None or self._backend.backend_lib != 'asyncio':
@@ -246,12 +246,12 @@ class AsyncRequestContext:
 
     async def initialize(self) -> None:
         # TODO: Add useful logging messages
-        if self._request_state == StreamingState.ResetAndNotStarted:
+        if self._request_state == RequestState.ResetAndNotStarted:
             self._update_cancel_scope_deadline(self._connect_deadline, is_absolute=True)
             # print('Skipping initialization as request is a retry')
             return
         await self.__aenter__()
-        self._request_state = StreamingState.Started
+        self._request_state = RequestState.Started
         # we set the request timeout once the context is initialized in order to create the deadline
         # closer to when the upstream logic will begin to use the request context
         timeouts = self._request.get_request_timeouts() or {}
@@ -272,7 +272,7 @@ class AsyncRequestContext:
     def okay_to_delay_and_retry(self, delay: float) -> bool:
         # TODO: Add useful logging messages
         self._check_cancelled_or_timed_out()
-        if self._request_state in [StreamingState.Timeout, StreamingState.Cancelled]:
+        if self._request_state in [RequestState.Timeout, RequestState.Cancelled]:
             return False
 
         current_time = get_time()
@@ -280,10 +280,10 @@ class AsyncRequestContext:
         will_time_out = self._request_deadline < delay_time
         # print(f'{current_time=}; {delay_time=}; req_deadline={self._request_deadline}; {will_time_out=}')
         if will_time_out:
-            self._request_state = StreamingState.Timeout
+            self._request_state = RequestState.Timeout
             return False
         elif self.retry_limit_exceeded:
-            self._request_state = StreamingState.Error
+            self._request_state = RequestState.Error
             return False
         else:
             self._reset_stream()
@@ -358,8 +358,8 @@ class AsyncRequestContext:
         else:
             self._maybe_set_request_error(exc_type, exc_val)
 
-        if StreamingState.is_okay(self._request_state):
-            self._request_state = StreamingState.Completed
+        if RequestState.is_okay(self._request_state):
+            self._request_state = RequestState.Completed
         self._shutdown = True
 
     def start_stream(self, core_response: HttpCoreResponse) -> None:
@@ -374,7 +374,7 @@ class AsyncRequestContext:
         await self._json_stream.has_results_or_errors.wait()
         if self._json_stream.results_or_errors_type == ParsedResultType.ROW:
             # we move to iterating rows
-            self._request_state = StreamingState.StreamingResults
+            self._request_state = RequestState.StreamingResults
 
     async def __aenter__(self) -> AsyncRequestContext:
         self._taskgroup = anyio.create_task_group()

@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import pytest
 
-from couchbase_analytics.common.streaming import StreamingState
+from couchbase_analytics.common.request import RequestState
 from couchbase_analytics.deserializer import PassthroughDeserializer
 from couchbase_analytics.errors import QueryError, TimeoutError
 from couchbase_analytics.options import QueryOptions
@@ -110,7 +110,7 @@ class QueryTestSuite:
             res.cancel()
 
             assert isinstance(res, BlockingQueryResult)
-            assert res._http_response._request_context.request_state == StreamingState.Cancelled
+            assert res._http_response._request_context.request_state == RequestState.Cancelled
 
             for row in res.rows():
                 rows.append(row)
@@ -144,7 +144,7 @@ class QueryTestSuite:
             res.cancel()
 
             assert isinstance(res, BlockingQueryResult)
-            assert res._http_response._request_context.request_state == StreamingState.Cancelled
+            assert res._http_response._request_context.request_state == RequestState.Cancelled
 
             for row in res.rows():
                 rows.append(row)
@@ -177,7 +177,7 @@ class QueryTestSuite:
             res.cancel()
 
             assert isinstance(res, BlockingQueryResult)
-            assert res._http_response._request_context.request_state == StreamingState.Cancelled
+            assert res._http_response._request_context.request_state == RequestState.Cancelled
 
             for row in res.rows():
                 rows.append(row)
@@ -212,7 +212,7 @@ class QueryTestSuite:
             res.cancel()
 
             assert isinstance(res, BlockingQueryResult)
-            assert res._http_response._request_context.request_state == StreamingState.Cancelled
+            assert res._http_response._request_context.request_state == RequestState.Cancelled
 
             for row in res.rows():
                 rows.append(row)
@@ -249,7 +249,7 @@ class QueryTestSuite:
             res.cancel()
 
             assert isinstance(res, BlockingQueryResult)
-            assert res._http_response._request_context.request_state == StreamingState.Cancelled
+            assert res._http_response._request_context.request_state == RequestState.Cancelled
 
             for row in res.rows():
                 rows.append(row)
@@ -273,9 +273,9 @@ class QueryTestSuite:
 
         assert isinstance(result, BlockingQueryResult)
         if query_type != SyncQueryType.LAZY:
-            expected_state = StreamingState.StreamingResults
+            expected_state = RequestState.StreamingResults
         else:
-            expected_state = StreamingState.NotStarted
+            expected_state = RequestState.NotStarted
         assert result._http_response._request_context.request_state == expected_state
         rows = []
         count = 0
@@ -287,7 +287,7 @@ class QueryTestSuite:
             count += 1
 
         assert len(rows) == count
-        expected_state = StreamingState.Cancelled
+        expected_state = RequestState.Cancelled
         assert result._http_response._request_context.request_state == expected_state
         with pytest.raises(RuntimeError):
             result.metadata()
@@ -658,9 +658,9 @@ class QueryTestSuite:
 
     def test_query_with_lazy_execution(self, test_env: BlockingTestEnvironment, query_statement_limit2: str) -> None:
         result = test_env.cluster_or_scope.execute_query(query_statement_limit2, QueryOptions(lazy_execute=True))
-        expected_state = StreamingState.NotStarted
+        expected_state = RequestState.NotStarted
         assert result._http_response._request_context.request_state == expected_state
-        expected_state = StreamingState.StreamingResults
+        expected_state = RequestState.StreamingResults
         count = 0
         for row in result.rows():
             assert result._http_response._request_context.request_state == expected_state
@@ -672,7 +672,7 @@ class QueryTestSuite:
     def test_query_with_lazy_execution_raises_exception(self, test_env: BlockingTestEnvironment) -> None:
         statement = "I'm not N1QL!"
         result = test_env.cluster_or_scope.execute_query(statement, QueryOptions(lazy_execute=True))
-        expected_state = StreamingState.NotStarted
+        expected_state = RequestState.NotStarted
         assert result._http_response._request_context.request_state == expected_state
         with pytest.raises(QueryError):
             list(result.rows())
