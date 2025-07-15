@@ -23,7 +23,7 @@ from httpx import ConnectError, ConnectTimeout
 
 from acouchbase_analytics.protocol._core.anyio_utils import sleep
 from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError, TimeoutError
-from couchbase_analytics.common.streaming import StreamingState
+from couchbase_analytics.common.request import RequestState
 from couchbase_analytics.protocol.errors import WrappedError
 
 if TYPE_CHECKING:
@@ -122,7 +122,7 @@ class AsyncRetryHandler:
                         cause=ex, message=str(ex), context=str(self._request_context.error_context)
                     ) from None
                 finally:
-                    if not StreamingState.is_okay(self._request_context.request_state):
+                    if not RequestState.is_okay(self._request_context.request_state):
                         await self.close()
 
         return wrapped_fn

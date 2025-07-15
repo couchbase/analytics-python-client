@@ -16,7 +16,58 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import IntEnum
 from typing import Dict, Optional
+
+
+class RequestState(IntEnum):
+    """
+    **INTERNAL
+    """
+
+    NotStarted = 0
+    ResetAndNotStarted = 1
+    Started = 2
+    Cancelled = 3
+    Completed = 4
+    StreamingResults = 5
+    Error = 6
+    Timeout = 7
+    AsyncCancelledPriorToTimeout = 8
+    SyncCancelledPriorToTimeout = 9
+
+    @staticmethod
+    def okay_to_stream(state: RequestState) -> bool:
+        """
+        **INTERNAL
+        """
+        return state in [RequestState.NotStarted, RequestState.ResetAndNotStarted]
+
+    @staticmethod
+    def okay_to_iterate(state: RequestState) -> bool:
+        """
+        **INTERNAL
+        """
+        return state == RequestState.StreamingResults
+
+    @staticmethod
+    def is_okay(state: RequestState) -> bool:
+        """
+        **INTERNAL
+        """
+        return state not in [RequestState.Cancelled, RequestState.Error, RequestState.Timeout]
+
+    @staticmethod
+    def is_timeout_or_cancelled(state: RequestState) -> bool:
+        """
+        **INTERNAL
+        """
+        return state in [
+            RequestState.Cancelled,
+            RequestState.Timeout,
+            RequestState.AsyncCancelledPriorToTimeout,
+            RequestState.SyncCancelledPriorToTimeout,
+        ]
 
 
 @dataclass
