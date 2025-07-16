@@ -1,7 +1,7 @@
 include *.txt LICENSE CONTRIBUTING.md pyproject.toml couchbase_analytics_version.py
 include couchbase-sdk-analytics-python-black-duck-manifest.yaml
-include couchbase_analytics/common/core/_nonprod_certificates/*.pem
-include couchbase_analytics/common/core/_capella_certificates/*.pem
+include couchbase_analytics/common/_core/nonprod_certificates/*.pem
+include couchbase_analytics/common/_core/capella_certificates/*.pem
 recursive-include couchbase_analytics *.py
 exclude couchbase_analytics/tests/*.py
 recursive-include acouchbase_analytics *.py

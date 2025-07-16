@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, TypedDict, cast
 from urllib.parse import parse_qs, urlparse
 
-from couchbase_analytics.common._core._certificates import _Certificates
+from couchbase_analytics.common._core.certificates import _Certificates
 from couchbase_analytics.common._core.duration_str_utils import parse_duration_str
 from couchbase_analytics.common._core.utils import is_null_or_empty
 from couchbase_analytics.common.credential import Credential

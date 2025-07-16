@@ -44,7 +44,7 @@ class _Certificates:
         Returns:
             List[str]: List of Capella certificates.
         """
-        nonprod_cert_dir = Path(Path(__file__).resolve().parent, '_capella_certificates')
+        nonprod_cert_dir = Path(Path(__file__).resolve().parent, 'capella_certificates')
         nonprod_certs: List[str] = []
         for cert in nonprod_cert_dir.iterdir():
             if os.path.isdir(cert) or cert.suffix != '.pem':
@@ -64,7 +64,7 @@ class _Certificates:
         import warnings
 
         warnings.warn('Only use non-prod certificate in DEVELOPMENT environments.', ResourceWarning, stacklevel=2)
-        nonprod_cert_dir = Path(Path(__file__).resolve().parent, '_nonprod_certificates')
+        nonprod_cert_dir = Path(Path(__file__).resolve().parent, 'nonprod_certificates')
         nonprod_certs: List[str] = []
         for cert in nonprod_cert_dir.iterdir():
             if os.path.isdir(cert) or cert.suffix != '.pem':
