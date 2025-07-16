@@ -77,6 +77,21 @@ sphinx = [
     "sphinx-toolbox~=3.7",
 ]
 
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = [
+    "acouchbase_analytics",
+    "couchbase_analytics",
+    "acouchbase_analytics.*",
+    "couchbase_analytics.*",
+]
+exclude = [
+    "acouchbase_analytics.tests",
+    "couchbase_analytics.tests",
+]
+
 [tool.pytest.ini_options]
 minversion = "8.0"
 log_cli = true
