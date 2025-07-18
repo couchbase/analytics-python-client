@@ -18,15 +18,16 @@ from __future__ import annotations
 import socket
 from ipaddress import IPv4Address, IPv6Address, ip_address
 from random import choice
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
 import anyio
 
 from acouchbase_analytics.protocol.errors import ErrorMapper
+from couchbase_analytics.common.logging import LogLevel
 
 
 @ErrorMapper.handle_socket_error_async
-async def get_request_ip_async(host: str, port: int) -> str:
+async def get_request_ip_async(host: str, port: int, logger_handler: Optional[Callable[..., None]] = None) -> str:
     # Lets not call getaddrinfo, if the host is already an IP address
     try:
         ip: Optional[Union[IPv4Address, IPv6Address, str]] = ip_address(host)
@@ -42,6 +43,9 @@ async def get_request_ip_async(host: str, port: int) -> str:
         result = await anyio.getaddrinfo(host, port, type=socket.SOCK_STREAM, family=socket.AF_UNSPEC)
         res_ip = choice([addr[4][0] for addr in result])  # nosec B311
         ip = str(res_ip)
+        if logger_handler:
+            message_data = {'results': [f'{addr[4][0]}' for addr in result], 'selected_ip': ip}
+            logger_handler(f'getaddrinfo() returned {len(result)} results', LogLevel.DEBUG, message_data=message_data)
     else:
         ip = str(ip)
 

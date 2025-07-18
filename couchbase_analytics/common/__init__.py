@@ -15,4 +15,7 @@
 
 from typing import Any, Dict, List, Union
 
+from .logging import LOG_DATE_FORMAT as LOG_DATE_FORMAT  # noqa: F401
+from .logging import LOG_FORMAT as LOG_FORMAT  # noqa: F401
+
 JSONType = Union[str, int, float, bool, None, Dict[str, Any], List[Any]]

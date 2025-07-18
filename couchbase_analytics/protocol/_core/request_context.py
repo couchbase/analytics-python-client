@@ -14,6 +14,7 @@ from couchbase_analytics.common._core import JsonStreamConfig, ParsedResult, Par
 from couchbase_analytics.common._core.error_context import ErrorContext
 from couchbase_analytics.common.backoff_calculator import DefaultBackoffCalculator
 from couchbase_analytics.common.errors import AnalyticsError, TimeoutError
+from couchbase_analytics.common.logging import LogLevel
 from couchbase_analytics.common.request import RequestState
 from couchbase_analytics.common.result import BlockingQueryResult
 from couchbase_analytics.protocol._core.json_stream import JsonStream
@@ -167,11 +168,17 @@ class RequestContext:
             self._background_request is not None and self._background_request.user_cancelled
         ):
             self._request_state = RequestState.Cancelled
+            if self._cancel_event.is_set():
+                self.log_message('Request has been cancelled', LogLevel.DEBUG)
+            elif self._background_request is not None and self._background_request.user_cancelled:
+                self.log_message('Request has been cancelled via user background request', LogLevel.DEBUG)
+            return
 
         current_time = time.monotonic()
         timed_out = current_time >= self._request_deadline
-        # print(f'{current_time=}; req_deadline={self._request_deadline}; {timed_out=}')
         if timed_out:
+            message_data = {'current_time': f'{current_time}', 'request_deadline': f'{self._request_deadline}'}
+            self.log_message('Request has timed out', LogLevel.DEBUG, message_data=message_data)
             if self._request_state == RequestState.Cancelled:
                 self._request_state = RequestState.SyncCancelledPriorToTimeout
             else:
@@ -262,15 +269,33 @@ class RequestContext:
         return self._json_stream.get_result(self._stream_config.queue_timeout)
 
     def initialize(self) -> None:
-        # TODO: Add useful logging messages
         if self._request_state == RequestState.ResetAndNotStarted:
-            # print('Skipping initialization as request is a retry')
+            self.log_message(
+                'Request is a retry, skipping initialization',
+                LogLevel.DEBUG,
+                message_data={'request_deadline': f'{self._request_deadline}'},
+            )
             return
         self._request_state = RequestState.Started
         timeouts = self._request.get_request_timeouts() or {}
         current_time = time.monotonic()
         self._request_deadline = current_time + (timeouts.get('read', None) or DEFAULT_TIMEOUTS['query_timeout'])
-        # print(f'initialize request ctx: {current_time=}; req_deadline={self._request_deadline}')
+        message_data = {'current_time': f'{current_time}', 'request_deadline': f'{self._request_deadline}'}
+        self.log_message('Request context initialized', LogLevel.DEBUG, message_data=message_data)
+
+    def log_message(
+        self,
+        message: str,
+        log_level: LogLevel,
+        message_data: Optional[Dict[str, str]] = None,
+        append_ctx: Optional[bool] = True,
+    ) -> None:
+        if append_ctx is True:
+            message = f'{message}: ctx={self._id}'
+        if message_data is not None:
+            message_data_str = ', '.join(f'{k}={v}' for k, v in message_data.items())
+            message = f'{message}, {message_data_str}'
+        self._client_adapter.log_message(message, log_level)
 
     def maybe_continue_to_process_stream(self) -> None:
         if not self.has_stage_completed:
@@ -293,12 +318,22 @@ class RequestContext:
         current_time = time.monotonic()
         delay_time = current_time + delay
         will_time_out = self._request_deadline < delay_time
-        # print(f'{current_time=}; {delay_time=}; req_deadline={self._request_deadline}; {will_time_out=}')
         if will_time_out:
             self._request_state = RequestState.Timeout
+            message_data = {
+                'current_time': f'{current_time}',
+                'delay_time': f'{delay_time}',
+                'request_deadline': f'{self._request_deadline}',
+            }
+            self.log_message('Request will timeout after delay', LogLevel.DEBUG, message_data=message_data)
             return False
         elif self.retry_limit_exceeded:
             self._request_state = RequestState.Error
+            message_data = {
+                'num_attempts': f'{self.error_context.num_attempts}',
+                'max_retries': f'{self._request.max_retries}',
+            }
+            self.log_message('Request has exceeded max retries', LogLevel.DEBUG, message_data=message_data)
             return False
         else:
             self._reset_stream()
@@ -337,7 +372,7 @@ class RequestContext:
 
     def send_request(self, enable_trace_handling: Optional[bool] = False) -> HttpCoreResponse:
         self._error_ctx.update_num_attempts()
-        ip = get_request_ip(self._request.url.host, self._request.url.port)
+        ip = get_request_ip(self._request.url.host, self._request.url.port, self.log_message)
         if enable_trace_handling is True:
             (
                 self._request.update_url(ip, self._client_adapter.analytics_path).add_trace_to_extensions(
@@ -347,9 +382,21 @@ class RequestContext:
         else:
             self._request.update_url(ip, self._client_adapter.analytics_path)
         self._error_ctx.update_request_context(self._request)
+        message_data = {
+            'url': f'{self._request.url.get_formatted_url()}',
+            'body': f'{self._request.body}',
+            'request_deadline': f'{self._request_deadline}',
+        }
+        self.log_message('HTTP request', LogLevel.DEBUG, message_data=message_data)
         response = self._client_adapter.send_request(self._request)
         self._error_ctx.update_response_context(response)
-        # print(f'Response received: {response.status_code} for request {self._id}, body={self._request.body}.')
+        message_data = {
+            'status_code': f'{response.status_code}',
+            'last_dispatched_to': f'{self._error_ctx.last_dispatched_to}',
+            'last_dispatched_from': f'{self._error_ctx.last_dispatched_from}',
+            'request_deadline': f'{self._request_deadline}',
+        }
+        self.log_message('HTTP response', LogLevel.DEBUG, message_data=message_data)
         return response
 
     def send_request_in_background(
@@ -370,6 +417,7 @@ class RequestContext:
 
     def shutdown(self, exc_val: Optional[BaseException] = None) -> None:
         if self.is_shutdown:
+            self.log_message('Request context already shutdown', LogLevel.WARNING)
             return
         if isinstance(exc_val, CancelledError):
             self._request_state = RequestState.Cancelled
@@ -385,14 +433,17 @@ class RequestContext:
         if RequestState.is_okay(self._request_state):
             self._request_state = RequestState.Completed
         self._shutdown = True
+        self.log_message('Request context shutdown complete', LogLevel.INFO)
 
     def start_stream(self, core_response: HttpCoreResponse) -> None:
         if hasattr(self, '_json_stream'):
-            # TODO: logging; I don't think this is an error...
+            self.log_message('JSON stream already exists', LogLevel.WARNING)
             return
 
         # TODO: need to confirm if the httpx Response iterator is thread-safe
-        self._json_stream = JsonStream(core_response.iter_bytes(), stream_config=self._stream_config)
+        self._json_stream = JsonStream(
+            core_response.iter_bytes(), stream_config=self._stream_config, logger_handler=self.log_message
+        )
         self._start_next_stage(self._json_stream.start_parsing, create_notification=True)
 
     def wait_for_stage_notification(self) -> None:

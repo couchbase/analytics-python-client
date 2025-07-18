@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import logging
 import ssl
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, TypedDict, cast
@@ -158,6 +159,7 @@ class _ConnectionDetails:
     default_deserializer: Deserializer
     ssl_context: Optional[ssl.SSLContext] = None
     sni_hostname: Optional[str] = None
+    logger_name: Optional[str] = None
 
     def get_connect_timeout(self) -> float:
         timeout_opts: Optional[TimeoutOptionsTransformedKwargs] = self.cluster_options.get('timeout_options')
@@ -170,6 +172,10 @@ class _ConnectionDetails:
     def get_max_retries(self) -> int:
         return self.cluster_options.get('max_retries', None) or DEFAULT_MAX_RETRIES
 
+    def get_init_details(self) -> str:
+        details = {'url': self.url.get_formatted_url(), 'cluster_options': self.cluster_options}
+        return f'{details}'
+
     def get_query_timeout(self) -> float:
         timeout_opts: Optional[TimeoutOptionsTransformedKwargs] = self.cluster_options.get('timeout_options')
         if timeout_opts is not None:
@@ -181,7 +187,7 @@ class _ConnectionDetails:
     def is_secure(self) -> bool:
         return self.url.scheme == 'https'
 
-    def validate_security_options(self) -> None:
+    def validate_security_options(self) -> None:  # noqa: C901
         security_opts: Optional[SecurityOptionsTransformedKwargs] = self.cluster_options.get('security_options')
         # TODO: security settings
         if security_opts is not None:
@@ -190,7 +196,7 @@ class _ConnectionDetails:
             trust_capella = security_opts.get('trust_only_capella', None)
             security_opt_count = sum(
                 (1 if security_opts.get(opt, None) is not None else 0 for opt in solo_security_opts)
-            )  # noqa: E501
+            )
             if security_opt_count > 1 or (security_opt_count == 1 and trust_capella is True):
                 raise ValueError(
                     (
@@ -223,8 +229,10 @@ class _ConnectionDetails:
             security_opts['trust_only_capella'] = False
 
         if security_opts is not None and security_opts.get('disable_server_certificate_verification', False):
-            # TODO: log warning
-            print('Warning: Server certificate verification is disabled. This is not recommended for production use.')
+            if self.logger_name is not None:
+                logger = logging.getLogger(self.logger_name)
+                msg = 'Server certificate verification is disabled. This is not recommended for production use.'
+                logger.warning(msg)
             self.ssl_context.check_hostname = False
             self.ssl_context.verify_mode = ssl.CERT_NONE
         else:
@@ -242,6 +250,7 @@ class _ConnectionDetails:
     ) -> _ConnectionDetails:
         url, query_str_opts = parse_http_endpoint(http_endpoint)
 
+        logger_name = cast(Optional[str], kwargs.pop('logger_name', None))
         cluster_opts = opts_builder.build_cluster_options(
             ClusterOptions,
             ClusterOptionsTransformedKwargs,
@@ -254,6 +263,6 @@ class _ConnectionDetails:
         if default_deserializer is None:
             default_deserializer = DefaultJsonDeserializer()
 
-        conn_dtls = cls(url, cluster_opts, credential.astuple(), default_deserializer)
+        conn_dtls = cls(url, cluster_opts, credential.astuple(), default_deserializer, logger_name=logger_name)
         conn_dtls.validate_security_options()
         return conn_dtls

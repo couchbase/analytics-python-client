@@ -23,6 +23,7 @@ from httpx import Response as HttpCoreResponse
 from couchbase_analytics.common._core import ParsedResult, ParsedResultType
 from couchbase_analytics.common._core.query import build_query_metadata
 from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError, TimeoutError
+from couchbase_analytics.common.logging import LogLevel
 from couchbase_analytics.common.query import QueryMetadata
 from couchbase_analytics.protocol._core.request_context import RequestContext
 from couchbase_analytics.protocol._core.retries import RetryHandler
@@ -48,6 +49,7 @@ class HttpStreamingResponse:
     def _handle_iteration_abort(self) -> None:
         self.close()
         if self._request_context.cancelled:
+            self._request_context.log_message('Request canceled, aborting iteration', LogLevel.DEBUG)
             self._request_context.shutdown()
             raise StopIteration
         elif self._request_context.timed_out:
@@ -58,6 +60,7 @@ class HttpStreamingResponse:
             self._request_context.shutdown(err)
             raise err
         else:
+            self._request_context.log_message('Aborting iteration', LogLevel.DEBUG)
             self._request_context.shutdown()
             raise StopIteration
 
@@ -75,12 +78,14 @@ class HttpStreamingResponse:
         """
         if hasattr(self, '_core_response'):
             self._core_response.close()
+            self._request_context.log_message('HTTP core response closed', LogLevel.INFO)
             del self._core_response
 
     def cancel(self) -> None:
         """
         **INTERNAL**
         """
+        self._request_context.log_message('HttpStreamingResponse cancelling request', LogLevel.DEBUG)
         self.close()
         self._request_context.cancel_request()
         self._request_context.shutdown()

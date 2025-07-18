@@ -15,14 +15,16 @@
 
 from __future__ import annotations
 
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator, Callable, Optional
 
 import ijson
 from anyio import EndOfStream, Event, create_memory_object_stream
 
 from acouchbase_analytics.protocol._core.async_json_token_parser import AsyncJsonTokenParser
 from couchbase_analytics.common._core.json_parsing import JsonStreamConfig, ParsedResult, ParsedResultType
+from couchbase_analytics.common._core.json_token_parser_base import JsonTokenParsingError
 from couchbase_analytics.common.errors import AnalyticsError
+from couchbase_analytics.common.logging import LogLevel
 
 
 class AsyncJsonStream:
@@ -31,6 +33,7 @@ class AsyncJsonStream:
         http_stream_iter: AsyncIterator[bytes],
         *,
         stream_config: Optional[JsonStreamConfig] = None,
+        logger_handler: Optional[Callable[[str, LogLevel], None]] = None,
     ) -> None:
         # HTTP stream handling
         if stream_config is None:
@@ -40,10 +43,13 @@ class AsyncJsonStream:
         self._http_response_buffer = bytearray()
         self._http_stream_exhausted = False
 
+        # logging
+        self._log_handler = logger_handler
+
         # results handling
         self._send_stream, self._receive_stream = create_memory_object_stream[ParsedResult](
             max_buffer_size=stream_config.buffered_row_max
-        )  # noqa: E501
+        )
         self._json_stream_parser = None
         self._buffer_entire_result = stream_config.buffer_entire_result
         handler = None if self._buffer_entire_result is True else self._handle_json_result
@@ -86,6 +92,10 @@ class AsyncJsonStream:
         if stats.current_buffer_used >= stats.max_buffer_size:
             return False
         return True
+
+    def _log_message(self, message: str, level: LogLevel) -> None:
+        if self._log_handler is not None:
+            self._log_handler(message, level)
 
     async def _send_to_stream(self, result: ParsedResult, close: Optional[bool] = False) -> None:
         """
@@ -130,10 +140,18 @@ class AsyncJsonStream:
                 await self._json_token_parser.parse_token(event, value)
             except StopAsyncIteration:
                 self._token_stream_exhausted = True
-            except ijson.common.IncompleteJSONError as ex:
-                # TODO: log this error
+            except JsonTokenParsingError as ex:
+                ex_str = str(ex)
+                self._log_message(f'JSON token parsing error encountered: {ex_str}', LogLevel.ERROR)
                 self._token_stream_exhausted = True
-                await self._send_to_stream(ParsedResult(str(ex).encode('utf-8'), ParsedResultType.ERROR), close=True)
+                await self._send_to_stream(ParsedResult(ex_str.encode('utf-8'), ParsedResultType.ERROR), close=True)
+                self._handle_notification(ParsedResultType.ERROR)
+                return
+            except ijson.common.IncompleteJSONError as ex:
+                ex_str = str(ex)
+                self._log_message(f'Incomplete JSON error encountered: {ex_str}', LogLevel.ERROR)
+                self._token_stream_exhausted = True
+                await self._send_to_stream(ParsedResult(ex_str.encode('utf-8'), ParsedResultType.ERROR), close=True)
                 self._handle_notification(ParsedResultType.ERROR)
                 return
 
@@ -176,10 +194,9 @@ class AsyncJsonStream:
 
     async def start_parsing(self) -> None:
         if self._json_stream_parser is not None:
-            # TODO: logging; I don't think this is an error...
+            self._log_message('JSON stream parser already exists', LogLevel.WARNING)
             return
         await self._process_token_stream()
 
     async def continue_parsing(self) -> None:
-        # TODO: error is _json_stream_parser is None?
         await self._process_token_stream()

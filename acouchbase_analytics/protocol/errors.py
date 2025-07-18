@@ -17,23 +17,25 @@ from __future__ import annotations
 
 import socket
 from functools import wraps
-from typing import Any, Callable, Coroutine
+from typing import Any, Callable, Coroutine, Optional
 
 from couchbase_analytics.common.errors import AnalyticsError
+from couchbase_analytics.common.logging import LogLevel
 from couchbase_analytics.protocol.errors import WrappedError
 
 
 class ErrorMapper:
     @staticmethod
     def handle_socket_error_async(
-        fn: Callable[[str, int], Coroutine[Any, Any, str]],
-    ) -> Callable[[str, int], Coroutine[Any, Any, str]]:
+        fn: Callable[[str, int, Optional[Callable[..., None]]], Coroutine[Any, Any, str]],
+    ) -> Callable[[str, int, Optional[Callable[..., None]]], Coroutine[Any, Any, str]]:
         @wraps(fn)
-        async def wrapped_fn(host: str, port: int) -> str:
+        async def wrapped_fn(host: str, port: int, logger_handler: Optional[Callable[..., None]] = None) -> str:
             try:
-                return await fn(host, port)
+                return await fn(host, port, logger_handler)
             except socket.gaierror as ex:
-                # print(f'getaddrinfo failed for {host}:{port} with error: {ex}')
+                if logger_handler:
+                    logger_handler(f'getaddrinfo() failed for {host}:{port} with error: {ex}', LogLevel.ERROR)
                 msg = 'Connection error occurred while sending request.'
                 raise WrappedError(AnalyticsError(cause=ex, message=msg), retriable=True) from None
 

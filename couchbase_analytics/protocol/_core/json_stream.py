@@ -19,11 +19,13 @@ from concurrent.futures import Future
 from queue import Empty as QueueEmpty
 from queue import Full as QueueFull
 from queue import Queue
-from typing import TYPE_CHECKING, Iterator, Optional
+from typing import TYPE_CHECKING, Callable, Iterator, Optional
 
 import ijson
 
 from couchbase_analytics.common._core.json_parsing import JsonStreamConfig, ParsedResult, ParsedResultType
+from couchbase_analytics.common._core.json_token_parser_base import JsonTokenParsingError
+from couchbase_analytics.common.logging import LogLevel
 from couchbase_analytics.protocol._core.json_token_parser import JsonTokenParser
 
 if TYPE_CHECKING:
@@ -38,6 +40,7 @@ class JsonStream:
         http_stream_iter: Iterator[bytes],
         *,
         stream_config: Optional[JsonStreamConfig] = None,
+        logger_handler: Optional[Callable[[str, LogLevel], None]] = None,
     ) -> None:
         # HTTP stream handling
         if stream_config is None:
@@ -46,6 +49,9 @@ class JsonStream:
         self._http_stream_buffer_size = stream_config.http_stream_buffer_size
         self._http_response_buffer = bytearray()
         self._http_stream_exhausted = False
+
+        # logging
+        self._log_handler = logger_handler
 
         # results handling
         self._buffered_row_max = stream_config.buffered_row_max
@@ -96,7 +102,7 @@ class JsonStream:
                 self._results_queue.put(result, timeout=self._queue_timeout)
                 break
             except QueueFull:
-                # TODO: log error as this is unexpected
+                self._log_message('Encountered QueueFull error', LogLevel.ERROR)
                 pass
 
     def _handle_json_result(self, row: bytes) -> None:
@@ -114,6 +120,10 @@ class JsonStream:
 
         self._notify_on_results_or_error.set_result(result_type)
 
+    def _log_message(self, message: str, level: LogLevel) -> None:
+        if self._log_handler is not None:
+            self._log_handler(message, level)
+
     def _process_token_stream(self, request_context: Optional[RequestContext] = None) -> None:
         """
         **INTERNAL**
@@ -127,10 +137,18 @@ class JsonStream:
                 self._json_token_parser.parse_token(event, value)
             except StopIteration:
                 self._token_stream_exhausted = True
-            except ijson.common.IncompleteJSONError as ex:
-                # TODO: log this error
+            except JsonTokenParsingError as ex:
+                ex_str = str(ex)
+                self._log_message(f'JSON token parsing error encountered: {ex_str}', LogLevel.ERROR)
                 self._token_stream_exhausted = True
-                self._put(ParsedResult(str(ex).encode('utf-8'), ParsedResultType.ERROR))
+                self._put(ParsedResult(ex_str.encode('utf-8'), ParsedResultType.ERROR))
+                self._handle_notification(ParsedResultType.ERROR)
+                return
+            except ijson.common.IncompleteJSONError as ex:
+                ex_str = str(ex)
+                self._log_message(f'Incomplete JSON error encountered: {ex_str}', LogLevel.ERROR)
+                self._token_stream_exhausted = True
+                self._put(ParsedResult(ex_str.encode('utf-8'), ParsedResultType.ERROR))
                 self._handle_notification(ParsedResultType.ERROR)
                 return
 
@@ -169,7 +187,7 @@ class JsonStream:
         try:
             return self._results_queue.get(timeout=timeout)
         except QueueEmpty:
-            # TODO:  log a message here as indication the stream is slow
+            self._log_message(f'Results queue empty after waiting {timeout} seconds', LogLevel.WARNING)
             return None
 
     def start_parsing(
@@ -178,7 +196,7 @@ class JsonStream:
         notify_on_results_or_error: Optional[Future[ParsedResultType]] = None,
     ) -> None:
         if self._json_stream_parser is not None:
-            # TODO: logging; I don't think this is an error...
+            self._log_message('JSON stream parser already exists', LogLevel.WARNING)
             return
         self._notify_on_results_or_error = notify_on_results_or_error
         self._process_token_stream(request_context=request_context)

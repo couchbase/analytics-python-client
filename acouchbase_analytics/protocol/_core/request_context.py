@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from asyncio import CancelledError, Task
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Coroutine, Dict, List, Optional, Type, Union
@@ -17,6 +18,7 @@ from couchbase_analytics.common._core import JsonStreamConfig, ParsedResult, Par
 from couchbase_analytics.common._core.error_context import ErrorContext
 from couchbase_analytics.common.backoff_calculator import DefaultBackoffCalculator
 from couchbase_analytics.common.errors import AnalyticsError
+from couchbase_analytics.common.logging import LogLevel
 from couchbase_analytics.common.request import RequestState
 from couchbase_analytics.protocol.connection import DEFAULT_TIMEOUTS
 from couchbase_analytics.protocol.errors import ErrorMapper
@@ -52,10 +54,11 @@ class AsyncRequestContext:
         self._connect_deadline = get_time() + connect_timeout
         self._cancel_scope_deadline_updated = False
         self._shutdown = False
+        self._request_deadline = math.inf
 
     @property
     def cancelled(self) -> bool:
-        self._check_cancelled_or_timed_out()
+        self._check_timed_out()
         return self._request_state in [RequestState.Cancelled, RequestState.AsyncCancelledPriorToTimeout]
 
     @property
@@ -72,12 +75,12 @@ class AsyncRequestContext:
 
     @property
     def okay_to_iterate(self) -> bool:
-        self._check_cancelled_or_timed_out()
+        self._check_timed_out()
         return RequestState.okay_to_iterate(self._request_state)
 
     @property
     def okay_to_stream(self) -> bool:
-        self._check_cancelled_or_timed_out()
+        self._check_timed_out()
         return RequestState.okay_to_stream(self._request_state)
 
     @property
@@ -98,10 +101,10 @@ class AsyncRequestContext:
 
     @property
     def timed_out(self) -> bool:
-        self._check_cancelled_or_timed_out()
+        self._check_timed_out()
         return self._request_state == RequestState.Timeout
 
-    def _check_cancelled_or_timed_out(self) -> None:
+    def _check_timed_out(self) -> None:
         if self._request_state in [RequestState.Timeout, RequestState.Cancelled, RequestState.Error]:
             return
 
@@ -115,6 +118,8 @@ class AsyncRequestContext:
             timed_out = current_time >= self._request_deadline
 
         if timed_out:
+            message_data = {'current_time': f'{current_time}', 'request_deadline': f'{self._request_deadline}'}
+            self.log_message('Request has timed out', LogLevel.DEBUG, message_data=message_data)
             if self._request_state == RequestState.Cancelled:
                 self._request_state = RequestState.AsyncCancelledPriorToTimeout
             else:
@@ -128,7 +133,7 @@ class AsyncRequestContext:
     def _maybe_set_request_error(
         self, exc_type: Optional[Type[BaseException]] = None, exc_val: Optional[BaseException] = None
     ) -> None:
-        self._check_cancelled_or_timed_out()
+        self._check_timed_out()
         if exc_val is None:
             return
         if not RequestState.is_timeout_or_cancelled(self._request_state):
@@ -193,11 +198,22 @@ class AsyncRequestContext:
     def _update_cancel_scope_deadline(self, deadline: float, is_absolute: Optional[bool] = False) -> None:
         # TODO:  confirm scenario of get_time() < self._taskgroup.cancel_scope.deadline is handled by anyio
         new_deadline = deadline if is_absolute else get_time() + deadline
-        # TODO:  Useful debug log message
-        # print(f'Updating cancel scope deadline: {self._taskgroup.cancel_scope.deadline} -> {new_deadline}')
-        if get_time() >= new_deadline:
+        current_time = get_time()
+        if current_time >= new_deadline:
+            self.log_message(
+                'Deadline already exceeded, cancelling request',
+                LogLevel.DEBUG,
+                message_data={
+                    'current_time': f'{current_time}',
+                    'new_deadline': f'{new_deadline}',
+                },
+            )
             self._taskgroup.cancel_scope.cancel()
         else:
+            self.log_message(
+                f'Updating cancel scope deadline: {self._taskgroup.cancel_scope.deadline} -> {new_deadline}',
+                LogLevel.DEBUG,
+            )
             self._taskgroup.cancel_scope.deadline = new_deadline
 
     async def _wait_for_stage_to_complete(self) -> None:
@@ -245,10 +261,13 @@ class AsyncRequestContext:
         return await self._json_stream.get_result()
 
     async def initialize(self) -> None:
-        # TODO: Add useful logging messages
         if self._request_state == RequestState.ResetAndNotStarted:
             self._update_cancel_scope_deadline(self._connect_deadline, is_absolute=True)
-            # print('Skipping initialization as request is a retry')
+            self.log_message(
+                'Request is a retry, skipping initialization',
+                LogLevel.DEBUG,
+                message_data={'request_deadline': f'{self._request_deadline}'},
+            )
             return
         await self.__aenter__()
         self._request_state = RequestState.Started
@@ -258,7 +277,22 @@ class AsyncRequestContext:
         current_time = get_time()
         self._request_deadline = current_time + (timeouts.get('read', None) or DEFAULT_TIMEOUTS['query_timeout'])
         self._update_cancel_scope_deadline(self._connect_deadline, is_absolute=True)
-        # print(f'initialize request ctx: {current_time=}; req_deadline={self._request_deadline}')
+        message_data = {'current_time': f'{current_time}', 'request_deadline': f'{self._request_deadline}'}
+        self.log_message('Request context initialized', LogLevel.DEBUG, message_data=message_data)
+
+    def log_message(
+        self,
+        message: str,
+        log_level: LogLevel,
+        message_data: Optional[Dict[str, str]] = None,
+        append_ctx: Optional[bool] = True,
+    ) -> None:
+        if append_ctx is True:
+            message = f'{message}: ctx={self._id}'
+        if message_data is not None:
+            message_data_str = ', '.join(f'{k}={v}' for k, v in message_data.items())
+            message = f'{message}, {message_data_str}'
+        self._client_adapter.log_message(message, log_level)
 
     def maybe_continue_to_process_stream(self) -> None:
         if not self.has_stage_completed:
@@ -270,20 +304,29 @@ class AsyncRequestContext:
         self._start_next_stage(self._json_stream.continue_parsing, reset_previous_stage=True)
 
     def okay_to_delay_and_retry(self, delay: float) -> bool:
-        # TODO: Add useful logging messages
-        self._check_cancelled_or_timed_out()
+        self._check_timed_out()
         if self._request_state in [RequestState.Timeout, RequestState.Cancelled]:
             return False
 
         current_time = get_time()
         delay_time = current_time + delay
         will_time_out = self._request_deadline < delay_time
-        # print(f'{current_time=}; {delay_time=}; req_deadline={self._request_deadline}; {will_time_out=}')
         if will_time_out:
             self._request_state = RequestState.Timeout
+            message_data = {
+                'current_time': f'{current_time}',
+                'delay_time': f'{delay_time}',
+                'request_deadline': f'{self._request_deadline}',
+            }
+            self.log_message('Request will timeout after delay', LogLevel.DEBUG, message_data=message_data)
             return False
         elif self.retry_limit_exceeded:
             self._request_state = RequestState.Error
+            message_data = {
+                'num_attempts': f'{self.error_context.num_attempts}',
+                'max_retries': f'{self._request.max_retries}',
+            }
+            self.log_message('Request has exceeded max retries', LogLevel.DEBUG, message_data=message_data)
             return False
         else:
             self._reset_stream()
@@ -330,7 +373,7 @@ class AsyncRequestContext:
 
     async def send_request(self, enable_trace_handling: Optional[bool] = False) -> HttpCoreResponse:
         self._error_ctx.update_num_attempts()
-        ip = await get_request_ip_async(self._request.url.host, self._request.url.port)
+        ip = await get_request_ip_async(self._request.url.host, self._request.url.port, self.log_message)
         if enable_trace_handling is True:
             (
                 self._request.update_url(ip, self._client_adapter.analytics_path).add_trace_to_extensions(
@@ -339,10 +382,22 @@ class AsyncRequestContext:
             )
         else:
             self._request.update_url(ip, self._client_adapter.analytics_path)
-        # TODO:  add logging; provide request details (to/from, deadlines, etc.)
         self._error_ctx.update_request_context(self._request)
+        message_data = {
+            'url': f'{self._request.url.get_formatted_url()}',
+            'body': f'{self._request.body}',
+            'request_deadline': f'{self._request_deadline}',
+        }
+        self.log_message('HTTP request', LogLevel.DEBUG, message_data=message_data)
         response = await self._client_adapter.send_request(self._request)
         self._error_ctx.update_response_context(response)
+        message_data = {
+            'status_code': f'{response.status_code}',
+            'last_dispatched_to': f'{self._error_ctx.last_dispatched_to}',
+            'last_dispatched_from': f'{self._error_ctx.last_dispatched_from}',
+            'request_deadline': f'{self._request_deadline}',
+        }
+        self.log_message('HTTP response', LogLevel.DEBUG, message_data=message_data)
         return response
 
     async def shutdown(
@@ -352,6 +407,7 @@ class AsyncRequestContext:
         exc_tb: Optional[TracebackType] = None,
     ) -> None:
         if self.is_shutdown:
+            self.log_message('Request context already shutdown', LogLevel.WARNING)
             return
         if hasattr(self, '_taskgroup'):
             await self.__aexit__(exc_type, exc_val, exc_tb)
@@ -361,6 +417,7 @@ class AsyncRequestContext:
         if RequestState.is_okay(self._request_state):
             self._request_state = RequestState.Completed
         self._shutdown = True
+        self.log_message('Request context shutdown complete', LogLevel.INFO)
 
     def start_stream(self, core_response: HttpCoreResponse) -> None:
         if hasattr(self, '_json_stream'):

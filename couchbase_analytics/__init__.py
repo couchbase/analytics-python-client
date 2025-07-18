@@ -13,7 +13,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+from couchbase_analytics.common import LOG_DATE_FORMAT as LOG_DATE_FORMAT  # noqa: F401
+from couchbase_analytics.common import LOG_FORMAT as LOG_FORMAT  # noqa: F401
 from couchbase_analytics.common import JSONType as JSONType  # noqa: F401
-
-# TODO: logging
-# from couchbase_analytics.protocol import configure_logging as configure_logging  # noqa: F401

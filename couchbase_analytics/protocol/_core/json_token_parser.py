@@ -22,6 +22,7 @@ from couchbase_analytics.common._core.json_token_parser_base import (
     START_EVENTS,
     VALUE_TOKENS,
     JsonTokenParserBase,
+    JsonTokenParsingError,
     ParsingState,
     TokenType,
 )
@@ -49,7 +50,9 @@ class JsonTokenParser(JsonTokenParserBase):
             next_token = self._pop()
             if next_token.type == matching_token.type:
                 should_emit = self._handle_pop_transition(next_token.state)
-                # I think obj_pairs.reverse() is O(n); while reversed is O(1)
+                # NOTE: obj_pairs.reverse() vs. reversed(obj_pairs) are essentially the same _because_ we convert
+                #       the obj_pairs to a string (e.g. ",".join(...)); using reversed() in this case is slightly
+                #       more convenient as it returns an iterator
                 if matching_token.type == TokenType.START_ARRAY:
                     obj = f'[{",".join(reversed(obj_pairs))}]'
                 else:
@@ -85,5 +88,4 @@ class JsonTokenParser(JsonTokenParserBase):
         elif token_type in POP_EVENTS:
             self._handle_pop_event(token_type)
         else:
-            # TODO: custom exception
-            raise ValueError(f'Invalid token type: {token_type}; {value=}')
+            raise JsonTokenParsingError(f'Invalid token type: {token_type}; {value=}')
