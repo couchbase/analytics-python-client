@@ -40,8 +40,9 @@ class AsyncCluster:
     def __init__(
         self, connstr: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
     ) -> None:
-        self._client_adapter = _AsyncClientAdapter(connstr, credential, options, **kwargs)
         self._cluster_id = str(uuid4())
+        kwargs['cluster_id'] = self._cluster_id
+        self._client_adapter = _AsyncClientAdapter(connstr, credential, options, **kwargs)
         self._request_builder = _RequestBuilder(self._client_adapter)
         self._backend = current_async_library()
 

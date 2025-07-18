@@ -116,6 +116,19 @@ START_EVENT_TRANSITION_STATES = [
 ]
 
 
+class JsonTokenParsingError(Exception):
+    """
+    Exception raised when there is an error parsing JSON tokens.
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
+
+    def __str__(self) -> str:
+        return f'JsonTokenParsingError: {self.message}'
+
+
 class JsonTokenParserBase:
     def __init__(self, emit_results_enabled: bool) -> None:
         self._stack: Deque[Token] = deque()
@@ -149,7 +162,7 @@ class JsonTokenParserBase:
         elif token_type == TokenType.END_MAP:
             return EVENT_TOKENS[TokenType.START_MAP]
         else:
-            raise ValueError(f'Invalid token type (cannot match): {token_type}')
+            raise JsonTokenParsingError(f'Invalid token type (cannot match): {token_type}')
 
     def _handle_map_key_token(self, value: str) -> None:
         if self._state == ParsingState.PROCESSING:
@@ -193,7 +206,7 @@ class JsonTokenParserBase:
             self._previous_state = self._state
             self._state = ParsingState.PROCESSING_ERROR
             return TokenState.ERROR_START
-        raise ValueError(f'Invalid state for push transition: {self._state}')
+        raise JsonTokenParsingError(f'Invalid state for push transition: {self._state}')
 
     def _handle_start_event(self, token_type: TokenType) -> None:
         transition = False
@@ -222,7 +235,7 @@ class JsonTokenParserBase:
             val = f'{value}'
         if pair_key is not None:
             if self.results_type == TokenType.VALUE and self._state != ParsingState.PROCESSING:
-                raise RuntimeError('JsonTokenParser: Cannot return value when pair key is present.')
+                raise JsonTokenParsingError('Cannot return value when pair_key is present.')
             self._push(TokenType.PAIR, f'{pair_key}:{val}')
         else:
             if self._emit_results_enabled is True and self.results_type == TokenType.VALUE:
@@ -240,7 +253,7 @@ class JsonTokenParserBase:
     def _pop(self) -> Token:
         if self._stack:
             return self._stack.pop()
-        raise ValueError('Stack is empty')
+        raise JsonTokenParsingError('Stack is empty')
 
     def _should_push_pair(self, token: Token) -> bool:
         # when a results object is complete, the state will have transactioned back to PROCESSING

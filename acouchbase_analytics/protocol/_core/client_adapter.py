@@ -15,14 +15,15 @@
 
 from __future__ import annotations
 
-import socket
-from typing import TYPE_CHECKING, Optional
+import logging
+from typing import TYPE_CHECKING, Optional, cast
 from uuid import uuid4
 
 from httpx import URL, AsyncClient, BasicAuth, Response
 
 from couchbase_analytics.common.credential import Credential
 from couchbase_analytics.common.deserializer import Deserializer
+from couchbase_analytics.common.logging import LogLevel, log_message
 from couchbase_analytics.protocol.connection import _ConnectionDetails
 from couchbase_analytics.protocol.options import OptionsBuilder
 
@@ -35,13 +36,17 @@ class _AsyncClientAdapter:
     **INTERNAL**
     """
 
-    _ANALYTICS_PATH = '/api/v1/request'
+    ANALYTICS_PATH = '/api/v1/request'
+    LOGGER_NAME = 'acouchbase_analytics'
 
     def __init__(
         self, http_endpoint: str, credential: Credential, options: Optional[object] = None, **kwargs: object
     ) -> None:
         self._client_id = str(uuid4())
+        self._prefix = ''
+        self._cluster_id = cast(str, kwargs.pop('cluster_id', ''))
         self._opts_builder = OptionsBuilder()
+        kwargs['logger_name'] = self.logger_name
         self._conn_details = _ConnectionDetails.create(self._opts_builder, http_endpoint, credential, options, **kwargs)
         # TODO:  do we want to support custom HTTP transports for the async client?
         self._http_transport_cls = None
@@ -51,7 +56,7 @@ class _AsyncClientAdapter:
         """
         **INTERNAL**
         """
-        return self._ANALYTICS_PATH
+        return self.ANALYTICS_PATH
 
     @property
     def client(self) -> AsyncClient:
@@ -89,6 +94,30 @@ class _AsyncClientAdapter:
         return hasattr(self, '_client')
 
     @property
+    def log_prefix(self) -> str:
+        """
+        **INTERNAL**
+        """
+        if self._prefix:
+            return self._prefix
+        self._prefix = f'[{self._cluster_id}'
+        if self.has_client:
+            self._prefix += f'/{self._client_id}'
+            if self.connection_details.is_secure():
+                self._prefix += '/https]'
+            else:
+                self._prefix += '/http]'
+
+        return self._prefix
+
+    @property
+    def logger_name(self) -> str:
+        """
+        **INTERNAL**
+        """
+        return self.LOGGER_NAME
+
+    @property
     def options_builder(self) -> OptionsBuilder:
         """
         **INTERNAL**
@@ -101,6 +130,7 @@ class _AsyncClientAdapter:
         """
         if hasattr(self, '_client'):
             await self._client.aclose()
+            self.log_message('Cluster HTTP client closed', LogLevel.INFO)
 
     async def create_client(self) -> None:
         """
@@ -123,7 +153,15 @@ class _AsyncClientAdapter:
                 if self._http_transport_cls is not None:
                     transport = self._http_transport_cls()
                 self._client = AsyncClient(auth=BasicAuth(*self._conn_details.credential), transport=transport)
-            # TODO: log message
+            self.log_message(
+                (f'Cluster HTTP client created: connection_details={self._conn_details.get_init_details()}'),
+                LogLevel.INFO,
+            )
+        else:
+            self.log_message('Cluster HTTP client already exists, skipping creation.', LogLevel.INFO)
+
+    def log_message(self, message: str, log_level: LogLevel) -> None:
+        log_message(logger, f'{self.log_prefix} {message}', log_level)
 
     async def send_request(self, request: QueryRequest) -> Response:
         """
@@ -139,11 +177,7 @@ class _AsyncClientAdapter:
             path=request.url.path,
         )
         req = self._client.build_request(request.method, url, json=request.body, extensions=request.extensions)
-        try:
-            return await self._client.send(req, stream=True)
-        except socket.gaierror as err:
-            req_url = self._conn_details.url.get_formatted_url()
-            raise RuntimeError(f'Unable to connect to {req_url}') from err
+        return await self._client.send(req, stream=True)
 
     def reset_client(self) -> None:
         """
@@ -151,3 +185,6 @@ class _AsyncClientAdapter:
         """
         if hasattr(self, '_client'):
             del self._client
+
+
+logger = logging.getLogger(_AsyncClientAdapter.LOGGER_NAME)

@@ -24,6 +24,7 @@ from acouchbase_analytics.protocol._core.retries import AsyncRetryHandler
 from couchbase_analytics.common._core import ParsedResult, ParsedResultType
 from couchbase_analytics.common._core.query import build_query_metadata
 from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError, TimeoutError
+from couchbase_analytics.common.logging import LogLevel
 from couchbase_analytics.common.query import QueryMetadata
 
 
@@ -46,6 +47,7 @@ class AsyncHttpStreamingResponse:
         """
         await self.close()
         if self._request_context.cancelled:
+            self._request_context.log_message('Request canceled, aborting iteration', LogLevel.DEBUG)
             await self._request_context.shutdown()
             raise StopAsyncIteration
         elif self._request_context.timed_out:
@@ -55,6 +57,7 @@ class AsyncHttpStreamingResponse:
             )
             await self._request_context.reraise_after_shutdown(err)
         else:
+            self._request_context.log_message('Aborting iteration', LogLevel.DEBUG)
             await self._request_context.shutdown()
             raise StopAsyncIteration
 
@@ -75,18 +78,21 @@ class AsyncHttpStreamingResponse:
         """
         if hasattr(self, '_core_response'):
             await self._core_response.aclose()
+            self._request_context.log_message('HTTP core response closed', LogLevel.INFO)
             del self._core_response
 
     def cancel(self) -> None:
         """
         **INTERNAL**
         """
+        self._request_context.log_message('AsyncHttpStreamingResponse cancelling request in background', LogLevel.DEBUG)
         self._request_context.cancel_request(self._close_in_background)
 
     async def cancel_async(self) -> None:
         """
         **INTERNAL**
         """
+        self._request_context.log_message('AsyncHttpStreamingResponse cancelling request', LogLevel.DEBUG)
         await self.close()
         self._request_context.cancel_request()
         await self._request_context.shutdown()

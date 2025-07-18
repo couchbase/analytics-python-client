@@ -80,8 +80,8 @@ class RequestURL:
 
     def get_formatted_url(self) -> str:
         """Get the formatted URL for this request."""
+        host = self.ip if self.ip else self.host
         if self.path is None:
-            host = self.ip if self.ip else self.host
             return f'{self.scheme}://{host}:{self.port}'
         return f'{self.scheme}://{host}:{self.port}{self.path}'
 

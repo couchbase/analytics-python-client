@@ -13,7 +13,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-# TODO: versioning
+import logging
 import sys
 
 try:
@@ -30,51 +30,18 @@ try:
 except Exception:  # nosec
     pass
 
-"""
 
-pycbac teardown methods
+def configure_logger() -> None:
+    import os
 
-"""
-# import atexit  # nopep8 # isort:skip # noqa: E402
+    log_level = os.getenv('PYCBAC_LOG_LEVEL', None)
+    if log_level:
+        logger = logging.getLogger()
+        if not logger.hasHandlers():
+            from couchbase_analytics.common.logging import LOG_DATE_FORMAT, LOG_FORMAT
 
-
-# def _pycbac_teardown(**kwargs: object) -> None:
-#     """**INTERNAL**"""
-#     global _PYCBAC_LOGGER
-#     if _PYCBAC_LOGGER:
-#         # TODO:  see about synchronizing the logger's shutdown here
-#         _PYCBAC_LOGGER = None  # type: ignore
+            logging.basicConfig(format=LOG_FORMAT, datefmt=LOG_DATE_FORMAT, level=log_level.upper())
+        logger.info(f'Python Couchbase Analytics Client ({PYCBAC_VERSION})')
 
 
-# atexit.register(_pycbac_teardown)
-
-
-"""
-
-Logging methods
-
-"""
-# TODO: logging
-
-# def configure_console_logger() -> None:
-#     import os
-#     log_level = os.getenv('PYCBAC_LOG_LEVEL', None)
-#     if log_level:
-#         _PYCBAC_LOGGER.create_console_logger(log_level.lower())
-#         logger = logging.getLogger()
-#         logger.info(f'Python Couchbase Analytics Client ({PYCBAC_VERSION})')
-#         logging.getLogger().debug(get_metadata(as_str=True))
-
-
-# def configure_logging(name: str,
-#                       level: Optional[int] = logging.INFO,
-#                       parent_logger: Optional[logging.Logger] = None) -> None:
-#     if parent_logger:
-#         name = f'{parent_logger.name}.{name}'
-#     logger = logging.getLogger(name)
-#     _PYCBAC_LOGGER.configure_logging_sink(logger, level)
-#     logger.info(f'Python Couchbase Analytics Client ({PYCBAC_VERSION})')
-#     logger.debug(get_metadata(as_str=True))
-
-
-# configure_console_logger()
+configure_logger()

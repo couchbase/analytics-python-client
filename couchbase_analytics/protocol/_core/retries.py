@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Callable, Optional, Union
 from httpx import ConnectError, ConnectTimeout
 
 from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError, TimeoutError
+from couchbase_analytics.common.logging import LogLevel
 from couchbase_analytics.common.request import RequestState
 from couchbase_analytics.protocol.errors import WrappedError
 
@@ -52,6 +53,11 @@ class RetryHandler:
         if err:
             return err
         sleep(delay)
+        ctx.log_message(
+            'Retrying request',
+            LogLevel.DEBUG,
+            {'num_attempts': f'{ctx.error_context.num_attempts}', 'delay': f'{delay}s'},
+        )
         return None
 
     @staticmethod
@@ -74,6 +80,11 @@ class RetryHandler:
             if err:
                 return err
             sleep(delay)
+            ctx.log_message(
+                'Retrying request',
+                LogLevel.DEBUG,
+                {'num_attempts': f'{ctx.error_context.num_attempts}', 'delay': f'{delay}s'},
+            )
             return None
         ex.maybe_set_cause_context(ctx.error_context)
         return ex.unwrap()

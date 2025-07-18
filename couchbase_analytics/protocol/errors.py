@@ -16,25 +16,17 @@
 from __future__ import annotations
 
 import socket
-import sys
 from functools import wraps
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
-
-if sys.version_info < (3, 10):
-    from typing_extensions import TypeAlias
-else:
-    from typing import TypeAlias
 
 from couchbase_analytics.common._core.error_context import ErrorContext
 from couchbase_analytics.common.errors import (
     AnalyticsError,
-    InternalSDKError,
     InvalidCredentialError,
     QueryError,
     TimeoutError,
 )
-
-AnalyticsClientError: TypeAlias = Union[AnalyticsError, InternalSDKError, QueryError, RuntimeError, ValueError]
+from couchbase_analytics.common.logging import LogLevel
 
 
 class ServerQueryError(NamedTuple):
@@ -164,13 +156,16 @@ class ErrorMapper:
         return WrappedError(q_err, retriable=retriable)
 
     @staticmethod
-    def handle_socket_error(fn: Callable[[str, int], str]) -> Callable[[str, int], str]:
+    def handle_socket_error(
+        fn: Callable[[str, int, Optional[Callable[..., None]]], str],
+    ) -> Callable[[str, int, Optional[Callable[..., None]]], str]:
         @wraps(fn)
-        def wrapped_fn(host: str, port: int) -> str:
+        def wrapped_fn(host: str, port: int, logger_handler: Optional[Callable[..., None]] = None) -> str:
             try:
-                return fn(host, port)
+                return fn(host, port, logger_handler)
             except socket.gaierror as ex:
-                print(f'getaddrinfo failed for {host}:{port} with error: {ex}')
+                if logger_handler:
+                    logger_handler(f'getaddrinfo() failed for {host}:{port} with error: {ex}', LogLevel.ERROR)
                 msg = 'Connection error occurred while sending request.'
                 raise WrappedError(AnalyticsError(cause=ex, message=msg), retriable=True) from None
 

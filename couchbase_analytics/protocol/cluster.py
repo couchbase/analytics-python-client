@@ -20,6 +20,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from typing import TYPE_CHECKING, Optional, Union
 from uuid import uuid4
 
+from couchbase_analytics.common.logging import LogLevel
 from couchbase_analytics.common.result import BlockingQueryResult
 from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter
 from couchbase_analytics.protocol._core.request import _RequestBuilder
@@ -35,9 +36,10 @@ class Cluster:
     def __init__(
         self, http_endpoint: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
     ) -> None:
+        self._cluster_id = str(uuid4())
+        kwargs['cluster_id'] = self._cluster_id
         self._client_adapter = _ClientAdapter(http_endpoint, credential, options, **kwargs)
         self._request_builder = _RequestBuilder(self._client_adapter)
-        self._cluster_id = str(uuid4())
         self._create_client()
         # TODO:  make a custom ThreadPoolExecutor, so that we can override submit and have a way to get
         #        a "plain" future as the docs say we should create a future via an executor
@@ -108,8 +110,7 @@ class Cluster:
         if self.has_client:
             self._shutdown()
         else:
-            # TODO: log warning and/or exception?
-            print('Cluster does not have a connection.  Ignoring')
+            self._client_adapter.log_message('Cluster does not have a connection, no need to shutdown.', LogLevel.INFO)
 
     def execute_query(
         self, statement: str, *args: object, **kwargs: object

@@ -23,6 +23,7 @@ from httpx import ConnectError, ConnectTimeout
 
 from acouchbase_analytics.protocol._core.anyio_utils import sleep
 from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError, TimeoutError
+from couchbase_analytics.common.logging import LogLevel
 from couchbase_analytics.common.request import RequestState
 from couchbase_analytics.protocol.errors import WrappedError
 
@@ -54,6 +55,11 @@ class AsyncRetryHandler:
         if err:
             return err
         await sleep(delay)
+        ctx.log_message(
+            'Retrying request',
+            LogLevel.DEBUG,
+            {'num_attempts': f'{ctx.error_context.num_attempts}', 'delay': f'{delay}s'},
+        )
         return None
 
     @staticmethod
@@ -76,6 +82,11 @@ class AsyncRetryHandler:
             if err:
                 return err
             await sleep(delay)
+            ctx.log_message(
+                'Retrying request',
+                LogLevel.DEBUG,
+                {'num_attempts': f'{ctx.error_context.num_attempts}', 'delay': f'{delay}s'},
+            )
             return None
         ex.maybe_set_cause_context(ctx.error_context)
         return ex.unwrap()
