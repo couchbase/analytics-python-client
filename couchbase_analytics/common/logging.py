@@ -16,14 +16,16 @@
 import logging
 from enum import Enum
 
-LOG_FORMAT_ARR = ['[%(asctime)s.%(msecs)03d]',
-                  '%(relativeCreated)dms',
-                  '[%(levelname)s]',
-                  '[%(process)d, %(threadName)s (%(thread)d)]'
-                  ' %(name)s',
-                  '- %(message)s']
+LOG_FORMAT_ARR = [
+    '[%(asctime)s.%(msecs)03d]',
+    '%(relativeCreated)dms',
+    '[%(levelname)s]',
+    '[%(process)d, %(threadName)s (%(thread)d)] %(name)s',
+    '- %(message)s',
+]
 LOG_FORMAT = ' '.join(LOG_FORMAT_ARR)
 LOG_DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
+
 
 class LogLevel(Enum):
     DEBUG = logging.DEBUG
@@ -32,10 +34,11 @@ class LogLevel(Enum):
     ERROR = logging.ERROR
     CRITICAL = logging.CRITICAL
 
+
 def log_message(logger: logging.Logger, message: str, log_level: LogLevel) -> None:
     if not logger or not logger.hasHandlers():
         return
-    
+
     if log_level == LogLevel.DEBUG:
         logger.debug(message)
     elif log_level == LogLevel.INFO:

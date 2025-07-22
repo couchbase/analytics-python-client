@@ -293,7 +293,7 @@ class ServerResponseResults:
             raise RuntimeError(f'Unrecognized result type. Got type: {result_type}')
 
     @staticmethod
-    def get_result_genetaotr(result_type: ResultType) -> Callable[[], Union[Generator[bytes, None, None]]]:
+    def get_result_generator(result_type: ResultType) -> Callable[[], Union[Generator[bytes, None, None]]]:
         if result_type == ResultType.Object:
 
             def obj_generator() -> Generator[bytes, None, None]:
@@ -301,7 +301,7 @@ class ServerResponseResults:
                 while True:
                     name = choice(NAMES)
                     city = choice(US_CITIES)
-                    yield bytes(json.dumps({'id': idx + 1, 'name': name, 'city': city}), 'utf-8')
+                    yield json.dumps({'id': idx + 1, 'name': name, 'city': city}).encode('utf-8')
                     idx += 1
 
             return obj_generator
@@ -327,12 +327,8 @@ class ServerResponse:
     results: Optional[ServerResponseResults] = None
     errors: Optional[List[ServerResponseError]] = None
 
-    def to_json_repr(self) -> Dict[str, Any]:
-        output: Dict[str, Any] = {
-            'requestID': self.request_id,
-            'status': self.status,
-            'metrics': self.metrics.to_json_repr(),
-        }
+    def to_json_repr(self, exclude_metrics: Optional[bool] = False) -> Dict[str, Any]:
+        output: Dict[str, Any] = {'requestID': self.request_id, 'status': self.status}
         if self.signature is not None:
             output['signature'] = self.signature
         if self.plans is not None:
@@ -341,6 +337,8 @@ class ServerResponse:
             output['results'] = self.results.to_json_repr()
         if self.errors is not None:
             output['errors'] = [e.to_json_repr() for e in self.errors]
+        if exclude_metrics is False:
+            output['metrics'] = self.metrics.to_json_repr()
         return output
 
     def update_elapsed_time(self, t: float) -> None:

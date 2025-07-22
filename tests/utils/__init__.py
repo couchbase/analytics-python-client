@@ -44,7 +44,7 @@ class AsyncInfiniteBytesIterator(PyAsyncIterator[bytes]):
                 self._initial_data = bytearray(initial_data)[:-1]
             else:
                 self._initial_data = bytearray(initial_data, 'utf-8')[:-1]
-        self._initial_data += b',"results":['
+        self._initial_data += b', "results": ['
         self._end_data = bytearray()
 
         self._data = bytearray() if self._initial_data is None else bytearray(self._initial_data)
@@ -52,7 +52,6 @@ class AsyncInfiniteBytesIterator(PyAsyncIterator[bytes]):
         self._simulate_delay = simulate_delay or False
         self._simulate_delay_range = simulate_delay_range or (0.01, 0.1)
         self._start = 0
-        self._stop = self._chunk_size
         self._stop_iterating = False
         self._data_count = 0
 
@@ -77,32 +76,33 @@ class AsyncInfiniteBytesIterator(PyAsyncIterator[bytes]):
 
         while True:
             await anyio.sleep(0.5)
-            if len(self._data) == 0:
+            if len(self._data) < self._chunk_size:
                 if self._stop_iterating:
-                    if len(self._end_data) == 0:
+                    if len(self._data) == 0:
                         raise StopAsyncIteration
-                    self._data += b'],'
-                    self._data += bytearray(self._end_data)
-                    self._data += b'}'
-                    self._end_data = bytearray()
+                    if len(self._end_data) > 0:
+                        print(f'end_data={self._end_data}')
+                        # ending a results array
+                        self._data += b'], '
+                        self._data += bytearray(self._end_data)
+                        # ending the overall JSON object
+                        self._data += b'}'
+                        # reset end_data
+                        self._end_data = bytearray()
                 else:
-                    self._stop = self._chunk_size
                     while len(self._data) < (2 * self._chunk_size):
-                        self._data += b','
+                        if self._data_count > 0:
+                            self._data += b', '
+                        # the data generator should yields whole JSON objects
                         self._data += next(self._data_generator)
                         self._data_count += 1
 
-            # if self._start >= len(self._data):
-            #     self._start = 0
-            #     self._stop = self._chunk_size
-            #     self._data += next(self._data_generator)
-
-            if self._stop >= len(self._data):
-                self._stop = len(self._data)
-
-            chunk = bytes(self._data[: self._stop])
-            del self._data[: self._stop]
-            self._stop += self._chunk_size
+            if len(self._data) > self._chunk_size:
+                chunk = bytes(self._data[: self._chunk_size])
+                del self._data[: self._chunk_size]
+            else:
+                chunk = bytes(self._data[:])
+                del self._data[:]
 
             return chunk
 
