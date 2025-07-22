@@ -424,7 +424,9 @@ class AsyncRequestContext:
             # TODO: logging; I don't think this is an error...
             return
 
-        self._json_stream = AsyncJsonStream(core_response.aiter_bytes(), stream_config=self._stream_config)
+        self._json_stream = AsyncJsonStream(
+            core_response.aiter_bytes(), stream_config=self._stream_config, logger_handler=self.log_message
+        )
         self._start_next_stage(self._json_stream.start_parsing)
 
     async def wait_for_results_or_errors(self) -> None:

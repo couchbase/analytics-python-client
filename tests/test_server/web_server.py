@@ -117,55 +117,98 @@ class AsyncWebServer:
         resp.update_elapsed_time(elapsed)
         return web.json_response(resp.to_json_repr())
 
-    async def _handle_results_request(
+    async def _handle_timed_streaming_request(
         self, request: ServerResultsRequest, web_request: web.Request
-    ) -> Union[web.Response, web.StreamResponse]:
+    ) -> web.StreamResponse:
+        if request.until is None:
+            raise ValueError('Missing "until" in JSON data.')
         resp = ServerResponse.create()
         start = perf_counter()
-        if request.until is not None:
-            response = web.StreamResponse()
-            await response.prepare(web_request)
+        response = web.StreamResponse(
+            status=200,
+            headers={
+                'Content-Type': 'application/json',
+                'Transfer-Encoding': 'chunked',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+            },
+        )
+        await response.prepare(web_request)
+        now = asyncio.get_running_loop().time()
+        deadline = now + request.until
+        chunk_size = request.chunk_size or 100
+        bytes_generator = ServerResponseResults.get_result_generator(request.result_type)
+        initial_data = json.dumps({'requestID': resp.request_id, 'status': resp.status}).encode('utf-8')
+        async_inf_iterator = AsyncInfiniteBytesIterator(
+            bytes_generator(), initial_data=initial_data, chunk_size=chunk_size
+        )
+        num_bytes_sent = 0
+        while deadline > now:
+            chunk = await async_inf_iterator.__anext__()
+            num_bytes_sent += len(chunk)
+            logger.info(f'Writing chunk of size {len(chunk)}; {chunk=}; {num_bytes_sent=}')
+            await response.write(chunk)
             now = asyncio.get_running_loop().time()
-            deadline = now + request.until
-            chunk_size = request.chunk_size or 100
-            bytes_generator = ServerResponseResults.get_result_genetaotr(request.result_type)
-            initial_data = bytes(json.dumps({'requestID': resp.request_id, 'status': resp.status}), 'utf-8')
-            async_inf_iterator = AsyncInfiniteBytesIterator(
-                bytes_generator(), initial_data=initial_data, chunk_size=chunk_size
-            )
-            while deadline > now:
-                chunk = await async_inf_iterator.__anext__()
-                await response.write(chunk)
-                now = asyncio.get_running_loop().time()
-            end = perf_counter()
-            elapsed = end - start
-            resp.update_elapsed_time(elapsed)
-            metrics = resp.metrics
-            metrics.result_count = async_inf_iterator.get_data_count()
-            meta = bytes(json.dumps({'metrics': metrics.to_json_repr()}), 'utf-8')
-            async_inf_iterator.stop_iterating(end_data=meta)
-            async for chunk in async_inf_iterator:
-                await response.write(chunk)
-            await response.write_eof()
-            return response
+        end = perf_counter()
+        elapsed = end - start
+        resp.update_elapsed_time(elapsed)
+        metrics = resp.metrics
+        metrics.result_count = async_inf_iterator.get_data_count()
+        meta = json.dumps({'metrics': metrics.to_json_repr()}).encode('utf-8')
+        async_inf_iterator.stop_iterating(end_data=meta)
+        async for chunk in async_inf_iterator:
+            num_bytes_sent += len(chunk)
+            logger.info(f'Writing chunk of size {len(chunk)}; {chunk=}; {num_bytes_sent=}')
+            await response.write(chunk)
+        logger.info(f'Writing EOF; {num_bytes_sent=}')
+        await response.write_eof()
+        logger.info('returning response')
+        return response
 
+    async def _handle_count_streaming_request(
+        self, request: ServerResultsRequest, web_request: web.Request
+    ) -> web.StreamResponse:
         if request.row_count is None:
             raise ValueError('Missing "row_count" in JSON data.')
 
+        response = web.StreamResponse(
+            status=200,
+            headers={
+                'Content-Type': 'application/json',
+                'Transfer-Encoding': 'chunked',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+            },
+        )
+        await response.prepare(web_request)
+        resp = ServerResponse.create()
+        start = perf_counter()
         ServerResponseResults.build_results(resp, request.row_count, request.result_type)
         end = perf_counter()
         elapsed = end - start
         resp.update_elapsed_time(elapsed)
-        if request.stream:
-            response = web.StreamResponse()
-            await response.prepare(web_request)
-            chunk_size = request.chunk_size or 100
-            async_iterator = AsyncBytesIterator(bytes(json.dumps(resp.to_json_repr()), 'utf-8'), chunk_size=chunk_size)
-            async for chunk in async_iterator:
-                await response.write(chunk)
-            await response.write_eof()
-            return response
 
+        chunk_size = request.chunk_size or 100
+        async_iterator = AsyncBytesIterator(bytes(json.dumps(resp.to_json_repr()), 'utf-8'), chunk_size=chunk_size)
+        async for chunk in async_iterator:
+            logger.info(f'Writing chunk of size {len(chunk)}; {chunk=}')
+            await response.write(chunk)
+        logger.info('Writing EOF')
+        await response.write_eof()
+        logger.info('returning response')
+        return response
+
+    def _handle_basic_results_request(
+        self, request: ServerResultsRequest, web_request: web.Request
+    ) -> Union[web.Response, web.StreamResponse]:
+        if request.row_count is None:
+            raise ValueError('Missing "row_count" in JSON data.')
+        resp = ServerResponse.create()
+        start = perf_counter()
+        ServerResponseResults.build_results(resp, request.row_count, request.result_type)
+        end = perf_counter()
+        elapsed = end - start
+        resp.update_elapsed_time(elapsed)
         res = resp.to_json_repr()
         return web.json_response(res)
 
@@ -202,7 +245,11 @@ class AsyncWebServer:
         try:
             received_json = await request.json()
             result_req = ServerResultsRequest.from_json(received_json)
-            return await self._handle_results_request(result_req, request)
+            if result_req.stream:
+                if result_req.until is not None:
+                    return await self._handle_timed_streaming_request(result_req, request)
+                return await self._handle_count_streaming_request(result_req, request)
+            return self._handle_basic_results_request(result_req, request)
         except json.JSONDecodeError:
             received_text = await request.text()
             msg = 'POST request received, but data is not valid JSON. Showing as plain text.'

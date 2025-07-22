@@ -27,7 +27,7 @@ class BackoffCalculator(ABC):
 class DefaultBackoffCalculator(BackoffCalculator):
     MIN = 100
     MAX = 60 * 1000
-    EXPONENT_BASE = 1.5
+    EXPONENT_BASE = 2
 
     def __init__(
         self, min: Optional[int] = None, max: Optional[int] = None, exponent_base: Optional[int] = None
