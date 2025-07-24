@@ -112,11 +112,7 @@ class AsyncRequestContext:
             return
 
         current_time = get_time()
-        if self._cancel_scope_deadline_updated is False:
-            timed_out = current_time >= self._connect_deadline
-        else:
-            timed_out = current_time >= self._request_deadline
-
+        timed_out = current_time >= self._request_deadline
         if timed_out:
             message_data = {'current_time': f'{current_time}', 'request_deadline': f'{self._request_deadline}'}
             self.log_message('Request has timed out', LogLevel.DEBUG, message_data=message_data)
@@ -262,11 +258,11 @@ class AsyncRequestContext:
 
     async def initialize(self) -> None:
         if self._request_state == RequestState.ResetAndNotStarted:
-            self._update_cancel_scope_deadline(self._connect_deadline, is_absolute=True)
+            current_time = get_time()
             self.log_message(
                 'Request is a retry, skipping initialization',
                 LogLevel.DEBUG,
-                message_data={'request_deadline': f'{self._request_deadline}'},
+                message_data={'current_time': f'{current_time}', 'request_deadline': f'{self._request_deadline}'},
             )
             return
         await self.__aenter__()
@@ -276,7 +272,6 @@ class AsyncRequestContext:
         timeouts = self._request.get_request_timeouts() or {}
         current_time = get_time()
         self._request_deadline = current_time + (timeouts.get('read', None) or DEFAULT_TIMEOUTS['query_timeout'])
-        self._update_cancel_scope_deadline(self._connect_deadline, is_absolute=True)
         message_data = {'current_time': f'{current_time}', 'request_deadline': f'{self._request_deadline}'}
         self.log_message('Request context initialized', LogLevel.DEBUG, message_data=message_data)
 
@@ -437,6 +432,8 @@ class AsyncRequestContext:
 
     async def __aenter__(self) -> AsyncRequestContext:
         self._taskgroup = anyio.create_task_group()
+        message_data = {'cancel_scope': f'{id(self._taskgroup.cancel_scope):x}'}
+        self.log_message('Task group created', LogLevel.DEBUG, message_data=message_data)
         await self._taskgroup.__aenter__()
         return self
 

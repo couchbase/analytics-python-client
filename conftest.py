@@ -42,8 +42,10 @@ _UNIT_TESTS = [
 ]
 
 _INTEGRATRION_TESTS = [
+    'acouchbase_analytics/tests/connect_integration_t.py::ConnectTests',
     'acouchbase_analytics/tests/query_integration_t.py::ClusterQueryTests',
     'acouchbase_analytics/tests/query_integration_t.py::ScopeQueryTests',
+    'couchbase_analytics/tests/connect_integration_t.py::ConnectTests',
     'couchbase_analytics/tests/query_integration_t.py::ClusterQueryTests',
     'couchbase_analytics/tests/query_integration_t.py::ScopeQueryTests',
 ]
