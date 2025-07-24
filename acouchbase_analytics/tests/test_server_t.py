@@ -121,7 +121,6 @@ class TestServerTestSuite:
         with pytest.raises(QueryError) as ex:
             await test_env.cluster_or_scope.execute_query(statement, q_opts)
 
-        print(ex.value)
         test_env.assert_error_context_num_attempts(allowed_retries + 1, ex.value._context)
         test_env.assert_error_context_contains_last_dispatch(ex.value._context)
 

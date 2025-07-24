@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 import pathlib
 from configparser import ConfigParser
-from typing import Tuple
+from typing import Optional, Tuple
 from uuid import uuid4
 
 import pytest
@@ -72,8 +72,8 @@ class AnalyticsConfig:
     def scope_name(self) -> str:
         return self._scope_name
 
-    def get_connection_string(self) -> str:
-        if self._port is not None:
+    def get_connection_string(self, ignore_port: Optional[bool] = False) -> str:
+        if ignore_port is None or ignore_port is False and self._port is not None:
             return f'{self._scheme}://{self._host}:{self._port}'
         return f'{self._scheme}://{self._host}'
 

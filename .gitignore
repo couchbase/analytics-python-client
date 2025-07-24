@@ -161,12 +161,7 @@ cython_debug/
 
 # Distribution / packaging
 build/
-couchbase_columnar/_version.py
-couchbase_columnar/*.so
-couchbase_columnar/*.dylib*.*
-couchbase_columnar/*.dll
-couchbase_columnar/*.pyd
-deps/couchbase-cxx-cache/
+couchbase_analytics/_version.py
 
 # Sphinx
 docs/_build/

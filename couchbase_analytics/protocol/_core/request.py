@@ -167,10 +167,6 @@ class _RequestBuilder:
         extensions = deepcopy(self._extensions)
         if timeout is not None and timeout != self._default_query_timeout:
             extensions['timeout']['read'] = timeout
-        # in the async world we have our own cancel scope that handles the connect timeout
-        if is_async:
-            del extensions['timeout']['pool']
-            del extensions['timeout']['connect']
         # we add 5 seconds to the server timeout to ensure we always trigger a client side timeout
         timeout_ms = (timeout + 5) * 1e3  # convert to milliseconds
         body['timeout'] = f'{timeout_ms}ms'
