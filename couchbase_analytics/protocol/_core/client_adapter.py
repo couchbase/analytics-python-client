@@ -27,8 +27,6 @@ from couchbase_analytics.common.logging import LogLevel, log_message
 from couchbase_analytics.protocol.connection import _ConnectionDetails
 from couchbase_analytics.protocol.options import OptionsBuilder
 
-# from couchbase_analytics.protocol.core._http_transport import AnalyticsHTTPTransport
-
 if TYPE_CHECKING:
     from couchbase_analytics.protocol._core.request import QueryRequest
 
@@ -48,9 +46,7 @@ class _ClientAdapter:
         self._prefix = ''
         self._cluster_id = cast(str, kwargs.pop('cluster_id', ''))
         self._opts_builder = OptionsBuilder()
-        # TODO:  We should limit the allowed transports to the ones we support
-        #        Question is how do we want to limit the transports?  Should users even need to override?
-        # self._http_transport_cls = kwargs.pop('http_transport_cls', AnalyticsHTTPTransport)
+        # PYCO-67:  Do we want to allow supporting custom HTTP transports?
         self._http_transport_cls = None
         kwargs['logger_name'] = self.logger_name
         self._conn_details = _ConnectionDetails.create(self._opts_builder, http_endpoint, credential, options, **kwargs)
