@@ -48,7 +48,7 @@ class _AsyncClientAdapter:
         self._opts_builder = OptionsBuilder()
         kwargs['logger_name'] = self.logger_name
         self._conn_details = _ConnectionDetails.create(self._opts_builder, http_endpoint, credential, options, **kwargs)
-        # TODO:  do we want to support custom HTTP transports for the async client?
+        # PYCO-67:  Do we want to allow supporting custom HTTP transports?
         self._http_transport_cls = None
 
     @property
