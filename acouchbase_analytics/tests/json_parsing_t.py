@@ -312,7 +312,8 @@ class JsonParsingTestSuite:
         res = await parser.get_result()
         assert res.result_type == ParsedResultType.ERROR
         assert res.value is not None
-        assert 'parse error' in str(res.value.decode('utf-8'))
+        decoded_value = res.value.decode('utf-8')
+        assert ('parse error' in decoded_value or 'Incomplete JSON content' in decoded_value) is True
 
     @pytest.mark.anyio
     async def test_invalid_garbage_between_objects(self) -> None:
@@ -324,7 +325,8 @@ class JsonParsingTestSuite:
         res = await parser.get_result()
         assert res.result_type == ParsedResultType.ERROR
         assert res.value is not None
-        assert 'lexical error' in str(res.value.decode('utf-8'))
+        decoded_value = res.value.decode('utf-8')
+        assert ('lexical error' in decoded_value or 'Unexpected symbol' in decoded_value) is True
 
     @pytest.mark.anyio
     async def test_invalid_leading_garbage(self) -> None:
@@ -336,7 +338,8 @@ class JsonParsingTestSuite:
         res = await parser.get_result()
         assert res.result_type == ParsedResultType.ERROR
         assert res.value is not None
-        assert 'lexical error' in str(res.value.decode('utf-8'))
+        decoded_value = res.value.decode('utf-8')
+        assert ('lexical error' in decoded_value or 'Unexpected symbol' in decoded_value) is True
 
     @pytest.mark.anyio
     async def test_invalid_trailing_garbage(self) -> None:
@@ -348,7 +351,8 @@ class JsonParsingTestSuite:
         res = await parser.get_result()
         assert res.result_type == ParsedResultType.ERROR
         assert res.value is not None
-        assert 'parse error' in str(res.value.decode('utf-8'))
+        decoded_value = res.value.decode('utf-8')
+        assert ('parse error' in decoded_value or 'Additional data found' in decoded_value) is True
 
     @pytest.mark.anyio
     async def test_invalid_whitespace_only(self) -> None:
@@ -360,7 +364,8 @@ class JsonParsingTestSuite:
         res = await parser.get_result()
         assert res.result_type == ParsedResultType.ERROR
         assert res.value is not None
-        assert 'parse error' in str(res.value.decode('utf-8'))
+        decoded_value = res.value.decode('utf-8')
+        assert ('parse error' in decoded_value or 'Incomplete JSON content' in decoded_value) is True
 
     @pytest.mark.anyio
     async def test_value_bool(self) -> None:

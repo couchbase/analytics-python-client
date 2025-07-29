@@ -20,7 +20,7 @@ from functools import wraps
 from time import sleep
 from typing import TYPE_CHECKING, Callable, Optional, Union
 
-from httpx import ConnectError, ConnectTimeout
+from httpx import ConnectError, ConnectTimeout, ReadTimeout, WriteError, WriteTimeout
 
 from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError, TimeoutError
 from couchbase_analytics.common.logging import LogLevel
@@ -38,7 +38,9 @@ class RetryHandler:
     """
 
     @staticmethod
-    def handle_httpx_retry(ex: Union[ConnectError, ConnectTimeout], ctx: RequestContext) -> Optional[Exception]:
+    def handle_httpx_retry(
+        ex: Union[ConnectError, ConnectTimeout, WriteError, WriteTimeout], ctx: RequestContext
+    ) -> Optional[Exception]:
         err_str = str(ex)
         if 'SSL:' in err_str:
             message = 'TLS connection error occurred.'
@@ -103,17 +105,30 @@ class RetryHandler:
                         continue
                     self._request_context.shutdown(ex)
                     raise err from None
-                except (ConnectError, ConnectTimeout) as ex:
+                except (ConnectError, ConnectTimeout, WriteError, WriteTimeout) as ex:
                     err = RetryHandler.handle_httpx_retry(ex, self._request_context)
                     if err is None:
                         continue
                     self._request_context.shutdown(ex)
                     raise err from None
+                except ReadTimeout as ex:
+                    # we set the read timeout to the query timeout, so if we get a ReadTimeout,
+                    # it means the request timed out from the httpx client
+                    self._request_context.shutdown(ex)
+                    raise TimeoutError(
+                        message='Request timed out.', context=str(self._request_context.error_context)
+                    ) from None
                 except AnalyticsError:
                     # if an AnalyticsError is raised, we have already shut down the request context
                     raise
                 except RuntimeError as ex:
                     self._request_context.shutdown(ex)
+                    if self._request_context.timed_out:
+                        raise TimeoutError(
+                            message='Request timeout.', context=str(self._request_context.error_context)
+                        ) from None
+                    if self._request_context.cancelled:
+                        raise CancelledError('Request was cancelled.') from None
                     raise ex
                 except BaseException as ex:
                     self._request_context.shutdown(ex)

@@ -38,6 +38,7 @@ from couchbase_analytics.options import ClusterOptions, SecurityOptions
 from couchbase_analytics.result import BlockingQueryResult
 from couchbase_analytics.scope import Scope
 from tests import AnalyticsTestEnvironmentError
+from tests.test_server import ResultType
 from tests.utils._run_web_server import WebServerHandler
 
 if TYPE_CHECKING:
@@ -208,6 +209,7 @@ class BlockingTestEnvironment(TestEnvironment):
         url = self._cluster._impl.client_adapter.connection_details.url.get_formatted_url()
         print(f'Connecting to test server at {url}')
         self._server_handler.start_server()
+        self.warmup_test_server()
         return self
 
     def setup(self) -> None:
@@ -288,6 +290,24 @@ class BlockingTestEnvironment(TestEnvironment):
         if self._cluster is None or not hasattr(self._cluster, '_impl'):
             raise AnalyticsTestEnvironmentError('No cluster available, cannot enable test server.')
         self._cluster._impl._client_adapter.update_request_json(json)
+
+    def warmup_test_server(self) -> None:
+        row_count = 5
+        self.set_url_path('/test_results')
+        self.update_request_json({'result_type': ResultType.Object.value, 'row_count': 5, 'stream': True})
+        statement = 'SELECT "Hello, data!" AS greeting'
+        exc = None
+        for _ in range(3):
+            exc = None
+            try:
+                res = self.cluster.execute_query(statement)
+                rows = list(res.rows())
+                if len(rows) == row_count:
+                    break
+            except Exception as ex:
+                exc = AnalyticsTestEnvironmentError(f'Unable to execute statement={statement}. Error: {ex}')
+        if exc is not None:
+            raise exc
 
     @classmethod
     def get_environment(
@@ -407,6 +427,7 @@ class AsyncTestEnvironment(TestEnvironment):
         url = self._async_cluster._impl.client_adapter.connection_details.url.get_formatted_url()
         print(f'Connecting to test server at {url}')
         self._server_handler.start_server()
+        await self.warmup_test_server()
         return self
 
     async def setup(self) -> None:
@@ -490,6 +511,24 @@ class AsyncTestEnvironment(TestEnvironment):
         if self._async_cluster is None or not hasattr(self._async_cluster, '_impl'):
             raise AnalyticsTestEnvironmentError('No cluster available, cannot enable test server.')
         self._async_cluster._impl._client_adapter.update_request_json(json)
+
+    async def warmup_test_server(self) -> None:
+        row_count = 5
+        self.set_url_path('/test_results')
+        self.update_request_json({'result_type': ResultType.Object.value, 'row_count': 5, 'stream': True})
+        statement = 'SELECT "Hello, data!" AS greeting'
+        exc = None
+        for _ in range(3):
+            exc = None
+            try:
+                res = await self.cluster.execute_query(statement)
+                rows = [r async for r in res.rows()]
+                if len(rows) == row_count:
+                    break
+            except Exception as ex:
+                exc = AnalyticsTestEnvironmentError(f'Unable to execute statement={statement}. Error: {ex}')
+        if exc is not None:
+            raise exc
 
     @classmethod
     def get_environment(

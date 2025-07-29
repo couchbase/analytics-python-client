@@ -150,7 +150,7 @@ class TestServerTestSuite:
         if server_side:
             req_json = {'error_type': ErrorType.Timeout.value, 'timeout': 1, 'server_side': True}
         else:
-            req_json = {'error_type': ErrorType.Timeout.value, 'timeout': 2}
+            req_json = {'error_type': ErrorType.Timeout.value, 'timeout': 3}
 
         test_env.update_request_json(req_json)
         statement = 'SELECT "Hello, data!" AS greeting'

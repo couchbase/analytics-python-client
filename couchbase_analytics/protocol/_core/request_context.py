@@ -212,6 +212,7 @@ class RequestContext:
             del self._json_stream
         self._request_state = RequestState.ResetAndNotStarted
         self._stage_notification_ft = None
+        self.log_message('Request state has been reset', LogLevel.DEBUG)
 
     def _start_next_stage(
         self,
@@ -454,5 +455,8 @@ class RequestContext:
             raise TimeoutError(message='Request timed out waiting for stage notification', context=str(self._error_ctx))
         result_type = self._stage_notification_ft.result(timeout=deadline)
         if result_type == ParsedResultType.ROW:
+            self.log_message('Received row, setting status to streaming', LogLevel.DEBUG)
             # we move to iterating rows
             self._request_state = RequestState.StreamingResults
+        else:
+            self.log_message(f'Received result type {result_type.name}', LogLevel.DEBUG)
