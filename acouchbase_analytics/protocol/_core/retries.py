@@ -19,7 +19,7 @@ from asyncio import CancelledError
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Coroutine, Optional, Union
 
-from httpx import ConnectError, ConnectTimeout, ReadTimeout, WriteError, WriteTimeout
+from httpx import ConnectError, ConnectTimeout, CookieConflict, HTTPError, InvalidURL, ReadTimeout, StreamError
 
 from acouchbase_analytics.protocol._core.anyio_utils import sleep
 from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError, TimeoutError
@@ -39,7 +39,7 @@ class AsyncRetryHandler:
 
     @staticmethod
     async def handle_httpx_retry(
-        ex: Union[ConnectError, ConnectTimeout, WriteError, WriteTimeout], ctx: AsyncRequestContext
+        ex: Union[ConnectError, ConnectTimeout], ctx: AsyncRequestContext
     ) -> Optional[Exception]:
         err_str = str(ex)
         if 'SSL:' in err_str:
@@ -107,7 +107,7 @@ class AsyncRetryHandler:
                         continue
                     await self._request_context.shutdown(type(ex), ex, ex.__traceback__)
                     raise err from None
-                except (ConnectError, ConnectTimeout, WriteError, WriteTimeout) as ex:
+                except (ConnectError, ConnectTimeout) as ex:
                     err = await AsyncRetryHandler.handle_httpx_retry(ex, self._request_context)
                     if err is None:
                         continue
@@ -119,6 +119,12 @@ class AsyncRetryHandler:
                     await self._request_context.shutdown(type(ex), ex, ex.__traceback__)
                     raise TimeoutError(
                         message='Request timed out.', context=str(self._request_context.error_context)
+                    ) from None
+                except (CookieConflict, HTTPError, StreamError, InvalidURL) as ex:
+                    # these are not retriable errors, so we just shutdown the request context and raise the error
+                    await self._request_context.shutdown(type(ex), ex, ex.__traceback__)
+                    raise AnalyticsError(
+                        cause=ex, message=str(ex), context=str(self._request_context.error_context)
                     ) from None
                 except AnalyticsError:
                     # if an AnalyticsError is raised, we have already shut down the request context
@@ -142,9 +148,15 @@ class AsyncRetryHandler:
                         raise CancelledError('Request was cancelled.') from None
                     if self._request_context.request_error is not None:
                         raise self._request_context.request_error from None
-                    raise InternalSDKError(
-                        cause=ex, message=str(ex), context=str(self._request_context.error_context)
-                    ) from None
+                    if isinstance(ex, Exception):
+                        # If the exception is an Exception, we raise it as an InternalSDKError as this is
+                        # an unexpected error in the SDK
+                        raise InternalSDKError(
+                            cause=ex, message=str(ex), context=str(self._request_context.error_context)
+                        ) from None
+                    # we should have handled CancelledError and TimeoutError above, so if we get here,
+                    # raise the BaseException as is (most likely a KeyboardInterrupt)
+                    raise ex
                 finally:
                     if not RequestState.is_okay(self._request_context.request_state):
                         await self.close()
