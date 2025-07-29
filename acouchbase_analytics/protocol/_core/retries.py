@@ -19,7 +19,7 @@ from asyncio import CancelledError
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Coroutine, Optional, Union
 
-from httpx import ConnectError, ConnectTimeout
+from httpx import ConnectError, ConnectTimeout, ReadTimeout, WriteError, WriteTimeout
 
 from acouchbase_analytics.protocol._core.anyio_utils import sleep
 from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError, TimeoutError
@@ -39,7 +39,7 @@ class AsyncRetryHandler:
 
     @staticmethod
     async def handle_httpx_retry(
-        ex: Union[ConnectError, ConnectTimeout], ctx: AsyncRequestContext
+        ex: Union[ConnectError, ConnectTimeout, WriteError, WriteTimeout], ctx: AsyncRequestContext
     ) -> Optional[Exception]:
         err_str = str(ex)
         if 'SSL:' in err_str:
@@ -107,17 +107,30 @@ class AsyncRetryHandler:
                         continue
                     await self._request_context.shutdown(type(ex), ex, ex.__traceback__)
                     raise err from None
-                except (ConnectError, ConnectTimeout) as ex:
+                except (ConnectError, ConnectTimeout, WriteError, WriteTimeout) as ex:
                     err = await AsyncRetryHandler.handle_httpx_retry(ex, self._request_context)
                     if err is None:
                         continue
                     await self._request_context.shutdown(type(ex), ex, ex.__traceback__)
                     raise err from None
+                except ReadTimeout as ex:
+                    # we set the read timeout to the query timeout, so if we get a ReadTimeout,
+                    # it means the request timed out from the httpx client
+                    await self._request_context.shutdown(type(ex), ex, ex.__traceback__)
+                    raise TimeoutError(
+                        message='Request timed out.', context=str(self._request_context.error_context)
+                    ) from None
                 except AnalyticsError:
                     # if an AnalyticsError is raised, we have already shut down the request context
                     raise
                 except RuntimeError as ex:
                     await self._request_context.shutdown(type(ex), ex, ex.__traceback__)
+                    if self._request_context.timed_out:
+                        raise TimeoutError(
+                            message='Request timeout.', context=str(self._request_context.error_context)
+                        ) from None
+                    if self._request_context.cancelled:
+                        raise CancelledError('Request was cancelled.') from None
                     raise ex
                 except BaseException as ex:
                     await self._request_context.shutdown(type(ex), ex, ex.__traceback__)

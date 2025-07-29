@@ -256,7 +256,8 @@ class JsonParsingTestSuite:
         assert isinstance(res, ParsedResult)
         assert res.result_type == ParsedResultType.ERROR
         assert res.value is not None
-        assert 'parse error' in str(res.value.decode('utf-8'))
+        decoded_value = res.value.decode('utf-8')
+        assert ('parse error' in decoded_value or 'Incomplete JSON content' in decoded_value) is True
 
     def test_invalid_garbage_between_objects(self) -> None:
         data = '[{"id":1,"name":"Alice"},garbage,{"id":2,"name":"Bob"}]'
@@ -268,7 +269,8 @@ class JsonParsingTestSuite:
         assert isinstance(res, ParsedResult)
         assert res.result_type == ParsedResultType.ERROR
         assert res.value is not None
-        assert 'lexical error' in str(res.value.decode('utf-8'))
+        decoded_value = res.value.decode('utf-8')
+        assert ('lexical error' in decoded_value or 'Unexpected symbol' in decoded_value) is True
 
     def test_invalid_leading_garbage(self) -> None:
         data = 'garbage{"key":"value"}'
@@ -280,7 +282,8 @@ class JsonParsingTestSuite:
         assert isinstance(res, ParsedResult)
         assert res.result_type == ParsedResultType.ERROR
         assert res.value is not None
-        assert 'lexical error' in str(res.value.decode('utf-8'))
+        decoded_value = res.value.decode('utf-8')
+        assert ('lexical error' in decoded_value or 'Unexpected symbol' in decoded_value) is True
 
     def test_invalid_trailing_garbage(self) -> None:
         data = '{"key":"value"}garbage'
@@ -292,7 +295,8 @@ class JsonParsingTestSuite:
         assert isinstance(res, ParsedResult)
         assert res.result_type == ParsedResultType.ERROR
         assert res.value is not None
-        assert 'parse error' in str(res.value.decode('utf-8'))
+        decoded_value = res.value.decode('utf-8')
+        assert ('parse error' in decoded_value or 'Additional data found' in decoded_value) is True
 
     def test_invalid_whitespace_only(self) -> None:
         data = '   \n\t  '
@@ -304,7 +308,8 @@ class JsonParsingTestSuite:
         assert isinstance(res, ParsedResult)
         assert res.result_type == ParsedResultType.ERROR
         assert res.value is not None
-        assert 'parse error' in str(res.value.decode('utf-8'))
+        decoded_value = res.value.decode('utf-8')
+        assert ('parse error' in decoded_value or 'Incomplete JSON content' in decoded_value) is True
 
     def test_object(self) -> None:
         data = '{"name":"John","age":30,"city":"New York"}'
