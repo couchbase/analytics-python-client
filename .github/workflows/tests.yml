@@ -227,8 +227,8 @@ jobs:
           cat pycbac_test/requirements-test.txt
           echo "pycbac_test/pytest.ini contents:"
           cat pycbac_test/pytest.ini
-          echo "pycbac_test/test_config.ini contents:"
-          cat pycbac_test/test_config.ini
+          echo "pycbac_test/tests/test_config.ini contents:"
+          cat pycbac_test/tests/test_config.ini
       - name: Upload test setup
         uses: actions/upload-artifact@v4
         with:
@@ -562,3 +562,97 @@ jobs:
           if ( $TEST_COUCHBASE_API = "true" ) {
               python -m pytest -m "pycbac_couchbase and pycbac_unit" -rA -vv
           }
+
+  cbdino-integration-tests:
+    needs: [setup, test-setup, sdist-wheel]
+    if: >-
+      ${{ fromJson(needs.setup.outputs.stage_matrices).test_integration.has_linux_cbdino
+          && !fromJson(needs.setup.outputs.stage_matrices).test_integration.skip_cbdino }}
+    name: Run integration tests w/ cbdino; Python ${{ matrix.python-version }} - ${{ matrix.os }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup.outputs.stage_matrices).test_integration.linux_cbdino }}
+    steps:
+      - name: Install cbdinocluster
+        run: |
+          mkdir -p "$HOME/bin"
+          CB_DINO_VERSION=${{ env.CBCI_CBDINO_VERSION }}
+          CB_DINO_TYPE="cbdinocluster-${{ matrix.arch == 'x86_64' && 'linux-amd64' || 'linux-arm64' }}"
+          wget -nv -O $HOME/bin/cbdinocluster https://github.com/couchbaselabs/cbdinocluster/releases/download/$CB_DINO_VERSION/$CB_DINO_TYPE
+          chmod +x $HOME/bin/cbdinocluster
+          echo "$HOME/bin" >> $GITHUB_PATH
+      - name: Install s3mock
+        run: |
+          docker pull adobe/s3mock
+          docker pull nginx
+      - name: Initialize cbdinocluster
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cbdinocluster -v init --auto
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Confirm Python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Download CI scripts
+        uses: actions/download-artifact@v4
+        with:
+          name: ci_scripts
+          path: ci_scripts
+      - name: Enable CI Scripts
+        run: |
+          chmod +x ci_scripts/gha.sh
+      - name: Download wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: pycbac-artifact-wheel
+          path: pycbac
+      - name: Download test setup
+        uses: actions/download-artifact@v4
+        with:
+          name: pycbac-test-setup
+          path: pycbac
+      - name: Start couchbase cluster
+        run: |
+          cd pycbac
+          cat cluster_def.yaml
+          CBDC_ID=$(cbdinocluster -v alloc --def-file=cluster_def.yaml)
+          CBDC_CONNSTR=$(cbdinocluster -v connstr --analytics $CBDC_ID)
+          echo "CBDC_ID=$CBDC_ID" >> "$GITHUB_ENV"
+          echo "CBDC_CONNSTR=$CBDC_CONNSTR" >> "$GITHUB_ENV"
+          echo "CBDC_CONNSTR=$CBDC_CONNSTR"
+          cbdinocluster buckets load-sample $CBDC_ID travel-sample
+      - name: Update test_config.ini
+        env:
+          PYCBAC_USERNAME: 'Administrator'
+          PYCBAC_PASSWORD: 'password'
+          PYCBAC_FQDN: 'travel-sample.inventory.airline'
+          CBCONNSTR: ${{ env.CBDC_CONNSTR }}
+        run: |
+          ./ci_scripts/gha.sh build_test_config_ini pycbac/tests
+      - name: Run tests
+        timeout-minutes: 30
+        run: |
+            python -m pip install --upgrade pip setuptools wheel
+            cd pycbac
+            ls -alh
+            cat tests/test_config.ini
+            python -m pip install -r requirements-test.txt
+            WHEEL_NAME=${{ needs.sdist-wheel.outputs.wheel_name }}
+            echo "WHEEL_NAME=$WHEEL_NAME"
+            python -m pip install ${WHEEL_NAME}
+            python -m pip list
+            TEST_ACOUCHBASE_API=${{ fromJson(needs.setup.outputs.stage_matrices).test_integration.test_acouchbase_api }}
+            if [ "$TEST_ACOUCHBASE_API" = "true" ]; then
+                python -m pytest -m "pycbac_acouchbase and pycbac_integration" -rA -vv
+            fi
+            TEST_COUCHBASE_API=${{ fromJson(needs.setup.outputs.stage_matrices).test_integration.test_couchbase_api }}
+            if [ "$TEST_COUCHBASE_API" = "true" ]; then
+                python -m pytest -m "pycbac_couchbase and pycbac_integration" -rA -vv
+            fi
+      - name: Cleanup cbdino cluster
+        run: |
+          cbdinocluster rm ${{ env.CBDC_ID }}

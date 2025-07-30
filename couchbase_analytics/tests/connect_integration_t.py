@@ -63,7 +63,8 @@ class ConnectTestSuite:
         connstr = test_env.config.get_connection_string(ignore_port=True)
         cluster = Cluster.create_instance(connstr, cred)
 
-        q_opts = QueryOptions(timeout=timedelta(seconds=3))
+        # increase the max retries to ensure that the timeout is hit
+        q_opts = QueryOptions(max_retries=20, timeout=timedelta(seconds=3))
         with pytest.raises(TimeoutError) as ex:
             cluster.execute_query(statement, q_opts)
 
