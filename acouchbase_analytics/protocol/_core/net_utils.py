@@ -34,11 +34,6 @@ async def get_request_ip_async(host: str, port: int, logger_handler: Optional[Ca
     except ValueError:
         ip = None
 
-    # if we have localhost, httpx does not seem to be able to resolve IPv6 localhost (::1) properly
-    # TODO: IPv6 support for localhost??
-    if host == 'localhost':
-        ip = '127.0.0.1'
-
     if not ip:
         result = await anyio.getaddrinfo(host, port, type=socket.SOCK_STREAM, family=socket.AF_UNSPEC)
         res_ip = choice([addr[4][0] for addr in result])  # nosec B311

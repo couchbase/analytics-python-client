@@ -87,7 +87,6 @@ def build_query_metadata(json_data: Optional[Any] = None, raw_metadata: Optional
         'warnings': warnings,
     }
 
-    # TODO:  include status in metadata??  Seems to only be populated in error scenario
     if 'status' in json_data:
         metadata['status'] = json_data.get('status', '')
 

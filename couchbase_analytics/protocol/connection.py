@@ -120,7 +120,9 @@ def parse_query_string_value(value: List[str], enforce_str: Optional[bool] = Fal
     return v
 
 
-def parse_query_str_options(query_str_opts: Dict[str, List[str]]) -> Dict[str, QueryStrVal]:
+def parse_query_str_options(
+    query_str_opts: Dict[str, List[str]], logger_name: Optional[str] = None
+) -> Dict[str, QueryStrVal]:
     final_opts: Dict[str, QueryStrVal] = {}
     for k, v in query_str_opts.items():
         tokens = k.split('.')
@@ -131,8 +133,9 @@ def parse_query_str_options(query_str_opts: Dict[str, List[str]]) -> Dict[str, Q
                 val = parse_query_string_value(v, enforce_str=True)
                 final_opts[tokens[1]] = parse_duration_str(cast(str, val))
             else:
-                print('Warning: Unrecognized query string option:', k)
-                # TODO:  exceptions -- this means the user passed in an invalid option
+                if logger_name is not None:
+                    logger = logging.getLogger(logger_name)
+                    logger.warning(f'Unrecognized query string option: {k}')
                 pass
         else:
             if k in SecurityOptions.VALID_OPTION_KEYS:
@@ -189,7 +192,6 @@ class _ConnectionDetails:
 
     def validate_security_options(self) -> None:  # noqa: C901
         security_opts: Optional[SecurityOptionsTransformedKwargs] = self.cluster_options.get('security_options')
-        # TODO: security settings
         if security_opts is not None:
             # separate between value options and boolean option (trust_only_capella)
             solo_security_opts = ['trust_only_pem_file', 'trust_only_pem_str', 'trust_only_certificates']
@@ -256,7 +258,7 @@ class _ConnectionDetails:
             ClusterOptionsTransformedKwargs,
             kwargs,
             options,
-            query_str_opts=parse_query_str_options(query_str_opts),
+            query_str_opts=parse_query_str_options(query_str_opts, logger_name=logger_name),
         )
 
         default_deserializer = cluster_opts.pop('deserializer', None)
