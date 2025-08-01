@@ -35,26 +35,26 @@ class Cluster:
         Use the static :meth:`.Cluster.create_instance` method to create a Cluster.
 
     Args:
-        http_endpoint:
-            The HTTP endpoint to use for sending requests to the Analytics server.
-            The format of the endpoint string is the *scheme* (``http`` or ``https`` is _required_), followed a hostname
+        endpoint:
+            The endpoint to use for sending HTTP requests to the Analytics server.
+            The format of the endpoint string is the **scheme** (``http`` or ``https`` is *required*, use ``https`` for TLS enabled connections), followed a hostname and optional port.
         credential: User credentials.
         options: Global options to set for the cluster.
             Some operations allow the global options to be overriden by passing in options to the operation.
         **kwargs: keyword arguments that can be used in place or to overrride provided :class:`~couchbase_analytics.options.ClusterOptions`
 
     Raises:
-        ValueError: If incorrect connstr is provided.
+        ValueError: If incorrect endpoint is provided.
         ValueError: If incorrect options are provided.
 
     """  # noqa: E501
 
     def __init__(
-        self, http_endpoint: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
+        self, endpoint: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
     ) -> None:
         from couchbase_analytics.protocol.cluster import Cluster as _Cluster
 
-        self._impl = _Cluster(http_endpoint, credential, options, **kwargs)
+        self._impl = _Cluster(endpoint, credential, options, **kwargs)
 
     def database(self, name: str) -> Database:
         """Creates a database instance.
@@ -151,14 +151,20 @@ class Cluster:
 
     @classmethod
     def create_instance(
-        cls, http_endpoint: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
+        cls, endpoint: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
     ) -> Cluster:
         """Create a Cluster instance
 
+        .. important::
+            The appropriate port needs to be specified. The SDK's default ports are 80 (http) and 443 (https).
+            If attempting to connect to Capella, the correct ports are most likely to be 8095 (http) and 18095 (https).
+
+            Capella example: https://cb.2xg3vwszqgqcrsix.cloud.couchbase.com:18095
+
         Args:
-            http_endpoint:
-                The HTTP endpoint to use for sending requests to the Analytics server.
-                The format of the endpoint string is the *scheme* (``http`` or ``https`` is _required_), followed a hostname
+            endpoint:
+                The endpoint to use for sending HTTP requests to the Analytics server.
+                The format of the endpoint string is the **scheme** (``http`` or ``https`` is *required*, use ``https`` for TLS enabled connections), followed a hostname and optional port.
             credential: User credentials.
             options: Global options to set for the cluster.
                 Some operations allow the global options to be overriden by passing in options to the operation.
@@ -169,7 +175,7 @@ class Cluster:
             An Analytics Cluster instance.
 
         Raises:
-            ValueError: If incorrect connstr is provided.
+            ValueError: If incorrect endpoint is provided.
             ValueError: If incorrect options are provided.
 
 
@@ -196,4 +202,4 @@ class Cluster:
                 cluster = Cluster.create_instance('https://hostname', cred, opts)
 
         """  # noqa: E501
-        return cls(http_endpoint, credential, options, **kwargs)
+        return cls(endpoint, credential, options, **kwargs)

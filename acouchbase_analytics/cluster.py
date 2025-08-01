@@ -34,32 +34,32 @@ if TYPE_CHECKING:
 class AsyncCluster:
     """Create an AsyncCluster instance.
 
-    The cluster instance exposes the operations which are available to be performed against a Columnar cluster.
+    The cluster instance exposes the operations which are available to be performed against a Analytics cluster.
 
     .. important::
         Use the static :meth:`.AsyncCluster.create_instance` method to create an AsyncCluster.
 
     Args:
-        connstr:
-            The connection string to use for connecting to the cluster.
-            The format of the connection string is the *scheme* (``couchbases`` as TLS enabled connections are _required_), followed a hostname
+        endpoint:
+            The endpoint to use for sending HTTP requests to the Analytics server.
+            The format of the endpoint string is the **scheme** (``http`` or ``https`` is *required*, use ``https`` for TLS enabled connections), followed a hostname and optional port.
         credential: User credentials.
         options: Global options to set for the cluster.
             Some operations allow the global options to be overriden by passing in options to the operation.
         **kwargs: keyword arguments that can be used in place or to overrride provided :class:`~acouchbase_analytics.options.ClusterOptions`
 
     Raises:
-        ValueError: If incorrect connstr is provided.
+        ValueError: If incorrect endpoint is provided.
         ValueError: If incorrect options are provided.
 
     """  # noqa: E501
 
     def __init__(
-        self, connstr: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
+        self, endpoint: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
     ) -> None:
         from acouchbase_analytics.protocol.cluster import AsyncCluster as _AsyncCluster
 
-        self._impl = _AsyncCluster(connstr, credential, options, **kwargs)
+        self._impl = _AsyncCluster(endpoint, credential, options, **kwargs)
 
     def database(self, name: str) -> AsyncDatabase:
         """Creates a database instance.
@@ -77,7 +77,7 @@ class AsyncCluster:
         return AsyncDatabase(self._impl, name)
 
     def execute_query(self, statement: str, *args: object, **kwargs: object) -> Awaitable[AsyncQueryResult]:
-        """Executes a query against a Capella Columnar cluster.
+        """Executes a query against an Analytics cluster.
 
         .. note::
             A departure from the operational SDK, the query is *NOT* executed lazily.
@@ -142,7 +142,7 @@ class AsyncCluster:
         """  # noqa: E501
         return self._impl.execute_query(statement, *args, **kwargs)
 
-    def shutdown(self) -> None:
+    async def shutdown(self) -> None:
         """Shuts down this cluster instance. Cleaning up all resources associated with it.
 
         .. warning::
@@ -151,18 +151,24 @@ class AsyncCluster:
             is necessary and in those types of applications, this method might be beneficial.
 
         """
-        return self._impl.shutdown()
+        return await self._impl.shutdown()
 
     @classmethod
     def create_instance(
-        cls, connstr: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
+        cls, endpoint: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
     ) -> AsyncCluster:
         """Create an AsyncCluster instance
 
+        .. important::
+            The appropriate port needs to be specified. The SDK's default ports are 80 (http) and 443 (https).
+            If attempting to connect to Capella, the correct ports are most likely to be 8095 (http) and 18095 (https).
+
+            Capella example: https://cb.2xg3vwszqgqcrsix.cloud.couchbase.com:18095
+
         Args:
-            connstr:
-                The connection string to use for connecting to the cluster.
-                The format of the connection string is the *scheme* (``couchbases`` as TLS enabled connections are _required_), followed a hostname
+            endpoint:
+                The endpoint to use for sending HTTP requests to the Analytics server.
+                The format of the endpoint string is the **scheme** (``http`` or ``https`` is *required*, use ``https`` for TLS enabled connections), followed a hostname and optional port.
             credential: User credentials.
             options: Global options to set for the cluster.
                 Some operations allow the global options to be overriden by passing in options to the operation.
@@ -170,32 +176,33 @@ class AsyncCluster:
 
 
         Returns:
-            A Capella Columnar Cluster instance.
+            An Analytics Cluster instance.
 
         Raises:
-            ValueError: If incorrect connstr is provided.
+            ValueError: If incorrect endpoint is provided.
             ValueError: If incorrect options are provided.
 
 
         Examples:
             Initialize cluster using default options::
 
-                from acouchbase_analytics import get_event_loop
+                import asyncio
+
                 from acouchbase_analytics.cluster import AsyncCluster
                 from acouchbase_analytics.credential import Credential
 
                 async def main() -> None:
                     cred = Credential.from_username_and_password('username', 'password')
-                    cluster = AsyncCluster.create_instance('couchbases://hostname', cred)
+                    cluster = AsyncCluster.create_instance('https://hostname', cred)
                     # ... other async code ...
 
                 if __name__ == '__main__':
-                    loop = get_event_loop()
-                    loop.run_until_complete(main())
+                    asyncio.run(main())
 
 
             Initialize cluster using with global timeout options::
 
+                import asyncio
                 from datetime import timedelta
 
                 from acouchbase_analytics import get_event_loop
@@ -206,15 +213,14 @@ class AsyncCluster:
                 async def main() -> None:
                     cred = Credential.from_username_and_password('username', 'password')
                     opts = ClusterOptions(timeout_options=ClusterTimeoutOptions(query_timeout=timedelta(seconds=120)))
-                    cluster = AsyncCluster.create_instance('couchbases://hostname', cred, opts)
+                    cluster = AsyncCluster.create_instance('https://hostname', cred, opts)
                     # ... other async code ...
 
                 if __name__ == '__main__':
-                    loop = get_event_loop()
-                    loop.run_until_complete(main())
+                    asyncio.run(main())
 
         """  # noqa: E501
-        return cls(connstr, credential, options, **kwargs)
+        return cls(endpoint, credential, options, **kwargs)
 
 
 Cluster: TypeAlias = AsyncCluster
