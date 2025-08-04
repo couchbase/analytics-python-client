@@ -39,11 +39,11 @@ if TYPE_CHECKING:
 
 class AsyncCluster:
     def __init__(
-        self, connstr: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
+        self, endpoint: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
     ) -> None:
         self._cluster_id = str(uuid4())
         kwargs['cluster_id'] = self._cluster_id
-        self._client_adapter = _AsyncClientAdapter(connstr, credential, options, **kwargs)
+        self._client_adapter = _AsyncClientAdapter(endpoint, credential, options, **kwargs)
         self._request_builder = _RequestBuilder(self._client_adapter)
         self._backend = current_async_library()
 
@@ -117,9 +117,9 @@ class AsyncCluster:
 
     @classmethod
     def create_instance(
-        cls, connstr: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
+        cls, endpoint: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
     ) -> AsyncCluster:
-        return cls(connstr, credential, options, **kwargs)
+        return cls(endpoint, credential, options, **kwargs)
 
 
 Cluster: TypeAlias = AsyncCluster

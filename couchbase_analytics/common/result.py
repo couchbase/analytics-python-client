@@ -48,7 +48,7 @@ class BlockingQueryResult(QueryResult):
             Read all rows from simple query::
 
                 q_str = 'SELECT * FROM `travel-sample`.inventory WHERE country LIKE 'United%' LIMIT 2;'
-                q_rows = cluster.execute_query(q_str).all_rows()
+                q_rows = cluster.execute_query(q_str).get_all_rows()
 
         """
         return BlockingIterator(self._http_response).get_all_rows()
@@ -108,7 +108,7 @@ class AsyncQueryResult(QueryResult):
             Read all rows from simple query::
 
                 q_str = 'SELECT * FROM `travel-sample`.inventory WHERE country LIKE 'United%' LIMIT 2;'
-                q_rows = await cluster.execute_query(q_str).all_rows()
+                q_rows = await cluster.execute_query(q_str).get_all_rows()
 
         """
         return await AsyncIterator(self._http_response).get_all_rows()
