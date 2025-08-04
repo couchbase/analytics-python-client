@@ -4,8 +4,8 @@ import json
 import math
 import time
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
-from threading import Event, Lock
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Optional, Union
+from threading import Event
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 from uuid import uuid4
 
 from httpx import Response as HttpCoreResponse
@@ -25,27 +25,6 @@ from couchbase_analytics.protocol.errors import ErrorMapper, WrappedError
 if TYPE_CHECKING:
     from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter
     from couchbase_analytics.protocol._core.request import QueryRequest
-
-
-# TODO: might not be needed; need to validate httpx iterator behavior
-class ThreadSafeBytesIterator:
-    def __init__(self, iterator: Iterator[bytes]):
-        if not hasattr(iterator, '__next__'):
-            raise TypeError('Provided object is not an iterator (missing __next__ method).')
-        self._iterator = iterator
-        self._lock = Lock()
-
-    def __iter__(self) -> ThreadSafeBytesIterator:
-        return self
-
-    def __next__(self) -> bytes:
-        with self._lock:  # Acquire the lock before accessing the iterator
-            try:
-                item = next(self._iterator)
-                return item
-            except StopIteration:
-                # Always re-raise StopIteration to signal the end of iteration
-                raise
 
 
 class BackgroundRequest:
@@ -185,7 +164,7 @@ class RequestContext:
                 self._request_state = RequestState.Timeout
 
     def _create_stage_notification_future(self) -> None:
-        # TODO:  custom ThreadPoolExecutor, to get a "plain" future
+        # TODO(PYCO-75):  custom ThreadPoolExecutor, to get a "plain" future
         if self._stage_notification_ft is not None:
             raise RuntimeError('Stage notification future already created for this context.')
         self._stage_notification_ft = Future[ParsedResultType]()
@@ -407,7 +386,7 @@ class RequestContext:
     ) -> Future[BlockingQueryResult]:
         if self._background_request is not None:
             raise RuntimeError('Background reqeust already created for this context.')
-        # TODO:  custom ThreadPoolExecutor, to get a "plain" future
+        # TODO(PYCO-75):  custom ThreadPoolExecutor, to get a "plain" future
         user_ft = Future[BlockingQueryResult]()
         background_work_ft = self._tp_executor.submit(fn, *args)
         self._background_request = BackgroundRequest(background_work_ft, user_ft, self._cancel_event)
@@ -441,7 +420,7 @@ class RequestContext:
             self.log_message('JSON stream already exists', LogLevel.WARNING)
             return
 
-        # TODO: need to confirm if the httpx Response iterator is thread-safe
+        # TODO(PYCO-73): Potentially use new iterator if problems w/ httpx
         self._json_stream = JsonStream(
             core_response.iter_bytes(), stream_config=self._stream_config, logger_handler=self.log_message
         )

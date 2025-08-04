@@ -112,7 +112,6 @@ class EnumToStr(Generic[E]):
 
         if isinstance(value, str):
             if value in (x.value for x in expected_type):
-                # TODO: use warning -- maybe don't want to allow str representation?
                 return value
             raise ValueError(f"Invalid str representation of {expected_type}. Received '{value}'.")
 

@@ -29,9 +29,6 @@ if TYPE_CHECKING:
 
 
 class AsyncRequestContext:
-    # TODO: AsyncExitStack??
-    # https://anyio.readthedocs.io/en/stable/cancellation.html
-
     def __init__(
         self,
         client_adapter: _AsyncClientAdapter,
@@ -192,7 +189,6 @@ class AsyncRequestContext:
             self._cancel_scope_deadline_updated = True
 
     def _update_cancel_scope_deadline(self, deadline: float, is_absolute: Optional[bool] = False) -> None:
-        # TODO:  confirm scenario of get_time() < self._taskgroup.cancel_scope.deadline is handled by anyio
         new_deadline = deadline if is_absolute else get_time() + deadline
         current_time = get_time()
         if current_time >= new_deadline:
@@ -235,10 +231,6 @@ class AsyncRequestContext:
             raise RuntimeError('Async backend loop is not initialized.')
         task_name = f'{self._id}-response-task'
         task: Task[Any] = self._backend.loop.create_task(fn(*args), name=task_name)
-        # TODO: Confirm if callback is useful/necessary;
-        # def task_done(t: Task[Any]) -> None:
-        #     print(f'Task done callback task=({t.get_name()}); done: {t.done()}, cancelled: {t.cancelled()}')
-        # task.add_done_callback(task_done)
         self._response_task = task
         return task
 
@@ -416,7 +408,7 @@ class AsyncRequestContext:
 
     def start_stream(self, core_response: HttpCoreResponse) -> None:
         if hasattr(self, '_json_stream'):
-            # TODO: logging; I don't think this is an error...
+            self.log_message('JSON stream already exists', LogLevel.WARNING)
             return
 
         self._json_stream = AsyncJsonStream(
@@ -437,6 +429,7 @@ class AsyncRequestContext:
         await self._taskgroup.__aenter__()
         return self
 
+    # TODO(PYCO-72): Possible improvement to handling async RequestContext.__aexit__
     async def __aexit__(
         self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
     ) -> Optional[bool]:
@@ -447,5 +440,4 @@ class AsyncRequestContext:
         finally:
             self._maybe_set_request_error(exc_type, exc_val)
             del self._taskgroup
-            # TODO:  should we suppress here (e.g., return True)
             return None  # noqa: B012

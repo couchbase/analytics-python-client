@@ -41,7 +41,7 @@ class Cluster:
         self._client_adapter = _ClientAdapter(http_endpoint, credential, options, **kwargs)
         self._request_builder = _RequestBuilder(self._client_adapter)
         self._create_client()
-        # TODO:  make a custom ThreadPoolExecutor, so that we can override submit and have a way to get
+        # TODO(PYCO-75):  make a custom ThreadPoolExecutor, so that we can override submit and have a way to get
         #        a "plain" future as the docs say we should create a future via an executor
         #        The RequestContext generates a future that enables some background processing
         # Allow the default max_workers which is (as of Python 3.8): min(32, os.cpu_count() + 4).

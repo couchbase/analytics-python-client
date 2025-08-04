@@ -52,8 +52,6 @@ def current_async_library() -> Optional[AsyncBackend]:
     except ImportError:
         async_lib = 'asyncio'
 
-    # TODO: This helps make tests work.
-    #       Should we work through the scenario when sniffio cannot find the async library?
     try:
         async_lib = sniffio.current_async_library()
     except sniffio.AsyncLibraryNotFoundError:
@@ -62,7 +60,7 @@ def current_async_library() -> Optional[AsyncBackend]:
     if async_lib not in ('asyncio', 'trio'):
         raise RuntimeError('Running under an unsupported async environment.')
 
-    # TODO: confirm trio support
+    # TODO(PYCO-71): Add trio support
     if async_lib == 'trio':
         raise RuntimeError('trio currently not supported')
 

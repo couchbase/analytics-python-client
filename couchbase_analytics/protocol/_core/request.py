@@ -109,7 +109,6 @@ class _RequestBuilder:
         self._extensions: RequestExtensions = {
             'timeout': {'pool': connect_timeout, 'connect': connect_timeout, 'read': self._default_query_timeout}
         }
-        # TODO:  warning if we have a secure connection, but the sni_hostname is not set?
         if self._conn_details.is_secure() and self._conn_details.sni_hostname is not None:
             self._extensions['sni_hostname'] = self._conn_details.sni_hostname
 
