@@ -28,6 +28,7 @@ from acouchbase_analytics.protocol._core.anyio_utils import current_async_librar
 from acouchbase_analytics.protocol._core.client_adapter import _AsyncClientAdapter
 from acouchbase_analytics.protocol._core.request_context import AsyncRequestContext
 from acouchbase_analytics.protocol.streaming import AsyncHttpStreamingResponse
+from couchbase_analytics.common.logging import LogLevel
 from couchbase_analytics.common.result import AsyncQueryResult
 from couchbase_analytics.protocol._core.request import _RequestBuilder
 
@@ -38,11 +39,11 @@ if TYPE_CHECKING:
 
 class AsyncCluster:
     def __init__(
-        self, connstr: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
+        self, endpoint: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
     ) -> None:
         self._cluster_id = str(uuid4())
         kwargs['cluster_id'] = self._cluster_id
-        self._client_adapter = _AsyncClientAdapter(connstr, credential, options, **kwargs)
+        self._client_adapter = _AsyncClientAdapter(endpoint, credential, options, **kwargs)
         self._request_builder = _RequestBuilder(self._client_adapter)
         self._backend = current_async_library()
 
@@ -92,12 +93,13 @@ class AsyncCluster:
         if self.has_client:
             await self._shutdown()
         else:
-            # TODO: log warning
-            print('Cluster does not have a connection.  Ignoring')
+            self.client_adapter.log_message('Cluster does not have a connection.  Ignoring shutdown.', LogLevel.WARNING)
 
     async def _execute_query(self, http_resp: AsyncHttpStreamingResponse) -> AsyncQueryResult:
         if not self.has_client:
-            # TODO: add log message??
+            self.client_adapter.log_message(
+                'Cluster does not have a connection.  Creating the client.', LogLevel.WARNING
+            )
             await self._create_client()
         await http_resp.send_request()
         return AsyncQueryResult(http_resp)
@@ -115,9 +117,9 @@ class AsyncCluster:
 
     @classmethod
     def create_instance(
-        cls, connstr: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
+        cls, endpoint: str, credential: Credential, options: Optional[ClusterOptions] = None, **kwargs: object
     ) -> AsyncCluster:
-        return cls(connstr, credential, options, **kwargs)
+        return cls(endpoint, credential, options, **kwargs)
 
 
 Cluster: TypeAlias = AsyncCluster

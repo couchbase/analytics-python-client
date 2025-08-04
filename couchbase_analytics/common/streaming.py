@@ -17,8 +17,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator as PyAsyncIterator
 from collections.abc import Iterator
-from enum import IntEnum
-from typing import TYPE_CHECKING, Any, List, NamedTuple
+from typing import TYPE_CHECKING, Any, List
 
 from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError
 
@@ -96,22 +95,3 @@ class AsyncIterator(PyAsyncIterator[Any]):
             raise err
         except Exception as ex:
             raise InternalSDKError(cause=ex, message='Error attempting to obtain next row.') from None
-
-
-class HttpResponseType(IntEnum):
-    """
-    **INTERNAL**
-    """
-
-    ROW = 0
-    ERROR = 1
-    END = 2
-
-
-class ParsedResult(NamedTuple):
-    """
-    **INTERNAL**
-    """
-
-    result: str
-    result_type: HttpResponseType

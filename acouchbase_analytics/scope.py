@@ -44,7 +44,7 @@ class AsyncScope:
         return self._impl.name
 
     def execute_query(self, statement: str, *args: object, **kwargs: object) -> Future[AsyncQueryResult]:
-        """Executes a query against a Capella Columnar scope.
+        """Executes a query against an Analytics scope.
 
         .. note::
             A departure from the operational SDK, the query is *NOT* executed lazily.

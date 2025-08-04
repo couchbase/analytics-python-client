@@ -22,7 +22,7 @@ from couchbase_analytics.options import ClusterOptions, QueryOptions, TimeoutOpt
 
 def main() -> None:
     # Update this to your cluster
-    endpoint = 'couchbases://--your-instance--'
+    endpoint = 'https://--your-instance--'
     username = 'username'
     pw = 'Password!123'
     # User Input ends here.

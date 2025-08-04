@@ -18,7 +18,7 @@ from typing import Optional
 
 from couchbase_analytics.common._core.utils import is_null_or_empty
 
-# TODO: Apparently Go does not allow a leading decimal point without a leading zero, e.g., ".5s" is invalid.
+# NOTE: Apparently Go does not allow a leading decimal point without a leading zero, e.g., ".5s" is invalid.
 #       We allowed this in the Columnar SDK due to how the C++ client parsed durations
 DURATION_PATTERN = re.compile(r'^([-+]?)((\d*(\.\d*)?){1}(?:ns|us|µs|μs|ms|s|m|h){1})+$')
 DURATION_PAIRS_PATTERN = re.compile(r'(\d*(?:\.\d*)?)(ns|us|ms|s|m|h)')

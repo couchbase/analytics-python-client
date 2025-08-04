@@ -59,7 +59,7 @@ class DurationParsingTestSuite:
             ('1.234h', 1.234 * 3.6e6),
             ('1h30m0s', 5.4e6),
             ('0.1h10m', 9.6e5),
-            # TODO: apparently this is invalid in Go, but was okay w/ C++ implementation
+            # NOTE: apparently this is invalid in Go, but was okay w/ C++ implementation
             ('.1h10m', 9.6e5),
             ('0001h00010m', 4.2e6),
             ('100ns', 1e-4),
