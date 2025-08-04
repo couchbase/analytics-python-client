@@ -81,7 +81,6 @@ class AsyncInfiniteBytesIterator(PyAsyncIterator[bytes]):
                     if len(self._data) == 0:
                         raise StopAsyncIteration
                     if len(self._end_data) > 0:
-                        print(f'end_data={self._end_data}')
                         # ending a results array
                         self._data += b'], '
                         self._data += bytearray(self._end_data)

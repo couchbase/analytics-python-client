@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import pathlib
 import sys
 from os import path
@@ -37,7 +38,7 @@ from couchbase_analytics.credential import Credential
 from couchbase_analytics.options import ClusterOptions, SecurityOptions
 from couchbase_analytics.result import BlockingQueryResult
 from couchbase_analytics.scope import Scope
-from tests import AnalyticsTestEnvironmentError
+from tests import TEST_LOGGER_NAME, AnalyticsTestEnvironmentError
 from tests.test_server import ResultType
 from tests.utils._run_web_server import WebServerHandler
 
@@ -46,6 +47,8 @@ if TYPE_CHECKING:
 
 
 TEST_AIRLINE_DATA_PATH = path.join(pathlib.Path(__file__).parent.parent, 'test_data', 'airline.json')
+
+logger = logging.getLogger(TEST_LOGGER_NAME)
 
 
 class TestEnvironmentOptionsKwargs(TypedDict, total=False):
@@ -199,7 +202,6 @@ class BlockingTestEnvironment(TestEnvironment):
         from tests.utils._client_adapter import _TestClientAdapter
         from tests.utils._test_httpx import TestHTTPTransport
 
-        print(f'{self._cluster=}')
         new_adapter = _TestClientAdapter(
             adapter=self._cluster._impl._client_adapter,
             http_transport_cls=TestHTTPTransport,
@@ -207,7 +209,7 @@ class BlockingTestEnvironment(TestEnvironment):
         new_adapter.create_client()
         self._cluster._impl._client_adapter = new_adapter
         url = self._cluster._impl.client_adapter.connection_details.url.get_formatted_url()
-        print(f'Connecting to test server at {url}')
+        logger.info(f'Connecting to test server at {url}')
         self._server_handler.start_server()
         self.warmup_test_server()
         return self
@@ -336,6 +338,7 @@ class BlockingTestEnvironment(TestEnvironment):
             else:
                 sec_opts = SecurityOptions(disable_server_certificate_verification=True)
 
+        logger.info(f'Creating Cluster with options={env_opts}')
         if sec_opts is not None:
             opts = ClusterOptions(security_options=sec_opts)
             env_opts['cluster'] = Cluster.create_instance(connstr, cred, opts)
@@ -425,7 +428,7 @@ class AsyncTestEnvironment(TestEnvironment):
         await new_adapter.create_client()
         self._async_cluster._impl._client_adapter = new_adapter
         url = self._async_cluster._impl.client_adapter.connection_details.url.get_formatted_url()
-        print(f'Connecting to test server at {url}')
+        logger.info(f'Connecting to test server at {url}')
         self._server_handler.start_server()
         await self.warmup_test_server()
         return self
@@ -559,7 +562,7 @@ class AsyncTestEnvironment(TestEnvironment):
             else:
                 sec_opts = SecurityOptions(disable_server_certificate_verification=True)
 
-        print(f'{env_opts=}')
+        logger.info(f'Creating AsyncCluster with options={env_opts}')
         if sec_opts is not None:
             opts = ClusterOptions(security_options=sec_opts)
             env_opts['async_cluster'] = AsyncCluster.create_instance(connstr, cred, opts)
@@ -574,20 +577,20 @@ class AsyncTestEnvironment(TestEnvironment):
 
 @pytest.fixture(scope='class', name='sync_test_env')
 def base_test_environment(analytics_config: AnalyticsConfig) -> BlockingTestEnvironment:
-    print('Creating sync test environment')
+    logger.info('Creating sync test environment')
     return BlockingTestEnvironment.get_environment(analytics_config)
 
 
 @pytest.fixture(scope='class', name='sync_test_env_with_server')
 def base_test_environment_with_server(analytics_config: AnalyticsConfig) -> BlockingTestEnvironment:
-    print('Creating sync test environment w/ test server')
+    logger.info('Creating sync test environment w/ test server')
     server_handler = WebServerHandler()
     return BlockingTestEnvironment.get_environment(analytics_config, server_handler=server_handler)
 
 
 @pytest.fixture(scope='class', name='async_test_env')
 def base_async_test_environment(analytics_config: AnalyticsConfig, anyio_backend: str) -> AsyncTestEnvironment:
-    print('Creating async test environment')
+    logger.info('Creating async test environment')
     return AsyncTestEnvironment.get_environment(analytics_config, backend=anyio_backend)
 
 
@@ -595,6 +598,6 @@ def base_async_test_environment(analytics_config: AnalyticsConfig, anyio_backend
 def base_async_test_environment_with_server(
     analytics_config: AnalyticsConfig, anyio_backend: str
 ) -> AsyncTestEnvironment:
-    print('Creating async test environment w/ test server')
+    logger.info('Creating async test environment w/ test server')
     server_handler = WebServerHandler()
     return AsyncTestEnvironment.get_environment(analytics_config, server_handler=server_handler, backend=anyio_backend)

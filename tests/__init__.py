@@ -13,8 +13,12 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import logging
 from enum import Enum
 from typing import AsyncGenerator, Generator, Optional, TypeVar
+
+TEST_LOGGER_NAME = 'couchbase_analytics_test'
+logger = logging.getLogger(TEST_LOGGER_NAME)
 
 T = TypeVar('T')
 AsyncYieldFixture = AsyncGenerator[T, None]
