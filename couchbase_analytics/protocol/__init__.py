@@ -17,7 +17,7 @@ import logging
 import sys
 
 try:
-    from couchbase_analytics._version import __version__
+    from couchbase_analytics._version import __version__  # type: ignore[import-not-found, unused-ignore]
 except ImportError:
     __version__ = '0.0.0-could-not-find-version'
 
