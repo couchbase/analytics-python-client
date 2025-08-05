@@ -1,29 +1,26 @@
-name: tests
+name: verify_release
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
-      is_release:
-        description: "Set to true if a release version."
-        required: true
-        default: false
-        type: boolean
-      sha:
-        description: "The git SHA to use for release.  Only set if needing to publish"
-        required: false
-        default: ""
-        type: string
       version:
         description: "The Release version.  Allowed format: x.y.z[-alphaN | -betaN | -rcN | -devN | -postN]"
-        required: false
+        required: true
         default: ""
         type: string
+      sha:
+        description: "The git SHA associated with the version to verify."
+        required: true
+        default: ""
+        type: string
+      packaging_index:
+        description: "The packaging index to download the SDK from."
+        required: true
+        default: "PYPI"
+        type: choice
+        options:
+          - PYPI
+          - TEST_PYPI
       config:
         description: "JSON formatted object representing various build system input parameters."
         required: false
@@ -31,30 +28,26 @@ on:
         type: string
   workflow_call:
     inputs:
-      is_release:
-        description: "Set to true if a release version."
-        required: true
-        default: false
-        type: boolean
-      sha:
-        description: "The git SHA to use for release.  Only set if needing to publish"
-        required: false
-        default: ""
-        type: string
       version:
         description: "The Release version.  Allowed format: x.y.z[-alphaN | -betaN | -rcN | -devN | -postN]"
-        required: false
+        required: true
         default: ""
+        type: string
+      sha:
+        description: "The git SHA associated with the version to verify."
+        required: true
+        default: ""
+        type: string
+      packaging_index:
+        description: "The packaging index to download the SDK from."
+        required: true
+        default: "PYPI"
         type: string
       config:
         description: "JSON formatted object representing various build system input parameters."
         required: false
         default: ""
         type: string
-    outputs:
-      workflow_run_id:
-        description: "The workflow run ID"
-        value: ${{ github.run_id }}
 
 env:
   CBCI_PROJECT_TYPE: "ANALYTICS"
@@ -96,7 +89,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           retention-days: 1
-          name: ci_scripts_tests
+          name: ci_scripts_verify_${{ inputs.packaging_index }}
           path: |
             ci_scripts/
 
@@ -104,15 +97,15 @@ jobs:
     needs: [ci-scripts, default-linux-runner]
     runs-on: ${{ needs.default-linux-runner.outputs.runner }}
     env:
-      CBCI_IS_RELEASE: ${{ inputs.is_release }}
-      CBCI_SHA: ${{ inputs.sha }}
       CBCI_VERSION: ${{ inputs.version }}
+      CBCI_SHA: ${{ inputs.sha }}
+      CBCI_PACKAGING_INDEX: ${{ inputs.packaging_index }}
       CBCI_CONFIG: ${{ inputs.config }}
     steps:
       - name: Download CI scripts
         uses: actions/download-artifact@v4
         with:
-          name: ci_scripts_tests
+          name: ci_scripts_verify_${{ inputs.packaging_index }}
           path: ci_scripts
       - name: Verify Scripts
         run: |
@@ -131,13 +124,14 @@ jobs:
     runs-on: ${{ needs.default-linux-runner.outputs.runner }}
     env:
       CBCI_CONFIG: ${{ inputs.config }}
+      CBCI_PACKAGING_INDEX: ${{ inputs.packaging_index }}
     outputs:
       stage_matrices: ${{ steps.build_matrices.outputs.stage_matrices }}
     steps:
       - name: Download CI scripts
         uses: actions/download-artifact@v4
         with:
-          name: ci_scripts_tests
+          name: ci_scripts_verify_${{ inputs.packaging_index }}
           path: ci_scripts
       - name: Enable CI Scripts
         run: |
@@ -210,17 +204,13 @@ jobs:
       CBCI_CONFIG: ${{ inputs.config }}
     steps:
       - name: Checkout (with SHA)
-        if: inputs.sha != ''
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.sha }}
-      - name: Checkout (no SHA)
-        if: inputs.sha == ''
-        uses: actions/checkout@v4
       - name: Download CI scripts
         uses: actions/download-artifact@v4
         with:
-          name: ci_scripts_tests
+          name: ci_scripts_verify_${{ inputs.packaging_index }}
           path: ci_scripts
       - name: Enable CI Scripts
         run: |
@@ -256,111 +246,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           retention-days: 1
-          name: pycbac-test-setup
+          name: pycbac-test-setup-verify-${{ inputs.packaging_index }}
           path: |
             pycbac_test/
 
-  lint:
-    needs: [validate-input, default-linux-runner]
-    runs-on: ${{ needs.default-linux-runner.outputs.runner }}
-    env:
-      CBCI_VERSION: ${{ inputs.version }}
-    steps:
-      - name: Checkout (with SHA)
-        if: inputs.sha != ''
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.sha }}
-      - name: Checkout (no SHA)
-        if: inputs.sha == ''
-        uses: actions/checkout@v4
-      - name: Download CI scripts
-        uses: actions/download-artifact@v4
-        with:
-          name: ci_scripts_tests
-          path: ci_scripts
-      - name: Enable CI Scripts
-        run: |
-          chmod +x ci_scripts/gha.sh
-      - name: Setup Python ${{ env.CBCI_DEFAULT_PYTHON }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.CBCI_DEFAULT_PYTHON }}
-      - name: Confirm Python version
-        run: python -c "import sys; print(sys.version)"
-      - name: Execute linting
-        run: |
-          ls -alh
-          ./ci_scripts/gha.sh lint
-
-  sdist-wheel:
-    needs: [lint, default-linux-runner]
-    runs-on: ${{ needs.default-linux-runner.outputs.runner }}
-    env:
-      CBCI_VERSION: ${{ inputs.version }}
-      CBCI_CONFIG: ${{ inputs.config }}
-    outputs:
-      sdist_name: ${{ steps.create_sdist.outputs.sdist_name }}
-      wheel_name: ${{ steps.create_wheel.outputs.wheel_name }}
-    steps:
-      - name: Checkout (with SHA)
-        if: inputs.sha != ''
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.sha }}
-      - name: Checkout (no SHA)
-        if: inputs.sha == ''
-        uses: actions/checkout@v4
-      - name: Download CI scripts
-        uses: actions/download-artifact@v4
-        with:
-          name: ci_scripts_tests
-          path: ci_scripts
-      - name: Enable CI Scripts
-        run: |
-          chmod +x ci_scripts/gha.sh
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.CBCI_DEFAULT_PYTHON }}
-      - name: Confirm Python version
-        run: python -c "import sys; print(sys.version)"
-      - name: Create sdist
-        id: create_sdist
-        run: |
-          ./ci_scripts/gha.sh sdist
-          exit_code=0
-          sdist_name=$(./ci_scripts/gha.sh get_sdist_name) || exit_code=$?
-          if [ $exit_code -ne 0 ]; then
-            echo "Failed to obtain sdist name."
-            exit 1
-          fi
-          echo "SDIST_NAME=$sdist_name"
-          echo "sdist_name=$sdist_name" >> "$GITHUB_OUTPUT"
-      - name: Create wheel
-        id: create_wheel
-        run: |
-          ./ci_scripts/gha.sh wheel
-          wheel_name=$(find ./dist -name '*.whl' | cut -c 8-)
-          echo "WHEEL_NAME=$wheel_name"
-          echo "wheel_name=$wheel_name" >> "$GITHUB_OUTPUT"
-      - name: Upload Python sdk
-        uses: actions/upload-artifact@v4
-        with:
-          retention-days: 1
-          name: pycbac-artifact-sdist
-          path: |
-            ./dist/*.tar.gz
-      - name: Upload Python wheel
-        uses: actions/upload-artifact@v4
-        with:
-          retention-days: 1
-          name: pycbac-artifact-wheel
-          path: |
-            ./dist/*.whl
-
   alpine-unit-tests:
-    needs: [setup, test-setup, sdist-wheel, default-linux-runner]
+    needs: [setup, test-setup, default-linux-runner]
     if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.has_alpine }}
     runs-on: ${{ needs.default-linux-runner.outputs.runner }}
     strategy:
@@ -373,22 +264,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Confirm Python version
         run: python -c "import sys; print(sys.version)"
-      - name: Download sdist
-        if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_sdist_install }}
-        uses: actions/download-artifact@v4
-        with:
-          name: pycbac-artifact-sdist
-          path: pycbac
-      - name: Download wheel
-        if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_wheel_install }}
-        uses: actions/download-artifact@v4
-        with:
-          name: pycbac-artifact-wheel
-          path: pycbac
       - name: Download test setup
         uses: actions/download-artifact@v4
         with:
-          name: pycbac-test-setup
+          name: pycbac-test-setup-verify-${{ inputs.packaging_index }}
           path: pycbac
       - name: Cache Docker image
         uses: actions/cache@v4
@@ -406,8 +285,7 @@ jobs:
           if [ -f /tmp/docker_python_image.tar ]; then
             docker load -i /tmp/docker_python_image.tar
           fi
-      - name: Run unit tests in docker via sdist install
-        if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_sdist_install }}
+      - name: Run unit tests in docker via pip install (${{ inputs.packaging_index }})
         uses: addnab/docker-run-action@v3
         with:
           image: python:${{ matrix.python-version }}-${{ env.CBCI_DEFAULT_ALPINE_CONTAINER }}
@@ -419,9 +297,11 @@ jobs:
             cd pycbac
             ls -alh
             python -m pip install -r requirements-test.txt
-            SDIST_NAME=${{ needs.sdist-wheel.outputs.sdist_name }}
-            echo "SDIST_NAME=$SDIST_NAME.tar.gz"
-            python -m pip install ${SDIST_NAME}.tar.gz
+            INSTALL_CMD="${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.install_cmd }}"
+            SDK_VERSION="${{ inputs.version }}"
+            echo "INSTALL_CMD=$INSTALL_CMD"
+            PIP_CMD="python -m pip $INSTALL_CMD couchbase-analytics==$SDK_VERSION"
+            eval "$PIP_CMD"
             python -m pip list
             TEST_ACOUCHBASE_API=${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_acouchbase_api }}
             if [ "$TEST_ACOUCHBASE_API" = "true" ]; then
@@ -437,44 +317,11 @@ jobs:
                 PYTEST_CB_OPTS="${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.couchbase_opts }}"
                 PYTEST_CMD="python -m $PYTEST_CB_CMD $PYTEST_CB_OPTS"
                 echo "Running acouchbase tests: $PYTEST_CMD"
-                eval "$PYTEST_CMD"
-            fi
-      - name: Run unit tests in docker via wheel install
-        if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_wheel_install }}
-        uses: addnab/docker-run-action@v3
-        with:
-          image: python:${{ matrix.python-version }}-${{ env.CBCI_DEFAULT_ALPINE_CONTAINER }}
-          options: >-
-            --platform linux/amd64
-            -v ${{ github.workspace }}/pycbac:/pycbac
-          run: |
-            python -m pip install --upgrade pip setuptools wheel
-            cd pycbac
-            ls -alh
-            python -m pip install -r requirements-test.txt
-            WHEEL_NAME=${{ needs.sdist-wheel.outputs.wheel_name }}
-            echo "WHEEL_NAME=$WHEEL_NAME"
-            python -m pip install ${WHEEL_NAME}
-            python -m pip list
-            TEST_ACOUCHBASE_API=${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_acouchbase_api }}
-            if [ "$TEST_ACOUCHBASE_API" = "true" ]; then
-                PYTEST_ACB_CMD="${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.acouchbase_cmd }}"
-                PYTEST_ACB_OPTS="${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.acouchbase_opts }}"
-                PYTEST_CMD="python -m $PYTEST_ACB_CMD $PYTEST_ACB_OPTS"
-                echo "Running acouchbase tests: $PYTEST_CMD"
-                eval "$PYTEST_CMD"
-            fi
-            TEST_COUCHBASE_API=${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_couchbase_api }}
-            if [ "$TEST_COUCHBASE_API" = "true" ]; then
-                PYTEST_CB_CMD="${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.couchbase_cmd }}"
-                PYTEST_CB_OPTS="${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.couchbase_opts }}"
-                PYTEST_CMD="python -m $PYTEST_CB_CMD $PYTEST_CB_OPTS"
-                echo "Running couchbase tests: $PYTEST_CMD"
                 eval "$PYTEST_CMD"
             fi
 
   linux-unit-tests:
-    needs: [setup, test-setup, sdist-wheel]
+    needs: [setup, test-setup]
     if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.has_linux }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -487,67 +334,27 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Confirm Python version
         run: python -c "import sys; print(sys.version)"
-      - name: Download sdist
-        if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_sdist_install }}
-        uses: actions/download-artifact@v4
-        with:
-          name: pycbac-artifact-sdist
-          path: pycbac
-      - name: Download wheel
-        if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_wheel_install }}
-        uses: actions/download-artifact@v4
-        with:
-          name: pycbac-artifact-wheel
-          path: pycbac
       - name: Download test setup
         uses: actions/download-artifact@v4
         with:
-          name: pycbac-test-setup
+          name: pycbac-test-setup-verify-${{ inputs.packaging_index }}
           path: pycbac
-      - name: Run unit tests via sdist install
-        if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_sdist_install }}
+      - name: Run unit tests via pip install (${{ inputs.packaging_index }})
         env:
           PYTEST_ACB_CMD: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.acouchbase_cmd }}
           PYTEST_ACB_OPTS: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.acouchbase_opts }}
           PYTEST_CB_CMD: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.couchbase_cmd }}
           PYTEST_CB_OPTS: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.couchbase_opts }}
+          INSTALL_CMD: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.install_cmd }}
+          SDK_VERSION: ${{ inputs.version }}
         run: |
           python -m pip install --upgrade pip setuptools wheel
           cd pycbac
           ls -alh
           python -m pip install -r requirements-test.txt
-          SDIST_NAME=${{ needs.sdist-wheel.outputs.sdist_name }}
-          echo "SDIST_NAME=$SDIST_NAME.tar.gz"
-          python -m pip install ${SDIST_NAME}.tar.gz
-          python -m pip list
-          TEST_ACOUCHBASE_API=${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_acouchbase_api }}
-          if [ "$TEST_ACOUCHBASE_API" = "true" ]; then
-              PYTEST_CMD="python -m $PYTEST_ACB_CMD $PYTEST_ACB_OPTS"
-              echo "Running acouchbase tests: $PYTEST_CMD"
-              eval "$PYTEST_CMD"
-          fi
-          TEST_COUCHBASE_API=${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_couchbase_api }}
-          if [ "$TEST_COUCHBASE_API" = "true" ]; then
-              PYTEST_CMD="python -m $PYTEST_CB_CMD $PYTEST_CB_OPTS"
-              echo "Running couchbase tests: $PYTEST_CMD"
-              eval "$PYTEST_CMD"
-          fi
-          python -m pip uninstall couchbase-analytics -y
-      - name: Run unit tests via wheel install
-        if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_wheel_install }}
-        env:
-          PYTEST_ACB_CMD: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.acouchbase_cmd }}
-          PYTEST_ACB_OPTS: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.acouchbase_opts }}
-          PYTEST_CB_CMD: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.couchbase_cmd }}
-          PYTEST_CB_OPTS: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.couchbase_opts }}
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          cd pycbac
-          ls -alh
-          python -m pip install -r requirements-test.txt
-          WHEEL_NAME=${{ needs.sdist-wheel.outputs.wheel_name }}
-          echo "WHEEL_NAME=$WHEEL_NAME"
-          python -m pip install ${WHEEL_NAME} --no-cache-dir
+          echo "INSTALL_CMD=$INSTALL_CMD"
+          PIP_CMD="python -m pip $INSTALL_CMD couchbase-analytics==$SDK_VERSION"
+          eval "$PIP_CMD"
           python -m pip list
           TEST_ACOUCHBASE_API=${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_acouchbase_api }}
           if [ "$TEST_ACOUCHBASE_API" = "true" ]; then
@@ -563,7 +370,7 @@ jobs:
           fi
 
   macos-unit-tests:
-    needs: [setup, test-setup, sdist-wheel]
+    needs: [setup, test-setup]
     if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.has_macos }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -576,67 +383,27 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Confirm Python version
         run: python -c "import sys; print(sys.version)"
-      - name: Download sdist
-        if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_sdist_install }}
-        uses: actions/download-artifact@v4
-        with:
-          name: pycbac-artifact-sdist
-          path: pycbac
-      - name: Download wheel
-        if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_wheel_install }}
-        uses: actions/download-artifact@v4
-        with:
-          name: pycbac-artifact-wheel
-          path: pycbac
       - name: Download test setup
         uses: actions/download-artifact@v4
         with:
-          name: pycbac-test-setup
+          name: pycbac-test-setup-verify-${{ inputs.packaging_index }}
           path: pycbac
-      - name: Run unit tests via sdist install
-        if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_sdist_install }}
+      - name: Run unit tests via pip install (${{ inputs.packaging_index }})
         env:
           PYTEST_ACB_CMD: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.acouchbase_cmd }}
           PYTEST_ACB_OPTS: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.acouchbase_opts }}
           PYTEST_CB_CMD: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.couchbase_cmd }}
           PYTEST_CB_OPTS: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.couchbase_opts }}
+          INSTALL_CMD: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.install_cmd }}
+          SDK_VERSION: ${{ inputs.version }}
         run: |
           python -m pip install --upgrade pip setuptools wheel
           cd pycbac
           ls -alh
           python -m pip install -r requirements-test.txt
-          SDIST_NAME=${{ needs.sdist-wheel.outputs.sdist_name }}
-          echo "SDIST_NAME=$SDIST_NAME.tar.gz"
-          python -m pip install ${SDIST_NAME}.tar.gz
-          python -m pip list
-          TEST_ACOUCHBASE_API=${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_acouchbase_api }}
-          if [ "$TEST_ACOUCHBASE_API" = "true" ]; then
-              PYTEST_CMD="python -m $PYTEST_ACB_CMD $PYTEST_ACB_OPTS"
-              echo "Running acouchbase tests: $PYTEST_CMD"
-              eval "$PYTEST_CMD"
-          fi
-          TEST_COUCHBASE_API=${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_couchbase_api }}
-          if [ "$TEST_COUCHBASE_API" = "true" ]; then
-              PYTEST_CMD="python -m $PYTEST_CB_CMD $PYTEST_CB_OPTS"
-              echo "Running couchbase tests: $PYTEST_CMD"
-              eval "$PYTEST_CMD"
-          fi
-          python -m pip uninstall couchbase-analytics -y
-      - name: Run unit tests via wheel install
-        if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_wheel_install }}
-        env:
-          PYTEST_ACB_CMD: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.acouchbase_cmd }}
-          PYTEST_ACB_OPTS: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.acouchbase_opts }}
-          PYTEST_CB_CMD: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.couchbase_cmd }}
-          PYTEST_CB_OPTS: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.couchbase_opts }}
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          cd pycbac
-          ls -alh
-          python -m pip install -r requirements-test.txt
-          WHEEL_NAME=${{ needs.sdist-wheel.outputs.wheel_name }}
-          echo "WHEEL_NAME=$WHEEL_NAME"
-          python -m pip install ${WHEEL_NAME} --no-cache-dir
+          echo "INSTALL_CMD=$INSTALL_CMD"
+          PIP_CMD="python -m pip $INSTALL_CMD couchbase-analytics==$SDK_VERSION"
+          eval "$PIP_CMD"
           python -m pip list
           TEST_ACOUCHBASE_API=${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_acouchbase_api }}
           if [ "$TEST_ACOUCHBASE_API" = "true" ]; then
@@ -652,7 +419,7 @@ jobs:
           fi
 
   windows-unit-tests:
-    needs: [setup, test-setup, sdist-wheel]
+    needs: [setup, test-setup]
     if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.has_windows }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -665,67 +432,26 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Confirm Python version
         run: python -c "import sys; print(sys.version)"
-      - name: Download sdist
-        if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_sdist_install }}
-        uses: actions/download-artifact@v4
-        with:
-          name: pycbac-artifact-sdist
-          path: pycbac
-      - name: Download wheel
-        if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_wheel_install }}
-        uses: actions/download-artifact@v4
-        with:
-          name: pycbac-artifact-wheel
-          path: pycbac
       - name: Download test setup
         uses: actions/download-artifact@v4
         with:
-          name: pycbac-test-setup
+          name: pycbac-test-setup-verify-${{ inputs.packaging_index }}
           path: pycbac
-      - name: Run unit tests via sdist install
-        if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_sdist_install }}
+      - name: Run unit tests via pip install (${{ inputs.packaging_index }})
         env:
           PYTEST_ACB_CMD: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.acouchbase_cmd }}
           PYTEST_ACB_OPTS: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.acouchbase_opts }}
           PYTEST_CB_CMD: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.couchbase_cmd }}
           PYTEST_CB_OPTS: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.couchbase_opts }}
+          INSTALL_CMD: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.install_cmd }}
+          SDK_VERSION: ${{ inputs.version }}
         run: |
           python -m pip install --upgrade pip setuptools wheel
           cd pycbac
           dir
           python -m pip install -r requirements-test.txt
-          $SDIST_NAME="${{ needs.sdist-wheel.outputs.sdist_name }}" + ".tar.gz"
-          echo "SDIST_NAME=$SDIST_NAME"
-          python -m pip install "$SDIST_NAME"
-          python -m pip list
-          $TEST_ACOUCHBASE_API="${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_acouchbase_api }}"
-          if ( $TEST_ACOUCHBASE_API -eq "true" ) {
-              $PYTEST_CMD="python -m $($env:PYTEST_ACB_CMD) $($env:PYTEST_ACB_OPTS)"
-              echo "Running acouchbase tests: $PYTEST_CMD"
-              iex $PYTEST_CMD
-          }
-          $TEST_COUCHBASE_API="${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_couchbase_api }}"
-          if ( $TEST_COUCHBASE_API = "true" ) {
-              $PYTEST_CMD="python -m $($env:PYTEST_CB_CMD) $($env:PYTEST_CB_OPTS)"
-              echo "Running couchbase tests: $PYTEST_CMD"
-              iex $PYTEST_CMD
-          }
-          python -m pip uninstall couchbase-analytics -y
-      - name: Run unit tests via wheel install
-        if: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_wheel_install }}
-        env:
-          PYTEST_ACB_CMD: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.acouchbase_cmd }}
-          PYTEST_ACB_OPTS: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.acouchbase_opts }}
-          PYTEST_CB_CMD: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.couchbase_cmd }}
-          PYTEST_CB_OPTS: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.pytest.couchbase_opts }}
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          cd pycbac
-          dir
-          python -m pip install -r requirements-test.txt
-          $WHEEL_NAME="${{ needs.sdist-wheel.outputs.wheel_name }}"
-          echo "WHEEL_NAME=$WHEEL_NAME"
-          python -m pip install "$WHEEL_NAME" --no-cache-dir
+          echo "INSTALL_CMD=$env:INSTALL_CMD"
+          PIP_CMD="python -m pip $($env:INSTALL_CMD) couchbase-analytics==$($env:SDK_VERSION)"
           python -m pip list
           $TEST_ACOUCHBASE_API="${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_acouchbase_api }}"
           if ( $TEST_ACOUCHBASE_API -eq "true" ) {
@@ -741,7 +467,7 @@ jobs:
           }
 
   cbdino-integration-tests:
-    needs: [setup, test-setup, sdist-wheel]
+    needs: [setup, test-setup]
     if: >-
       ${{ fromJson(needs.setup.outputs.stage_matrices).test_integration.has_linux_cbdino
           && !fromJson(needs.setup.outputs.stage_matrices).test_integration.skip_cbdino }}
@@ -776,20 +502,15 @@ jobs:
       - name: Download CI scripts
         uses: actions/download-artifact@v4
         with:
-          name: ci_scripts_tests
+          name: ci_scripts_verify_${{ inputs.packaging_index }}
           path: ci_scripts
       - name: Enable CI Scripts
         run: |
           chmod +x ci_scripts/gha.sh
-      - name: Download wheel
-        uses: actions/download-artifact@v4
-        with:
-          name: pycbac-artifact-wheel
-          path: pycbac
       - name: Download test setup
         uses: actions/download-artifact@v4
         with:
-          name: pycbac-test-setup
+          name: pycbac-test-setup-verify-${{ inputs.packaging_index }}
           path: pycbac
       - name: Start couchbase cluster
         run: |
@@ -816,15 +537,17 @@ jobs:
           PYTEST_ACB_OPTS: ${{ fromJson(needs.setup.outputs.stage_matrices).test_integration.pytest.acouchbase_opts }}
           PYTEST_CB_CMD: ${{ fromJson(needs.setup.outputs.stage_matrices).test_integration.pytest.couchbase_cmd }}
           PYTEST_CB_OPTS: ${{ fromJson(needs.setup.outputs.stage_matrices).test_integration.pytest.couchbase_opts }}
+          INSTALL_CMD: ${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.install_cmd }}
+          SDK_VERSION: ${{ inputs.version }}
         run: |
             python -m pip install --upgrade pip setuptools wheel
             cd pycbac
             ls -alh
             cat tests/test_config.ini
             python -m pip install -r requirements-test.txt
-            WHEEL_NAME=${{ needs.sdist-wheel.outputs.wheel_name }}
-            echo "WHEEL_NAME=$WHEEL_NAME"
-            python -m pip install ${WHEEL_NAME}
+            echo "INSTALL_CMD=$INSTALL_CMD"
+            PIP_CMD="python -m pip $INSTALL_CMD couchbase-analytics==$SDK_VERSION"
+            eval "$PIP_CMD"
             python -m pip list
             TEST_ACOUCHBASE_API=${{ fromJson(needs.setup.outputs.stage_matrices).test_integration.test_acouchbase_api }}
             if [ "$TEST_ACOUCHBASE_API" = "true" ]; then
