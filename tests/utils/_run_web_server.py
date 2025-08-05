@@ -24,8 +24,6 @@ from typing import Optional
 
 WEB_SERVER_PATH = path.join(pathlib.Path(__file__).parent.parent, 'test_server', 'web_server.py')
 
-print(f'Web server script path: {WEB_SERVER_PATH}')
-
 logging.basicConfig(
     level=logging.INFO, stream=sys.stderr, format='%(asctime)s - %(levelname)s - (PID:%(process)d) - %(message)s'
 )

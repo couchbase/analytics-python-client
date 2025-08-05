@@ -35,11 +35,13 @@ def configure_logger() -> None:
     import os
 
     log_level = os.getenv('PYCBAC_LOG_LEVEL', None)
-    if log_level:
+    handlers_setup = logging.getLogger().hasHandlers()
+    if log_level is not None or handlers_setup:
         logger = logging.getLogger()
-        if not logger.hasHandlers():
+        if not handlers_setup:
             from couchbase_analytics.common.logging import LOG_DATE_FORMAT, LOG_FORMAT
 
+            log_level = log_level or 'INFO'
             logging.basicConfig(format=LOG_FORMAT, datefmt=LOG_DATE_FORMAT, level=log_level.upper())
         logger.info(f'Python Couchbase Analytics Client ({PYCBAC_VERSION})')
 

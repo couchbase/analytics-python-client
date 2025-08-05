@@ -1,3 +1,4 @@
+import logging
 import time
 import typing
 
@@ -11,6 +12,10 @@ from httpcore._sync.interfaces import ConnectionInterface
 from httpcore._trace import Trace
 from httpx import HTTPTransport, Limits, create_ssl_context
 
+from tests import TEST_LOGGER_NAME
+
+cb_logger = logging.getLogger(TEST_LOGGER_NAME)
+
 
 class TestHTTPConnection(HTTPConnection):
     def __init__(self, *args, **kwargs) -> None:  # type: ignore
@@ -22,7 +27,7 @@ class TestHTTPConnection(HTTPConnection):
         timeout = timeouts.get('connect', None)
         # -- START PYCBAC TESTING --
         test_connect_timeout = timeouts.get('test_connect_timeout', None)
-        print(f'PYCBAC OVERRIDE: connect timeout: {timeout}, test_connect_timeout: {test_connect_timeout}')
+        cb_logger.debug(f'PYCBAC OVERRIDE: connect timeout: {timeout}, test_connect_timeout: {test_connect_timeout}')
         # -- END PYCBAC TESTING --
 
         retries_left = self._retries
@@ -158,7 +163,7 @@ class TestConnectionPool(ConnectionPool):
         timeout = timeouts.get('pool', None)
         # -- START PYCBAC TESTING --
         test_pool_timeout = timeouts.get('test_pool_timeout', None)
-        print(f'PYCBAC OVERRIDE: pool timeout: {timeout}, test_pool_timeout: {test_pool_timeout}')
+        cb_logger.debug(f'PYCBAC OVERRIDE: pool timeout: {timeout}, test_pool_timeout: {test_pool_timeout}')
         # -- END PYCBAC TESTING --
 
         with self._optional_thread_lock:

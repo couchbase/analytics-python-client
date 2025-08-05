@@ -1,3 +1,4 @@
+import logging
 import typing
 
 from httpcore import AsyncConnectionPool, Origin, Request, Response
@@ -10,6 +11,10 @@ from httpcore._ssl import default_ssl_context
 from httpcore._trace import Trace
 from httpx import AsyncHTTPTransport, Limits, create_ssl_context
 
+from tests import TEST_LOGGER_NAME
+
+cb_logger = logging.getLogger(TEST_LOGGER_NAME)
+
 
 class TestAsyncHTTPConnection(AsyncHTTPConnection):
     def __init__(self, *args, **kwargs) -> None:  # type: ignore
@@ -19,9 +24,10 @@ class TestAsyncHTTPConnection(AsyncHTTPConnection):
         timeouts = request.extensions.get('timeout', {})
         sni_hostname = request.extensions.get('sni_hostname', None)
         timeout = timeouts.get('connect', None)
-        # TESTING_OVERRIDE
+        # -- START PYCBAC TESTING --
         test_connect_timeout = timeouts.get('test_connect_timeout', None)
-        print(f'PYCBAC OVERRIDE: connect timeout: {timeout}, test_connect_timeout: {test_connect_timeout}')
+        cb_logger.debug(f'PYCBAC OVERRIDE: connect timeout: {timeout}, test_connect_timeout: {test_connect_timeout}')
+        # -- END PYCBAC TESTING --
 
         retries_left = self._retries
         delays = exponential_backoff(factor=RETRIES_BACKOFF_FACTOR)
@@ -144,9 +150,10 @@ class TestAsyncConnectionPool(AsyncConnectionPool):
 
         timeouts = request.extensions.get('timeout', {})
         timeout = timeouts.get('pool', None)
-        # TESTING_OVERRIDE
+        # -- START PYCBAC TESTING --
         test_pool_timeout = timeouts.get('test_pool_timeout', None)
-        print(f'PYCBAC OVERRIDE: pool timeout: {timeout}, test_pool_timeout: {test_pool_timeout}')
+        cb_logger.debug(f'PYCBAC OVERRIDE: pool timeout: {timeout}, test_pool_timeout: {test_pool_timeout}')
+        # -- END PYCBAC TESTING --
 
         with self._optional_thread_lock:
             # Add the incoming request to our request queue.
