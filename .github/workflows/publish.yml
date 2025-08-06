@@ -1,0 +1,378 @@
+name: publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "The git SHA to use for release.  Only set if needing to publish"
+        required: true
+        default: ""
+        type: string
+      version:
+        description: "The Release version.  Allowed format: x.y.z[-alphaN | -betaN | -rcN | -devN | -postN]"
+        required: true
+        default: ""
+        type: string
+      tests_run_id:
+        description: "The workflow run ID of a tests workflow run.  Set if wanting to use artifacts from an already completed run."
+        required: false
+        default: ""
+        type: string
+      config:
+        description: "JSON formatted object representing various build system input parameters."
+        required: false
+        default: ""
+        type: string
+      is_dry_run:
+        description: "Set to true in order to do a publish dry-run."
+        required: true
+        default: false
+        type: boolean
+      skip_validation:
+        description: "Set to true in order to skip validating the published packages."
+        required: true
+        default: false
+        type: boolean
+
+env:
+  CBCI_PROJECT_TYPE: "ANALYTICS"
+  CBCI_DEFAULT_PYTHON: "3.9"
+  CBCI_SUPPORTED_PYTHON_VERSIONS: "3.9 3.10 3.11 3.12 3.13"
+  CBCI_SUPPORTED_X86_64_PLATFORMS: "linux alpine macos windows"
+  CBCI_SUPPORTED_ARM64_PLATFORMS: "linux macos"
+  CBCI_DEFAULT_LINUX_X86_64_PLATFORM: "ubuntu-22.04"
+  CBCI_DEFAULT_LINUX_ARM64_PLATFORM: "ubuntu-22.04-arm"
+  CBCI_DEFAULT_MACOS_X86_64_PLATFORM: "macos-13"
+  CBCI_DEFAULT_MACOS_ARM64_PLATFORM: "macos-14"
+  CBCI_DEFAULT_WINDOWS_PLATFORM: "windows-2022"
+  CBCI_DEFAULT_LINUX_CONTAINER: "slim-bookworm"
+  CBCI_DEFAULT_ALPINE_CONTAINER: "alpine"
+  CBCI_CBDINO_VERSION: "v0.0.80"
+  CI_SCRIPTS_URL: "https://raw.githubusercontent.com/couchbaselabs/sdkbuild-jenkinsfiles/master/python/ci_scripts_v1"
+
+jobs:
+  default-linux-runner:
+    runs-on: ubuntu-latest
+    outputs:
+      runner: ${{ steps.set_runner.outputs.runner }}
+    steps:
+      - id: set_runner
+        run: echo "runner=${{ env.CBCI_DEFAULT_LINUX_X86_64_PLATFORM }}" >> $GITHUB_OUTPUT
+
+  ci-scripts:
+    needs: default-linux-runner
+    runs-on: ${{ needs.default-linux-runner.outputs.runner }}
+    steps:
+      - name: Download CI Scripts
+        run: |
+          mkdir ci_scripts
+          cd ci_scripts
+          curl -o gha.sh ${CI_SCRIPTS_URL}/gha.sh
+          curl -o pygha.py ${CI_SCRIPTS_URL}/pygha.py
+          ls -alh
+      - name: Upload CI scripts
+        uses: actions/upload-artifact@v4
+        with:
+          retention-days: 1
+          name: ci_scripts_publish
+          path: |
+            ci_scripts/
+
+  validate-input:
+    needs: [ci-scripts, default-linux-runner]
+    runs-on: ${{ needs.default-linux-runner.outputs.runner }}
+    env:
+      CBCI_IS_RELEASE: true
+      CBCI_SHA: ${{ inputs.sha }}
+      CBCI_VERSION: ${{ inputs.version }}
+      CBCI_CONFIG: ${{ inputs.config }}
+    steps:
+      - name: Download CI scripts
+        uses: actions/download-artifact@v4
+        with:
+          name: ci_scripts_publish
+          path: ci_scripts
+      - name: Verify Scripts
+        run: |
+          ls -alh ci_scripts
+          chmod +x ci_scripts/gha.sh
+          ls -alh ci_scripts
+      - name: Display workflow info
+        run: |
+          ./ci_scripts/gha.sh display_info
+      - name: Validate workflow info
+        run: |
+          ./ci_scripts/gha.sh validate_input ${{ github.workflow }}
+
+  publish-config:
+    needs: [validate-input, default-linux-runner]
+    runs-on: ${{ needs.default-linux-runner.outputs.runner }}
+    env:
+      CBCI_IS_RELEASE: true
+      CBCI_SHA: ${{ inputs.sha }}
+      CBCI_VERSION: ${{ inputs.version }}
+      CBCI_CONFIG: ${{ inputs.config }}
+      CBCI_PUBLISH_DRY_RUN: ${{ inputs.is_dry_run }}
+      CBCI_TESTS_RUN_ID: ${{ inputs.tests_run_id }}
+    outputs:
+      publish_config: ${{ steps.set_config.outputs.publish_config }}
+    steps:
+      - name: Download CI scripts
+        uses: actions/download-artifact@v4
+        with:
+          name: ci_scripts_publish
+          path: ci_scripts
+      - name: Enable CI Scripts
+        run: |
+          chmod +x ci_scripts/gha.sh
+      - name: Setup Python ${{ env.CBCI_DEFAULT_PYTHON }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.CBCI_DEFAULT_PYTHON }}
+      - name: Confirm Python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Set public config
+        id: set_config
+        run: |
+          exit_code=0
+          PUBLISH_CONFIG=$(./ci_scripts/gha.sh build_publish_config) || exit_code=$?
+          if [ $exit_code -ne 0 ]; then
+            echo "Failed to obtain publish config."
+            exit 1
+          fi
+          publish_config_json=$(jq -cn --argjson pubconfig "$PUBLISH_CONFIG" '$pubconfig')
+          echo "PUBLISH_CONFIG_JSON=$publish_config_json"
+          echo "publish_config=$publish_config_json" >> "$GITHUB_OUTPUT"
+
+  confirm-publish-config:
+    needs: [publish-config, default-linux-runner]
+    runs-on: ${{ needs.default-linux-runner.outputs.runner }}
+    steps:
+      - name: Publish Config
+        run: |
+          echo "${{ toJson(fromJson(needs.publish-config.outputs.publish_config)) }}"
+
+  run-tests:
+    needs: publish-config
+    if: ${{ fromJson(needs.publish-config.outputs.publish_config).publish_config.tests_run_id == '' }}
+    uses: ./.github/workflows/tests.yml
+    with:
+      is_release: true
+      sha: ${{ inputs.sha && inputs.sha || '' }}
+      version: ${{ inputs.version && inputs.version || '' }}
+      config: ${{ inputs.config && inputs.config || '' }}
+
+  set-tests-run-id:
+    needs: [run-tests, default-linux-runner]
+    if: >-
+      ${{ !cancelled()
+          && (needs.run-tests.result == 'success' || needs.run-tests.result == 'skipped') }}
+    runs-on: ${{ needs.default-linux-runner.outputs.runner }}
+    outputs:
+      tests_run_id: ${{ inputs.tests_run_id == '' && steps.save_tests_run_id.outputs.tests_run_id || inputs.tests_run_id }}
+    steps:
+      - name: Save tests_run_id
+        if: ${{ inputs.tests_run_id == '' }}
+        id: save_tests_run_id
+        run: |
+          echo "tests_run_id=${{ needs.run-tests.outputs.workflow_run_id }}" >> $GITHUB_OUTPUT
+
+  upload-api-docs:
+    needs: [publish-config, run-tests, default-linux-runner]
+    if: >-
+      ${{ !cancelled()
+          && fromJson(needs.publish-config.outputs.publish_config).publish_config.publish_api_docs
+          && (needs.run-tests.result == 'success' || needs.run-tests.result == 'skipped') }}
+    runs-on: ${{ needs.default-linux-runner.outputs.runner }}
+    steps:
+      - name: Checkout (with SHA)
+        if: inputs.sha != ''
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+          fetch-depth: 0
+      - name: Checkout (no SHA)
+        if: inputs.sha == ''
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Python ${{ env.CBCI_DEFAULT_PYTHON }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.CBCI_DEFAULT_PYTHON }}
+      - name: Confirm Python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Set SDK git tag
+        if: ${{ fromJson(needs.publish-config.outputs.publish_config).publish_config.set_git_tag != '' }}
+        run: |
+          git config user.name "Couchbase SDK Team"
+          git config user.email "sdk_dev@couchbase.com"
+          git tag -a $PYCBAC_VERSION -m "Release of client version $PYCBAC_VERSION"
+        env:
+          PYCBAC_VERSION: ${{ fromJson(needs.publish-config.outputs.publish_config).publish_config.set_git_tag }}
+      - name: Set SDK version
+        run: |
+          python couchbase_analytics_version.py --mode make
+      - name: Build API docs
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-sphinx.txt
+          mkdir sphinx
+          sphinx-build -M html ./docs ./sphinx
+      - name: Upload Python API docs as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          retention-days: 1
+          name: pycbac-api-docs
+          path: sphinx/
+
+  publish-test-pypi:
+    needs: [publish-config, run-tests, set-tests-run-id, default-linux-runner]
+    if: >-
+      ${{ !cancelled()
+          && fromJson(needs.publish-config.outputs.publish_config).publish_config.publish_test_pypi
+          && (needs.run-tests.result == 'success' || needs.run-tests.result == 'skipped') }}
+    runs-on: ${{ needs.default-linux-runner.outputs.runner }}
+    environment:
+      name: publish
+      url: https://pypi.org/p/couchbase-analytics
+    permissions:
+      # This permission is required for pypi's "trusted publisher" feature
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pycbac-artifact-*
+          path: dist
+          merge-multiple: true
+          run-id: ${{ needs.set-tests-run-id.outputs.tests_run_id }}
+          github-token: ${{ github.token }}
+      - name: Setup Python ${{ env.CBCI_DEFAULT_PYTHON }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.CBCI_DEFAULT_PYTHON }}
+      - name: Confirm Python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel twine
+      - name: Twine validate
+        run: |
+          ls -alh dist
+          twine check dist/*
+      - name: Publish package distributions to TestPyPI (dry run)
+        if: ${{ inputs.is_dry_run }}
+        run: |
+          echo "Dry run set, not releasing to TestPyPI"
+      - name: Publish package distributions to TestPyPI
+        if: ${{ inputs.is_dry_run == false }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  validate-test-pypi:
+    needs: publish-test-pypi
+    if: >-
+        ${{  !cancelled()
+             && (needs.publish-test-pypi.result == 'success' && needs.publish-test-pypi.result != 'skipped')
+             && inputs.skip_validation == false }}
+    uses: ./.github/workflows/verify_release.yml
+    with:
+      version: ${{ inputs.version }}
+      sha: ${{ inputs.sha }}
+      packaging_index: "TEST_PYPI"
+      config: ${{ inputs.config && inputs.config || '' }}
+
+  publish-pypi:
+    needs: [publish-config, run-tests, set-tests-run-id, validate-test-pypi, default-linux-runner]
+    if: >-
+      ${{ !cancelled()
+          && fromJson(needs.publish-config.outputs.publish_config).publish_config.publish_pypi
+          && (needs.run-tests.result == 'success' || needs.run-tests.result == 'skipped')
+          && (needs.validate-test-pypi.result == 'success' || needs.validate-test-pypi.result == 'skipped') }}
+    runs-on: ${{ needs.default-linux-runner.outputs.runner }}
+    environment:
+      name: publish
+      url: https://pypi.org/p/couchbase-analytics
+    permissions:
+      # This permission is required for pypi's "trusted publisher" feature
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pycbac-artifact-*
+          path: dist
+          merge-multiple: true
+          run-id: ${{ needs.set-tests-run-id.outputs.tests_run_id }}
+          github-token: ${{ github.token }}
+      - name: Setup Python ${{ env.CBCI_DEFAULT_PYTHON }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.CBCI_DEFAULT_PYTHON }}
+      - name: Confirm Python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel twine
+      - name: Twine validate
+        run: |
+          ls -alh dist
+          twine check dist/*
+      - name: Publish package distributions to PyPI (dry run)
+        if: ${{ inputs.is_dry_run }}
+        run: |
+          echo "Dry run set, not releasing to PyPI"
+      - name: Publish package distributions to PyPI
+        if: ${{ inputs.is_dry_run == false }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  validate-pypi:
+    needs: publish-pypi
+    if: >-
+        ${{  !cancelled()
+             && (needs.publish-pypi.result == 'success' && needs.publish-pypi.result != 'skipped')
+             && inputs.skip_validation == false }}
+    uses: ./.github/workflows/verify_release.yml
+    with:
+      version: ${{ inputs.version }}
+      sha: ${{ inputs.sha }}
+      packaging_index: "PYPI"
+      config: ${{ inputs.config && inputs.config || '' }}
+
+  publish-api-docs:
+    needs: [upload-api-docs, validate-pypi, default-linux-runner]
+    if: >-
+      ${{ !cancelled()
+          && fromJson(needs.publish-config.outputs.publish_config).publish_config.publish_api_docs
+          && (needs.validate-pypi.result == 'success' || needs.validate-pypi.result == 'skipped') }}
+    environment: publish
+    permissions:
+      id-token: write
+      contents: read
+    runs-on: ${{ needs.default-linux-runner.outputs.runner }}
+    steps:
+      - name: Download API docs
+        uses: actions/download-artifact@v4
+        with:
+          name: pycbac-api-docs
+      - name: Setup AWS Credentials
+        if: ${{ inputs.is_dry_run == false }}
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: arn:aws:iam::786014483886:role/SDK_GHA
+          aws-region: us-west-1
+      - name: Upload API docs to S3
+        if: ${{ inputs.is_dry_run == false }}
+        run: |
+          ls -alh ./html
+          aws s3 cp ./html s3://docs.couchbase.com/sdk-api/analytics-python-client-$SDK_VERSION/ --recursive --acl public-read
+        env:
+          SDK_VERSION: ${{ inputs.version }}
+      - name: Upload API docs to S3 (dry run)
+        if: ${{ inputs.is_dry_run }}
+        run: |
+          ls -alh ./html
+          echo "aws s3 cp ./html s3://docs.couchbase.com/sdk-api/analytics-python-client-$SDK_VERSION/ --recursive --acl public-read"
+        env:
+          SDK_VERSION: ${{ inputs.version }}
