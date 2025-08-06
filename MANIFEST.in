@@ -1,5 +1,4 @@
 include *.txt LICENSE CONTRIBUTING.md pyproject.toml couchbase_analytics_version.py
-include couchbase-sdk-analytics-python-black-duck-manifest.yaml
 include couchbase_analytics/common/_core/nonprod_certificates/*.pem
 include couchbase_analytics/common/_core/capella_certificates/*.pem
 recursive-include couchbase_analytics *.py
@@ -7,4 +6,5 @@ exclude couchbase_analytics/tests/*.py
 recursive-include acouchbase_analytics *.py
 exclude acouchbase_analytics/tests/*.py
 global-exclude *.py[cod] *.DS_Store
-exclude .git .gitignore .gitmodules gocaves* *.jar .clang* .cmake* .pre* .flake* MANIFEST.in
+exclude .git .gitignore .gitmodules .pre* .flake* MANIFEST.in
+exclude requirements.* requirements-dev.* requirements-sphinx.*
