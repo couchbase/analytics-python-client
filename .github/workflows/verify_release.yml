@@ -451,7 +451,8 @@ jobs:
           dir
           python -m pip install -r requirements-test.txt
           echo "INSTALL_CMD=$env:INSTALL_CMD"
-          PIP_CMD="python -m pip $($env:INSTALL_CMD) couchbase-analytics==$($env:SDK_VERSION)"
+          $PIP_CMD="python -m pip $($env:INSTALL_CMD) couchbase-analytics==$($env:SDK_VERSION)"
+          iex $PIP_CMD
           python -m pip list
           $TEST_ACOUCHBASE_API="${{ fromJson(needs.setup.outputs.stage_matrices).test_unit.test_acouchbase_api }}"
           if ( $TEST_ACOUCHBASE_API -eq "true" ) {
