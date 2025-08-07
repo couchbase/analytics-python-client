@@ -46,7 +46,9 @@ class Cluster:
         #        The RequestContext generates a future that enables some background processing
         # Allow the default max_workers which is (as of Python 3.8): min(32, os.cpu_count() + 4).
         # We can add an option later if we see a need
-        self._tp_executor = ThreadPoolExecutor()
+        self._tp_executor_prefix = f'pycbac-tpe-{self._cluster_id[:8]}'
+        self._tp_executor = ThreadPoolExecutor(thread_name_prefix=self._tp_executor_prefix)
+        self._client_adapter.log_message(f'Created ThreadPoolExecutor({self._tp_executor_prefix})', LogLevel.INFO)
         self._tp_executor_shutdown_called = False
         atexit.register(self._shutdown_executor)
 
@@ -84,8 +86,7 @@ class Cluster:
         """
         self._client_adapter.close_client()
         self._client_adapter.reset_client()
-        if self._tp_executor_shutdown_called is False:
-            self._tp_executor.shutdown()
+        self._shutdown_executor()
 
     def _create_client(self) -> None:
         """
@@ -95,6 +96,9 @@ class Cluster:
 
     def _shutdown_executor(self) -> None:
         if self._tp_executor_shutdown_called is False:
+            self._client_adapter.log_message(
+                f'Shutting down ThreadPoolExecutor({self._tp_executor_prefix})', LogLevel.INFO
+            )
             self._tp_executor.shutdown()
         self._tp_executor_shutdown_called = True
 

@@ -56,9 +56,9 @@ class ErrorContext:
     def update_response_context(self, response: HttpCoreResponse) -> None:
         network_stream = response.extensions.get('network_stream', None)
         if network_stream is not None:
-            addr, port = network_stream.get_extra_info('client_addr')
+            addr, port, *_ = network_stream.get_extra_info('client_addr')
             self.last_dispatched_from = f'{addr}:{port}'
-            addr, port = network_stream.get_extra_info('server_addr')
+            addr, port, *_ = network_stream.get_extra_info('server_addr')
             self.last_dispatched_to = f'{addr}:{port}'
         self.status_code = response.status_code
 
