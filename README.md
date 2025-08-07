@@ -7,16 +7,25 @@ The Analytics SDK supports static typing.  Currently only [mypy](https://github.
 
 # Installing the SDK<a id="installing-the-sdk"></a>
 
-Until a version is available on PyPI, the SDK can be installed via pip with the following command (note the `dev` branch in the url).
+>Note: It is strongly recommended to update pip, setuptools and wheel prior to installing the SDK: `python3 -m pip install --upgrade pip setuptools wheel`
 
 Install the SDK via `pip`:
 ```console
-python3 -m pip install git+https://github.com/couchbaselabs/analytics-python-client@dev
+python3 -m pip install couchbase-analytics
+```
+
+# Installing the SDK from source
+
+The SDK can be installed from source via pip with the following command.
+
+Install the SDK via `pip`:
+```console
+python3 -m pip install git+https://github.com/couchbase/analytics-python-client.git
 ```
 
 # Using the SDK<a id="using-the-sdk"></a>
 
-Some more examples are provided in the [examples directory](https://github.com/couchbaselabs/analytics-python-client/tree/dev/examples).
+Some more examples are provided in the [examples directory](https://github.com/couchbase/analytics-python-client/tree/main/examples).
 
 **Connecting and executing a query**
 ```python
