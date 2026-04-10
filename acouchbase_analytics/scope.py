@@ -17,15 +17,15 @@
 from __future__ import annotations
 
 import sys
-from asyncio import Future
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Awaitable
 
 if sys.version_info < (3, 10):
     from typing_extensions import TypeAlias
 else:
     from typing import TypeAlias
 
-from couchbase_analytics.result import AsyncQueryResult
+from acouchbase_analytics.query_handle import AsyncQueryHandle
+from acouchbase_analytics.result import AsyncQueryResult
 
 if TYPE_CHECKING:
     from acouchbase_analytics.protocol.database import AsyncDatabase
@@ -44,7 +44,7 @@ class AsyncScope:
         """
         return self._impl.name
 
-    def execute_query(self, statement: str, *args: object, **kwargs: object) -> Future[AsyncQueryResult]:
+    def execute_query(self, statement: str, *args: object, **kwargs: object) -> Awaitable[AsyncQueryResult]:
         """Executes a query against an Analytics scope.
 
         .. note::
@@ -59,9 +59,7 @@ class AsyncScope:
             **kwargs (Dict[str, Any]): keyword arguments that can be used in place or to override provided :class:`~acouchbase_analytics.options.QueryOptions`
 
         Returns:
-            Future[:class:`~couchbase_analytics.result.AsyncQueryResult`]: A :class:`~asyncio.Future` is returned.
-            Once the :class:`~asyncio.Future` completes, an instance of a :class:`~acouchbase_analytics.result.AsyncQueryResult`
-            is available to provide access to iterate over the query results and access metadata and metrics about the query.
+            :class:`~couchbase_analytics.result.AsyncQueryResult`: An instance of a :class:`~acouchbase_analytics.result.AsyncQueryResult`.
 
         Examples:
             Simple query::
@@ -109,6 +107,22 @@ class AsyncScope:
 
         """  # noqa: E501
         return self._impl.execute_query(statement, *args, **kwargs)
+
+    def start_query(self, statement: str, *args: object, **kwargs: object) -> Awaitable[AsyncQueryHandle]:
+        """Executes a query against an Analytics scope in async mode.
+
+        .. seealso::
+            :meth:`acouchbase_analytics.AsyncCluster.start_query`: For how to execute cluster-level queries.
+
+        Args:
+            statement: The SQL++ statement to execute.
+            options (:class:`~acouchbase_analytics.options.StartQueryOptions`): Optional parameters for the query operation.
+            **kwargs (Dict[str, Any]): keyword arguments that can be used in place or to override provided :class:`~acouchbase_analytics.options.StartQueryOptions`
+
+        Returns:
+            :class:`~acouchbase_analytics.query_handle.AsyncQueryHandle`: An instance of a :class:`~acouchbase_analytics.query_handle.AsyncQueryHandle`
+        """  # noqa: E501
+        return self._impl.start_query(statement, *args, **kwargs)
 
 
 Scope: TypeAlias = AsyncScope

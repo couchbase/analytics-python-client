@@ -22,6 +22,12 @@ AsyncCluster
         See :ref:`AsyncCluster Overloads<async-cluster-overloads-ref>` for details on overloaded methods.
 
     .. automethod:: execute_query
+
+    .. important::
+        See :ref:`AsyncCluster Overloads<async-cluster-overloads-ref>` for details on overloaded methods.
+
+    .. automethod:: start_query
+
     .. automethod:: shutdown
 
 
@@ -33,6 +39,7 @@ AsyncDatabase
 
     .. autoproperty:: name
     .. automethod:: scope
+
 
 AsyncScope
 ==============
@@ -46,3 +53,8 @@ AsyncScope
         See :ref:`AsyncScope Overloads<async-scope-overloads-ref>` for details on overloaded methods.
 
     .. automethod:: execute_query
+
+    .. important::
+        See :ref:`AsyncScope Overloads<async-scope-overloads-ref>` for details on overloaded methods.
+
+    .. automethod:: start_query

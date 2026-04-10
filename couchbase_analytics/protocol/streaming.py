@@ -26,12 +26,17 @@ from couchbase_analytics.common._core.query import build_query_metadata
 from couchbase_analytics.common.errors import AnalyticsError, InternalSDKError, TimeoutError
 from couchbase_analytics.common.logging import LogLevel
 from couchbase_analytics.common.query import QueryMetadata
-from couchbase_analytics.protocol._core.request_context import RequestContext
+from couchbase_analytics.protocol._core.request_context import StreamingRequestContext
 from couchbase_analytics.protocol._core.retries import RetryHandler
 
 
 class HttpStreamingResponse:
-    def __init__(self, request_context: RequestContext, lazy_execute: Optional[bool] = None) -> None:
+    def __init__(
+        self,
+        request_context: StreamingRequestContext,
+        lazy_execute: Optional[bool] = None,
+        request_id: Optional[str] = None,
+    ) -> None:
         self._request_context = request_context
         if lazy_execute is not None:
             self._lazy_execute = lazy_execute
@@ -39,6 +44,7 @@ class HttpStreamingResponse:
             self._lazy_execute = False
         self._metadata: Optional[QueryMetadata] = None
         self._core_response: HttpCoreResponse
+        self._request_id = request_id
 
     @property
     def lazy_execute(self) -> bool:
@@ -68,7 +74,7 @@ class HttpStreamingResponse:
     def _process_response(
         self, raw_response: Optional[ParsedResult] = None, handle_context_shutdown: Optional[bool] = False
     ) -> None:
-        json_response = self._request_context.process_response(
+        json_response = self._request_context.process_streaming_response(
             self.close, raw_response=raw_response, handle_context_shutdown=handle_context_shutdown
         )
         self.set_metadata(json_data=json_response)
@@ -98,7 +104,14 @@ class HttpStreamingResponse:
 
     def set_metadata(self, json_data: Optional[Any] = None, raw_metadata: Optional[bytes] = None) -> None:
         try:
-            self._metadata = QueryMetadata(build_query_metadata(json_data=json_data, raw_metadata=raw_metadata))
+            self._metadata = QueryMetadata(
+                build_query_metadata(
+                    json_data=json_data,
+                    raw_metadata=raw_metadata,
+                    request_id=self._request_id,
+                    log_fn=self._request_context.log_message,
+                )
+            )
             self._request_context.shutdown()
         except (AnalyticsError, ValueError) as err:
             self._request_context.shutdown(err)

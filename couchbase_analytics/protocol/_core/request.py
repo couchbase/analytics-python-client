@@ -18,13 +18,27 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Coroutine, Dict, Optional, TypedDict, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Coroutine,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    TypedDict,
+    Union,
+    cast,
+    overload,
+)
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from couchbase_analytics.common.deserializer import Deserializer
-from couchbase_analytics.common.options import QueryOptions
+from couchbase_analytics.common.options import FetchResultsOptions, QueryOptions, StartQueryOptions
 from couchbase_analytics.common.request import RequestURL
-from couchbase_analytics.protocol.options import QueryOptionsTransformedKwargs
+from couchbase_analytics.protocol.options import QueryOptionsTransformedKwargs, StartQueryOptionsTransformedKwargs
 from couchbase_analytics.query import QueryScanConsistency
 
 if TYPE_CHECKING:
@@ -46,20 +60,17 @@ class RequestExtensions(TypedDict, total=False):
 
 
 @dataclass
-class QueryRequest:
+class HttpRequest:
     url: RequestURL
-    deserializer: Deserializer
-    body: Dict[str, Union[str, object]]
     extensions: RequestExtensions
+    path: str
+    method: str
+    headers: Mapping[str, str]
     max_retries: int
-    method: str = 'POST'
-
-    options: Optional[QueryOptionsTransformedKwargs] = None
-    enable_cancel: Optional[bool] = None
 
     def add_trace_to_extensions(
         self, handler: Callable[[str, str], Union[None, Coroutine[Any, Any, None]]]
-    ) -> QueryRequest:
+    ) -> HttpRequest:
         """
         **INTERNAL**
         """
@@ -67,14 +78,6 @@ class QueryRequest:
             self.extensions = {}
         self.extensions['trace'] = handler
         return self
-
-    def get_request_statement(self) -> Optional[str]:
-        """
-        **INTERNAL**
-        """
-        if 'statement' in self.body:
-            return cast(str, self.body['statement'])
-        return None
 
     def get_request_timeouts(self) -> Optional[RequestTimeoutExtensions]:
         """
@@ -84,13 +87,60 @@ class QueryRequest:
             return {}
         return self.extensions['timeout']
 
-    def update_url(self, ip: str, path: str) -> QueryRequest:
+    def update_url(self, ip: str, path: str) -> HttpRequest:
         """
         **INTERNAL**
         """
         self.url.ip = ip
         self.url.path = path
         return self
+
+
+class CancelRequestData(TypedDict):
+    request_id: str
+
+
+@dataclass
+class CancelRequest(HttpRequest):
+    data: CancelRequestData
+
+
+@dataclass
+class FetchResultsRequest(HttpRequest):
+    deserializer: Deserializer
+    should_stream: bool = True
+
+
+@dataclass
+class QueryRequest(HttpRequest):
+    deserializer: Deserializer
+    body: Dict[str, Union[str, object]]
+    options: Optional[QueryOptionsTransformedKwargs] = None
+    enable_cancel: Optional[bool] = None
+    should_stream: bool = True
+
+    def get_request_statement(self) -> Optional[str]:
+        """
+        **INTERNAL**
+        """
+        if 'statement' in self.body:
+            return cast(str, self.body['statement'])
+        return None
+
+
+@dataclass
+class StartQueryRequest(HttpRequest):
+    body: Dict[str, Union[str, object]]
+    options: Optional[StartQueryOptionsTransformedKwargs] = None
+    should_stream: bool = False
+
+    def get_request_statement(self) -> Optional[str]:
+        """
+        **INTERNAL**
+        """
+        if 'statement' in self.body:
+            return cast(str, self.body['statement'])
+        return None
 
 
 class _RequestBuilder:
@@ -106,6 +156,7 @@ class _RequestBuilder:
         self._scope_name = scope_name
 
         connect_timeout = self._conn_details.get_connect_timeout()
+        self._handle_request_timeout = self._conn_details.get_handle_request_timeout()
         self._default_query_timeout = self._conn_details.get_query_timeout()
         self._extensions: RequestExtensions = {
             'timeout': {'pool': connect_timeout, 'connect': connect_timeout, 'read': self._default_query_timeout}
@@ -113,13 +164,55 @@ class _RequestBuilder:
         if self._conn_details.is_secure() and self._conn_details.sni_hostname is not None:
             self._extensions['sni_hostname'] = self._conn_details.sni_hostname
 
-    def build_base_query_request(  # noqa: C901
+    def build_request_from_handle(self, handle: str, method: Optional[str] = None) -> HttpRequest:
+        method = method or 'GET'
+        extensions = deepcopy(self._extensions)
+        extensions['timeout']['read'] = self._handle_request_timeout
+        max_retries = self._conn_details.get_max_retries()
+        parsed = urlparse(handle)
+        path = parsed.path if parsed.scheme else handle
+        return HttpRequest(self._conn_details.url, extensions, path, method=method, headers={}, max_retries=max_retries)
+
+    def build_cancel_request(self, request_id: str) -> CancelRequest:
+        extensions = deepcopy(self._extensions)
+        extensions['timeout']['read'] = self._handle_request_timeout
+        max_retries = self._conn_details.get_max_retries()
+        return CancelRequest(
+            self._conn_details.url,
+            extensions,
+            '/api/v1/active_requests',
+            'DELETE',
+            {'Content-Type': 'application/x-www-form-urlencoded'},
+            max_retries,
+            {'request_id': request_id},
+        )
+
+    def build_discard_results_request(self, handle: str) -> HttpRequest:
+        return self.build_request_from_handle(handle, method='DELETE')
+
+    def build_fetch_results_request(
+        self, handle: str, options: Optional[FetchResultsOptions] = None, **kwargs: object
+    ) -> FetchResultsRequest:
+        q_opts = self._opts_builder.build_options(FetchResultsOptions, kwargs, options)
+        base_request = self.build_request_from_handle(handle)
+        deserializer = q_opts.pop('deserializer', None) or self._conn_details.default_deserializer
+        max_retries = self._conn_details.get_max_retries()
+        return FetchResultsRequest(
+            base_request.url,
+            base_request.extensions,
+            base_request.path,
+            base_request.method,
+            {},
+            max_retries,
+            deserializer,
+        )
+
+    def build_query_request(
         self,
         statement: str,
         *args: object,
-        is_async: Optional[bool] = False,
         **kwargs: object,
-    ) -> QueryRequest:  # noqa: C901
+    ) -> QueryRequest:
         enable_cancel: Optional[bool] = None
         cancel_kwarg_token = kwargs.pop('enable_cancel', None)
         if isinstance(cancel_kwarg_token, bool):
@@ -138,21 +231,104 @@ class _RequestBuilder:
             else:
                 parsed_args_list.append(arg)
 
+        extensions, body, q_opts = self._get_query_request_details(
+            QueryOptions, opts, statement, parsed_args_list=parsed_args_list, **kwargs
+        )
+
+        # handle deserializer and max_retries
+        deserializer = q_opts.pop('deserializer', None) or self._conn_details.default_deserializer
+        retries = q_opts.pop('max_retries', None)
+        max_retries = retries if retries is not None else self._conn_details.get_max_retries()
+
+        return QueryRequest(
+            self._conn_details.url,
+            extensions,
+            '',
+            'POST',
+            {},
+            max_retries,
+            deserializer,
+            body,
+            options=q_opts,
+            enable_cancel=enable_cancel,
+        )
+
+    def build_start_query_request(  # noqa: C901
+        self,
+        statement: str,
+        *args: object,
+        **kwargs: object,
+    ) -> StartQueryRequest:  # noqa: C901
+        # default if no options provided
+        opts = StartQueryOptions()
+        args_list = list(args)
+        parsed_args_list = []
+        for arg in args_list:
+            if isinstance(arg, StartQueryOptions):
+                # we have options passed in
+                opts = arg
+            else:
+                parsed_args_list.append(arg)
+
+        extensions, body, q_opts = self._get_query_request_details(
+            StartQueryOptions, opts, statement, parsed_args_list=parsed_args_list, **kwargs
+        )
+
+        body['mode'] = 'async'
+        retries = q_opts.pop('max_retries', None)
+        max_retries = retries if retries is not None else self._conn_details.get_max_retries()
+
+        return StartQueryRequest(
+            self._conn_details.url,
+            extensions,
+            '',
+            'POST',
+            {},
+            max_retries,
+            body,
+            options=q_opts,
+        )
+
+    @overload
+    def _get_query_request_details(
+        self,
+        option_type: type[QueryOptions],
+        query_opts: QueryOptions,
+        statement: str,
+        parsed_args_list: Optional[List[object]] = None,
+        **kwargs: object,
+    ) -> tuple[RequestExtensions, Dict[str, Union[str, object]], QueryOptionsTransformedKwargs]: ...
+
+    @overload
+    def _get_query_request_details(
+        self,
+        option_type: type[StartQueryOptions],
+        query_opts: StartQueryOptions,
+        statement: str,
+        parsed_args_list: Optional[List[object]] = None,
+        **kwargs: object,
+    ) -> tuple[RequestExtensions, Dict[str, Union[str, object]], StartQueryOptionsTransformedKwargs]: ...
+
+    def _get_query_request_details(  # noqa: C901
+        self,
+        option_type: Union[type[QueryOptions], type[StartQueryOptions]],
+        query_opts: Union[QueryOptions, StartQueryOptions],
+        statement: str,
+        parsed_args_list: Optional[List[object]] = None,
+        **kwargs: object,
+    ) -> Any:  # noqa: C901
         # need to pop out named params prior to sending options to the builder
-        named_param_keys = list(filter(lambda k: k not in QueryOptions.VALID_OPTION_KEYS, kwargs.keys()))
+        named_param_keys = list(filter(lambda k: k not in option_type.VALID_OPTION_KEYS, kwargs.keys()))
         named_params = {}
         for key in named_param_keys:
             named_params[key] = kwargs.pop(key)
 
-        q_opts = self._opts_builder.build_options(QueryOptions, QueryOptionsTransformedKwargs, kwargs, opts)
+        q_opts = self._opts_builder.build_options(option_type, kwargs, query_opts)
         # positional params and named params passed in outside of QueryOptions serve as overrides
         if parsed_args_list and len(parsed_args_list) > 0:
             q_opts['positional_parameters'] = parsed_args_list
         if named_params and len(named_params) > 0:
             q_opts['named_parameters'] = named_params
-        # handle deserializer and max_retries
-        deserializer = q_opts.pop('deserializer', None) or self._conn_details.default_deserializer
-        max_retries = q_opts.pop('max_retries', None) or self._conn_details.get_max_retries()
 
         body: Dict[str, Union[str, object]] = {
             'statement': statement,
@@ -165,8 +341,11 @@ class _RequestBuilder:
         # handle timeouts
         timeout = q_opts.get('timeout', None) or self._default_query_timeout
         extensions = deepcopy(self._extensions)
-        if timeout is not None and timeout != self._default_query_timeout:
-            extensions['timeout']['read'] = timeout
+        if option_type == QueryOptions:
+            if timeout is not None and timeout != self._default_query_timeout:
+                extensions['timeout']['read'] = timeout
+        else:
+            extensions['timeout']['read'] = self._handle_request_timeout
         # we add 5 seconds to the server timeout to ensure we always trigger a client side timeout
         timeout_ms = (timeout + 5) * 1e3  # convert to milliseconds
         body['timeout'] = f'{timeout_ms}ms'
@@ -191,12 +370,4 @@ class _RequestBuilder:
                 else:
                     body['scan_consistency'] = opt_val
 
-        return QueryRequest(
-            self._conn_details.url,
-            deserializer,
-            body,
-            extensions=extensions,
-            max_retries=max_retries,
-            options=q_opts,
-            enable_cancel=enable_cancel,
-        )
+        return extensions, body, q_opts

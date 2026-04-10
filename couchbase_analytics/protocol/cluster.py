@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import atexit
+import sys
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import TYPE_CHECKING, Optional, Union
 from uuid import uuid4
@@ -25,7 +26,9 @@ from couchbase_analytics.common.logging import LogLevel
 from couchbase_analytics.common.result import BlockingQueryResult
 from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter
 from couchbase_analytics.protocol._core.request import _RequestBuilder
-from couchbase_analytics.protocol._core.request_context import RequestContext
+from couchbase_analytics.protocol._core.request_context import RequestContext, StreamingRequestContext
+from couchbase_analytics.protocol._core.response import HttpResponse
+from couchbase_analytics.protocol.query_handle import BlockingQueryHandle
 from couchbase_analytics.protocol.streaming import HttpStreamingResponse
 
 if TYPE_CHECKING:
@@ -85,6 +88,7 @@ class Cluster:
         """
         **INTERNAL**
         """
+        atexit.unregister(self._shutdown_executor)
         self._client_adapter.close_client()
         self._client_adapter.reset_client()
         self._shutdown_executor()
@@ -97,9 +101,10 @@ class Cluster:
 
     def _shutdown_executor(self) -> None:
         if self._tp_executor_shutdown_called is False:
-            self._client_adapter.log_message(
-                f'Shutting down ThreadPoolExecutor({self._tp_executor_prefix})', LogLevel.INFO
-            )
+            if not sys.is_finalizing():
+                self._client_adapter.log_message(
+                    f'Shutting down ThreadPoolExecutor({self._tp_executor_prefix})', LogLevel.INFO
+                )
             self._tp_executor.shutdown()
         self._tp_executor_shutdown_called = True
 
@@ -120,11 +125,11 @@ class Cluster:
     def execute_query(
         self, statement: str, *args: object, **kwargs: object
     ) -> Union[BlockingQueryResult, Future[BlockingQueryResult]]:
-        base_req = self._request_builder.build_base_query_request(statement, *args, **kwargs)
-        lazy_execute = base_req.options.pop('lazy_execute', None)
-        stream_config = base_req.options.pop('stream_config', None)
-        request_context = RequestContext(
-            self.client_adapter, base_req, self.threadpool_executor, stream_config=stream_config
+        req = self._request_builder.build_query_request(statement, *args, **kwargs)
+        lazy_execute = req.options.pop('lazy_execute', None)
+        stream_config = req.options.pop('stream_config', None)
+        request_context = StreamingRequestContext(
+            self.client_adapter, req, self.threadpool_executor, stream_config=stream_config
         )
         resp = HttpStreamingResponse(request_context, lazy_execute=lazy_execute)
 
@@ -146,6 +151,16 @@ class Cluster:
             if lazy_execute is not True:
                 resp.send_request()
             return BlockingQueryResult(resp)
+
+    def start_query(self, statement: str, *args: object, **kwargs: object) -> BlockingQueryHandle:
+        base_req = self._request_builder.build_start_query_request(statement, *args, **kwargs)
+        stream_config = base_req.options.pop('stream_config', None)
+        request_context = RequestContext(self.client_adapter, base_req)
+        resp = HttpResponse(request_context)
+        resp.send_request()
+        return BlockingQueryHandle(
+            self._client_adapter, self._request_builder, resp, self._tp_executor, stream_config=stream_config
+        )
 
     @classmethod
     def create_instance(

@@ -27,7 +27,7 @@ from couchbase_analytics.common._core.duration_str_utils import parse_duration_s
 from couchbase_analytics.common._core.utils import is_null_or_empty
 from couchbase_analytics.common.credential import Credential
 from couchbase_analytics.common.deserializer import DefaultJsonDeserializer, Deserializer
-from couchbase_analytics.common.options import ClusterOptions, SecurityOptions, TimeoutOptions
+from couchbase_analytics.common.options import SecurityOptions, TimeoutOptions
 from couchbase_analytics.common.request import RequestURL
 from couchbase_analytics.protocol.options import (
     ClusterOptionsTransformedKwargs,
@@ -46,11 +46,13 @@ class StreamingTimeouts(TypedDict, total=False):
 
 class DefaultTimeouts(TypedDict):
     connect_timeout: float
+    handle_request_timeout: float
     query_timeout: float
 
 
 DEFAULT_TIMEOUTS: DefaultTimeouts = {
     'connect_timeout': 10,
+    'handle_request_timeout': 10,
     'query_timeout': 60 * 10,
 }
 
@@ -173,8 +175,17 @@ class _ConnectionDetails:
                 return connect_timeout
         return DEFAULT_TIMEOUTS['connect_timeout']
 
+    def get_handle_request_timeout(self) -> float:
+        timeout_opts: Optional[TimeoutOptionsTransformedKwargs] = self.cluster_options.get('timeout_options')
+        if timeout_opts is not None:
+            handle_request_timeout = timeout_opts.get('handle_request_timeout', None)
+            if handle_request_timeout is not None:
+                return handle_request_timeout
+        return DEFAULT_TIMEOUTS['handle_request_timeout']
+
     def get_max_retries(self) -> int:
-        return self.cluster_options.get('max_retries', None) or DEFAULT_MAX_RETRIES
+        max_retries = self.cluster_options.get('max_retries', None)
+        return max_retries if max_retries is not None else DEFAULT_MAX_RETRIES
 
     def get_init_details(self) -> str:
         details = {'url': self.url.get_formatted_url(), 'cluster_options': self.cluster_options}
@@ -255,8 +266,6 @@ class _ConnectionDetails:
 
         logger_name = cast(Optional[str], kwargs.pop('logger_name', None))
         cluster_opts = opts_builder.build_cluster_options(
-            ClusterOptions,
-            ClusterOptionsTransformedKwargs,
             kwargs,
             options,
             query_str_opts=parse_query_str_options(query_str_opts, logger_name=logger_name),

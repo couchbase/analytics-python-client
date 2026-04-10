@@ -19,6 +19,7 @@ from __future__ import annotations
 from concurrent.futures import Future
 from typing import TYPE_CHECKING, Union
 
+from couchbase_analytics.query_handle import BlockingQueryHandle
 from couchbase_analytics.result import BlockingQueryResult
 
 if TYPE_CHECKING:
@@ -114,3 +115,19 @@ class Scope:
 
         """  # noqa: E501
         return self._impl.execute_query(statement, *args, **kwargs)
+
+    def start_query(self, statement: str, *args: object, **kwargs: object) -> BlockingQueryHandle:
+        """Executes a query against an Analytics scope in async mode.
+
+        .. seealso::
+            :meth:`couchbase_analytics.Cluster.start_query`: For how to execute cluster-level queries.
+
+        Args:
+            statement: The SQL++ statement to execute.
+            options (:class:`~couchbase_analytics.options.StartQueryOptions`): Optional parameters for the query operation.
+            **kwargs (Dict[str, Any]): keyword arguments that can be used in place or to override provided :class:`~couchbase_analytics.options.StartQueryOptions`
+
+        Returns:
+            :class:`~couchbase_analytics.query_handle.BlockingQueryHandle`: An instance of a :class:`~couchbase_analytics.query_handle.BlockingQueryHandle`
+        """  # noqa: E501
+        return self._impl.start_query(statement, *args, **kwargs)

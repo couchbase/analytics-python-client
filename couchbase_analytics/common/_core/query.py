@@ -17,9 +17,10 @@
 from __future__ import annotations
 
 import json
-from typing import Any, List, Optional, TypedDict
+from typing import Any, Callable, List, Optional, TypedDict
 
 from couchbase_analytics.common._core.duration_str_utils import parse_duration_str
+from couchbase_analytics.common.logging import LogLevel
 
 
 class QueryMetricsCore(TypedDict, total=False):
@@ -59,7 +60,25 @@ class QueryMetadataCore(TypedDict, total=False):
     status: Optional[str]
 
 
-def build_query_metadata(json_data: Optional[Any] = None, raw_metadata: Optional[bytes] = None) -> QueryMetadataCore:
+def _parse_duration_metric(metrics: Any, field: str, log_fn: Optional[Callable[[str, LogLevel], None]] = None) -> float:
+    raw = metrics.get(field, '0')
+    try:
+        return parse_duration_str(raw, in_millis=True)
+    except ValueError:
+        if log_fn is not None:
+            log_fn(
+                f'Could not parse metrics field "{field}"; received value="{raw}". Defaulting to 0.',
+                LogLevel.WARNING,
+            )
+        return 0.0
+
+
+def build_query_metadata(
+    json_data: Optional[Any] = None,
+    raw_metadata: Optional[bytes] = None,
+    request_id: Optional[str] = None,
+    log_fn: Optional[Callable[[str, LogLevel], None]] = None,
+) -> QueryMetadataCore:
     """
     Builds the query metadata from the raw bytes.
 
@@ -83,7 +102,7 @@ def build_query_metadata(json_data: Optional[Any] = None, raw_metadata: Optional
         warnings.append({'code': warning.get('code', 0), 'message': warning.get('msg', '')})
 
     metadata: QueryMetadataCore = {
-        'request_id': json_data.get('requestID', ''),
+        'request_id': json_data.get('requestID', request_id or ''),
         'client_context_id': json_data.get('clientContextID', ''),
         'warnings': warnings,
     }
@@ -96,10 +115,10 @@ def build_query_metadata(json_data: Optional[Any] = None, raw_metadata: Optional
         return metadata
 
     metrics: QueryMetricsCore = {
-        'elapsed_time': parse_duration_str(json_data['metrics'].get('elapsedTime', '0'), in_millis=True),
-        'execution_time': parse_duration_str(json_data['metrics'].get('executionTime', '0'), in_millis=True),
-        'compile_time': parse_duration_str(json_data['metrics'].get('compileTime', '0'), in_millis=True),
-        'queue_wait_time': parse_duration_str(json_data['metrics'].get('queueWaitTime', '0'), in_millis=True),
+        'elapsed_time': _parse_duration_metric(json_data['metrics'], 'elapsedTime', log_fn),
+        'execution_time': _parse_duration_metric(json_data['metrics'], 'executionTime', log_fn),
+        'compile_time': _parse_duration_metric(json_data['metrics'], 'compileTime', log_fn),
+        'queue_wait_time': _parse_duration_metric(json_data['metrics'], 'queueWaitTime', log_fn),
         'result_count': json_data['metrics'].get('resultCount', 0),
         'result_size': json_data['metrics'].get('resultSize', 0),
         'processed_objects': json_data['metrics'].get('processedObjects', 0),

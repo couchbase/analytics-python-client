@@ -18,4 +18,5 @@ from couchbase_analytics.common.errors import AnalyticsError as AnalyticsError  
 from couchbase_analytics.common.errors import InternalSDKError as InternalSDKError  # noqa: F401
 from couchbase_analytics.common.errors import InvalidCredentialError as InvalidCredentialError  # noqa: F401
 from couchbase_analytics.common.errors import QueryError as QueryError  # noqa: F401
+from couchbase_analytics.common.errors import QueryNotFoundError as QueryNotFoundError  # noqa: F401
 from couchbase_analytics.common.errors import TimeoutError as TimeoutError  # noqa: F401

@@ -14,12 +14,12 @@
 #  limitations under the License.
 
 
-from typing import Dict
+from typing import Dict, Optional, Union
 
 from httpx import URL, Response
 
 from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter
-from couchbase_analytics.protocol._core.request import QueryRequest
+from couchbase_analytics.protocol._core.request import CancelRequest, HttpRequest, QueryRequest, StartQueryRequest
 
 
 def client_adapter_init_override(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
@@ -39,7 +39,11 @@ def client_adapter_init_override(self, *args, **kwargs) -> None:  # type: ignore
         self._http_transport_cls = adapter._http_transport_cls
 
 
-def send_request_override(self: _ClientAdapter, request: QueryRequest) -> Response:
+def send_request_override(
+    self: _ClientAdapter,
+    request: Union[CancelRequest, HttpRequest, QueryRequest, StartQueryRequest],
+    stream: Optional[bool] = True,
+) -> Response:
     if not hasattr(self, '_client'):
         raise RuntimeError('Client not created yet')
 
@@ -57,7 +61,7 @@ def send_request_override(self: _ClientAdapter, request: QueryRequest) -> Respon
 
     url = URL(scheme=request.url.scheme, host=request.url.host, port=request.url.port, path=request.url.path)
     req = self._client.build_request(request.method, url, json=request_json, extensions=request_extensions)
-    return self._client.send(req, stream=True)
+    return self._client.send(req, stream=stream)
 
 
 def set_request_path(self: _ClientAdapter, path: str) -> None:

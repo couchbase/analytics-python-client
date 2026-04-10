@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import sys
 from abc import ABC, abstractmethod
-from typing import Any, Coroutine, List, Optional, Union
+from typing import Any, Awaitable, List, Optional, Union
 
 if sys.version_info < (3, 9):
     from typing import AsyncIterator as PyAsyncIterator
@@ -34,7 +34,7 @@ class QueryResult(ABC):
     """Abstract base class for query results."""
 
     @abstractmethod
-    def cancel(self) -> Union[Coroutine[Any, Any, None], None]:
+    def cancel(self) -> Union[Awaitable[None], None]:
         """
         Cancel streaming the query results.
 
@@ -43,7 +43,7 @@ class QueryResult(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_all_rows(self) -> Union[Coroutine[Any, Any, List[Any]], List[Any]]:
+    def get_all_rows(self) -> Union[Awaitable[List[Any]], List[Any]]:
         """Convenience method to load all query results into memory."""
         raise NotImplementedError
 

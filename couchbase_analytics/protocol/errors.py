@@ -25,6 +25,7 @@ from couchbase_analytics.common.errors import (
     AnalyticsError,
     InvalidCredentialError,
     QueryError,
+    QueryNotFoundError,
     TimeoutError,
 )
 from couchbase_analytics.common.logging import LogLevel
@@ -115,15 +116,19 @@ class ErrorMapper:
     def build_error_from_http_status_code(message: str, context: ErrorContext) -> WrappedError:
         if context.status_code == 503:
             return WrappedError(AnalyticsError(context=str(context), message=message), retriable=True)
+        if context.status_code == 404:
+            return WrappedError(QueryNotFoundError(context=str(context), message=message), retriable=False)
 
         return WrappedError(AnalyticsError(context=str(context), message=message))
 
     @staticmethod  # noqa: C901
-    def build_error_from_json(json_data: List[Dict[str, Any]], context: ErrorContext) -> WrappedError:
+    def build_error_from_json(json_data: List[Dict[str, Any]], context: ErrorContext) -> WrappedError:  # noqa: C901
         if context.status_code is None:
             return WrappedError(AnalyticsError(context=str(context), message='Unknown error occurred.'))
         if context.status_code == 401:
             return WrappedError(InvalidCredentialError(context=str(context), message='Invalid credentials provided.'))
+        if context.status_code == 404:
+            return WrappedError(QueryNotFoundError(context=str(context), message='Resource not found'), retriable=False)
 
         first_non_retriable_error: Optional[ServerQueryError] = None
         first_retriable_error: Optional[ServerQueryError] = None
@@ -155,6 +160,17 @@ class ErrorMapper:
 
         retriable = first_non_retriable_error is None and first_retriable_error is not None
         return WrappedError(q_err, retriable=retriable)
+
+    @staticmethod
+    def maybe_raise_error_from_status_code(
+        status_code: int, context: str, ignore_not_found_status: Optional[bool] = False
+    ) -> None:
+        if status_code == 401:
+            raise WrappedError(InvalidCredentialError(context=context, message='Invalid credentials provided.'))
+        if status_code == 404 and ignore_not_found_status is not True:
+            raise WrappedError(QueryNotFoundError(context=context, message='Resource not found'))
+        if status_code == 503:
+            raise WrappedError(AnalyticsError(context=context, message='Service unavailable.'), retriable=True)
 
     @staticmethod
     def handle_socket_error(

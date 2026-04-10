@@ -13,5 +13,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-
-from __future__ import annotations
+from couchbase_analytics.common.query_handle import BlockingQueryHandle as BlockingQueryHandle  # noqa: F401
+from couchbase_analytics.common.query_handle import BlockingQueryResultHandle as BlockingQueryResultHandle  # noqa: F401
+from couchbase_analytics.common.query_handle import BlockingQueryStatus as BlockingQueryStatus  # noqa: F401

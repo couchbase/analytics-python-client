@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from concurrent.futures import Future
 from datetime import timedelta
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -133,13 +133,8 @@ class TestServerTestSuite:
         statement = 'SELECT "Hello, data!" AS greeting'
         allowed_retries = 5
         q_opts = QueryOptions(max_retries=allowed_retries, timeout=timedelta(seconds=10))
-        ex: Union[pytest.ExceptionInfo[AnalyticsError], pytest.ExceptionInfo[QueryError]]
-        if analytics_error:
-            with pytest.raises(QueryError) as ex:
-                test_env.cluster_or_scope.execute_query(statement, q_opts)
-        else:
-            with pytest.raises(AnalyticsError) as ex:
-                test_env.cluster_or_scope.execute_query(statement, q_opts)
+        with pytest.raises(AnalyticsError) as ex:
+            test_env.cluster_or_scope.execute_query(statement, q_opts)
 
         test_env.assert_error_context_num_attempts(allowed_retries + 1, ex.value._context)
         test_env.assert_error_context_contains_last_dispatch(ex.value._context)

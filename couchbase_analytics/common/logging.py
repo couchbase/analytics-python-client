@@ -16,6 +16,7 @@
 
 import logging
 from enum import Enum
+from typing import Optional
 
 LOG_FORMAT_ARR = [
     '[%(asctime)s.%(msecs)03d]',
@@ -36,8 +37,25 @@ class LogLevel(Enum):
     CRITICAL = logging.CRITICAL
 
 
+def _has_open_handlers(logger: logging.Logger) -> bool:
+    current: Optional[logging.Logger] = logger
+    while current is not None:
+        for handler in current.handlers:
+            if isinstance(handler, logging.StreamHandler):
+                if hasattr(handler.stream, 'closed') and handler.stream.closed:
+                    continue
+            return True
+        if not current.propagate:
+            break
+        current = current.parent
+    return False
+
+
 def log_message(logger: logging.Logger, message: str, log_level: LogLevel) -> None:
     if not logger or not logger.hasHandlers():
+        return
+
+    if not _has_open_handlers(logger):
         return
 
     if log_level == LogLevel.DEBUG:

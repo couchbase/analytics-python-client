@@ -20,7 +20,7 @@ from typing import Any, Optional
 
 from httpx import Response as HttpCoreResponse
 
-from acouchbase_analytics.protocol._core.request_context import AsyncRequestContext
+from acouchbase_analytics.protocol._core.request_context import AsyncStreamingRequestContext
 from acouchbase_analytics.protocol._core.retries import AsyncRetryHandler
 from couchbase_analytics.common._core import ParsedResult, ParsedResultType
 from couchbase_analytics.common._core.query import build_query_metadata
@@ -30,11 +30,12 @@ from couchbase_analytics.common.query import QueryMetadata
 
 
 class AsyncHttpStreamingResponse:
-    def __init__(self, request_context: AsyncRequestContext) -> None:
+    def __init__(self, request_context: AsyncStreamingRequestContext, request_id: Optional[str] = None) -> None:
         self._metadata: Optional[QueryMetadata] = None
         self._core_response: HttpCoreResponse
         # Goal is to treat the AsyncHttpStreamingResponse as a "task group"
         self._request_context = request_context
+        self._request_id = request_id
 
     async def _close_in_background(self) -> None:
         """
@@ -68,7 +69,7 @@ class AsyncHttpStreamingResponse:
         """
         **INTERNAL**
         """
-        json_response = await self._request_context.process_response(
+        json_response = await self._request_context.process_streaming_response(
             self.close, raw_response=raw_response, handle_context_shutdown=handle_context_shutdown
         )
         await self.set_metadata(json_data=json_response)
@@ -111,7 +112,14 @@ class AsyncHttpStreamingResponse:
         **INTERNAL**
         """
         try:
-            self._metadata = QueryMetadata(build_query_metadata(json_data=json_data, raw_metadata=raw_metadata))
+            self._metadata = QueryMetadata(
+                build_query_metadata(
+                    json_data=json_data,
+                    raw_metadata=raw_metadata,
+                    request_id=self._request_id,
+                    log_fn=self._request_context.log_message,
+                )
+            )
             await self._request_context.shutdown()
         except (AnalyticsError, ValueError) as err:
             await self._request_context.reraise_after_shutdown(err)

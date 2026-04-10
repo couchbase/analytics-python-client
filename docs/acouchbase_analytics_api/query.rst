@@ -24,6 +24,9 @@ Options
 .. autoclass:: QueryOptions
     :no-index:
 
+.. autoclass:: StartQueryOptions
+    :no-index:
+
 
 Results
 ===============

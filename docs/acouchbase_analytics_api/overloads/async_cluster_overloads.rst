@@ -25,7 +25,7 @@ AsyncCluster
                    execute_query(statement: str, *args: JSONType, **kwargs: str) -> Awaitable[AsyncQueryResult]
         :no-index:
 
-        Executes a query against a Capella analytics cluster.
+        Executes a query against an Analytics cluster.
 
         .. important::
             The cancel API is **VOLATILE** and is subject to change at any time.
@@ -42,6 +42,30 @@ AsyncCluster
 
         :returns: An `Awaitable` is returned.  Once the `Awaitable` completes, an instance of a :class:`~acouchbase_analytics.result.AsyncQueryResult` will be available.
         :rtype: Awaitable[:class:`~acouchbase_analytics.result.AsyncQueryResult`]
+
+    .. py:method:: start_query(statement: str) -> Awaitable[AsyncQueryHandle]
+                   start_query(statement: str, options: StartQueryOptions) -> Awaitable[AsyncQueryHandle]
+                   start_query(statement: str, **kwargs: StartQueryOptionsKwargs) -> Awaitable[AsyncQueryHandle]
+                   start_query(statement: str, options: StartQueryOptions, **kwargs: StartQueryOptionsKwargs) -> Awaitable[AsyncQueryHandle]
+                   start_query(statement: str, options: StartQueryOptions, *args: JSONType, **kwargs: StartQueryOptionsKwargs) -> Awaitable[AsyncQueryHandle]
+                   start_query(statement: str, options: StartQueryOptions, *args: JSONType, **kwargs: str) -> Awaitable[AsyncQueryHandle]
+                   start_query(statement: str, *args: JSONType, **kwargs: str) -> Awaitable[AsyncQueryHandle]
+        :no-index:
+
+        Executes a query against an Analytics cluster using the asynchronous server requests API.
+
+        :param statement: The SQL++ statement to execute.
+        :type statement: str
+        :param options: Options to set for the query.
+        :type options: Optional[:class:`~acouchbase_analytics.options.StartQueryOptions`]
+        :param \*args: Can be used to pass in positional query placeholders.
+        :type \*args: Optional[:py:type:`~acouchbase_analytics.JSONType`]
+        :param \*\*kwargs: Keyword arguments that can be used in place or to overrride provided :class:`~acouchbase_analytics.options.StartClusterOptions`.
+            Can also be used to pass in named query placeholders.
+        :type \*\*kwargs: Optional[Union[:class:`~acouchbase_analytics.options.StartQueryOptionsKwargs`, str]]
+
+        :returns: An `Awaitable` is returned.  Once the `Awaitable` completes, an instance of a :class:`~acouchbase_analytics.query_handle.AsyncQueryHandle` will be available.
+        :rtype: Awaitable[:class:`~acouchbase_analytics.query_handle.AsyncQueryHandle`]
 
     .. py:method:: create_instance(endpoint: str, credential: Credential) -> AsyncCluster
                    create_instance(endpoint: str, credential: Credential, options: ClusterOptions) -> AsyncCluster

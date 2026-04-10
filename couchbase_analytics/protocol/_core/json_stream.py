@@ -30,7 +30,7 @@ from couchbase_analytics.common.logging import LogLevel
 from couchbase_analytics.protocol._core.json_token_parser import JsonTokenParser
 
 if TYPE_CHECKING:
-    from couchbase_analytics.protocol._core.request_context import RequestContext
+    from couchbase_analytics.protocol._core.request_context import StreamingRequestContext
 
 
 class JsonStream:
@@ -80,7 +80,7 @@ class JsonStream:
         """
         return self._token_stream_exhausted
 
-    def _continue_processing(self, request_context: Optional[RequestContext] = None) -> bool:
+    def _continue_processing(self, request_context: Optional[StreamingRequestContext] = None) -> bool:
         """
         **INTERNAL**
         """
@@ -125,7 +125,7 @@ class JsonStream:
         if self._log_handler is not None:
             self._log_handler(message, level)
 
-    def _process_token_stream(self, request_context: Optional[RequestContext] = None) -> None:
+    def _process_token_stream(self, request_context: Optional[StreamingRequestContext] = None) -> None:
         """
         **INTERNAL**
         """
@@ -207,7 +207,7 @@ class JsonStream:
 
     def start_parsing(
         self,
-        request_context: Optional[RequestContext] = None,
+        request_context: Optional[StreamingRequestContext] = None,
         notify_on_results_or_error: Optional[Future[ParsedResultType]] = None,
     ) -> None:
         if self._json_stream_parser is not None:
@@ -218,6 +218,6 @@ class JsonStream:
 
     def continue_parsing(
         self,
-        request_context: Optional[RequestContext] = None,
+        request_context: Optional[StreamingRequestContext] = None,
     ) -> None:
         self._process_token_stream(request_context=request_context)
