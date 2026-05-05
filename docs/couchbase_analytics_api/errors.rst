@@ -23,6 +23,10 @@ QueryError
     .. autoproperty:: code
     .. autoproperty:: server_message
 
+QueryNotFoundError
+++++++++++++++++++++++++++++++++
+.. autoclass:: QueryNotFoundError
+
 TimeoutError
 ++++++++++++++++++++++++++++++++
 .. autoclass:: TimeoutError

@@ -25,7 +25,15 @@ else:
 from couchbase_analytics import JSONType
 from couchbase_analytics.credential import Credential
 from couchbase_analytics.database import Database
-from couchbase_analytics.options import ClusterOptions, ClusterOptionsKwargs, QueryOptions, QueryOptionsKwargs
+from couchbase_analytics.options import (
+    ClusterOptions,
+    ClusterOptionsKwargs,
+    QueryOptions,
+    QueryOptionsKwargs,
+    StartQueryOptions,
+    StartQueryOptionsKwargs,
+)
+from couchbase_analytics.query_handle import BlockingQueryHandle
 from couchbase_analytics.result import BlockingQueryResult
 
 class Cluster:
@@ -114,6 +122,26 @@ class Cluster:
     def execute_query(
         self, statement: str, *args: JSONType, enable_cancel: bool, **kwargs: str
     ) -> Future[BlockingQueryResult]: ...
+    @overload
+    def start_query(self, statement: str) -> BlockingQueryHandle: ...
+    @overload
+    def start_query(self, statement: str, options: StartQueryOptions) -> BlockingQueryHandle: ...
+    @overload
+    def start_query(self, statement: str, **kwargs: Unpack[StartQueryOptionsKwargs]) -> BlockingQueryHandle: ...
+    @overload
+    def start_query(
+        self, statement: str, options: StartQueryOptions, **kwargs: Unpack[StartQueryOptionsKwargs]
+    ) -> BlockingQueryHandle: ...
+    @overload
+    def start_query(
+        self, statement: str, options: StartQueryOptions, *args: JSONType, **kwargs: Unpack[StartQueryOptionsKwargs]
+    ) -> BlockingQueryHandle: ...
+    @overload
+    def start_query(
+        self, statement: str, options: StartQueryOptions, *args: JSONType, **kwargs: str
+    ) -> BlockingQueryHandle: ...
+    @overload
+    def start_query(self, statement: str, *args: JSONType, **kwargs: str) -> BlockingQueryHandle: ...
     def shutdown(self) -> None: ...
     @overload
     @classmethod

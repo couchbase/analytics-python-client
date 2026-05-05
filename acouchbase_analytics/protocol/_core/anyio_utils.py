@@ -66,7 +66,7 @@ def current_async_library() -> Optional[AsyncBackend]:
     try:
         import sniffio
     except ImportError:
-        async_lib = 'asyncio'
+        return AsyncBackend('asyncio')
 
     try:
         async_lib = sniffio.current_async_library()

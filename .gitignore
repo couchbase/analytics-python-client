@@ -176,5 +176,8 @@ gocaves*
 .pytest_cache/
 test_scripts/
 
-# rff
+# ruff
 .ruff_cache/
+
+# other
+.DS_Store

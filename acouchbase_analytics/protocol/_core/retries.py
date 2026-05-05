@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from asyncio import CancelledError
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, Coroutine, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Coroutine, Optional, TypeVar, Union
 
 from httpx import ConnectError, ConnectTimeout, CookieConflict, HTTPError, InvalidURL, ReadTimeout, StreamError
 
@@ -29,8 +29,13 @@ from couchbase_analytics.common.request import RequestState
 from couchbase_analytics.protocol.errors import WrappedError
 
 if TYPE_CHECKING:
-    from acouchbase_analytics.protocol._core.request_context import AsyncRequestContext
+    from acouchbase_analytics.protocol._core.request_context import AsyncRequestContext, AsyncStreamingRequestContext
+    from acouchbase_analytics.protocol._core.response import AsyncHttpResponse
     from acouchbase_analytics.protocol.streaming import AsyncHttpStreamingResponse
+
+
+AsyncReqContext = Union['AsyncRequestContext', 'AsyncStreamingRequestContext']
+T = TypeVar('T', bound=Union['AsyncHttpResponse', 'AsyncHttpStreamingResponse'])
 
 
 class AsyncRetryHandler:
@@ -39,9 +44,7 @@ class AsyncRetryHandler:
     """
 
     @staticmethod
-    async def handle_httpx_retry(
-        ex: Union[ConnectError, ConnectTimeout], ctx: AsyncRequestContext
-    ) -> Optional[Exception]:
+    async def handle_httpx_retry(ex: Union[ConnectError, ConnectTimeout], ctx: AsyncReqContext) -> Optional[Exception]:
         err_str = str(ex)
         if 'SSL:' in err_str:
             message = 'TLS connection error occurred.'
@@ -64,7 +67,7 @@ class AsyncRetryHandler:
         return None
 
     @staticmethod
-    async def handle_retry(ex: WrappedError, ctx: AsyncRequestContext) -> Optional[Union[BaseException, Exception]]:
+    async def handle_retry(ex: WrappedError, ctx: AsyncReqContext) -> Optional[Union[BaseException, Exception]]:
         if ex.retriable is True:
             delay = ctx.calculate_backoff()
             err: Optional[Union[BaseException, Exception]] = None
@@ -94,10 +97,10 @@ class AsyncRetryHandler:
 
     @staticmethod
     def with_retries(  # noqa: C901
-        fn: Callable[[AsyncHttpStreamingResponse], Coroutine[Any, Any, None]],
-    ) -> Callable[[AsyncHttpStreamingResponse], Coroutine[Any, Any, None]]:
+        fn: Callable[[T], Coroutine[Any, Any, None]],
+    ) -> Callable[[T], Coroutine[Any, Any, None]]:
         @wraps(fn)
-        async def wrapped_fn(self: AsyncHttpStreamingResponse) -> None:  # noqa: C901
+        async def wrapped_fn(self: T) -> None:  # noqa: C901
             while True:
                 try:
                     await fn(self)

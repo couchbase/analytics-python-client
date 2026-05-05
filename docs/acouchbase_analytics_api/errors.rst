@@ -26,6 +26,11 @@ QueryError
     .. autoproperty:: code
     .. autoproperty:: server_message
 
+QueryNotFoundError
+++++++++++++++++++++++++++++++++
+.. autoclass:: QueryNotFoundError
+    :no-index:
+
 TimeoutError
 ++++++++++++++++++++++++++++++++
 .. autoclass:: TimeoutError

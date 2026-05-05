@@ -25,7 +25,8 @@ else:
     from typing import TypeAlias
 
 from acouchbase_analytics.database import AsyncDatabase
-from couchbase_analytics.result import AsyncQueryResult
+from acouchbase_analytics.query_handle import AsyncQueryHandle
+from acouchbase_analytics.result import AsyncQueryResult
 
 if TYPE_CHECKING:
     from couchbase_analytics.credential import Credential
@@ -92,9 +93,7 @@ class AsyncCluster:
             **kwargs (Dict[str, Any]): keyword arguments that can be used in place or to override provided :class:`~couchbase_analytics.options.QueryOptions`
 
         Returns:
-            Future[:class:`~couchbase_analytics.result.AsyncQueryResult`]: A :class:`~asyncio.Future` is returned.
-            Once the :class:`~asyncio.Future` completes, an instance of a :class:`~acouchbase_analytics.result.AsyncQueryResult`
-            is available to provide access to iterate over the query results and access metadata and metrics about the query.
+            :class:`~couchbase_analytics.result.AsyncQueryResult`: An instance of a :class:`~acouchbase_analytics.result.AsyncQueryResult`.
 
         Examples:
             Simple query::
@@ -142,6 +141,22 @@ class AsyncCluster:
 
         """  # noqa: E501
         return self._impl.execute_query(statement, *args, **kwargs)
+
+    def start_query(self, statement: str, *args: object, **kwargs: object) -> Awaitable[AsyncQueryHandle]:
+        """Executes a query against an Analytics cluster in async mode.
+
+        .. seealso::
+            :meth:`acouchbase_analytics.Scope.start_query`: For how to execute scope-level queries.
+
+        Args:
+            statement: The SQL++ statement to execute.
+            options (:class:`~acouchbase_analytics.options.StartQueryOptions`): Optional parameters for the query operation.
+            **kwargs (Dict[str, Any]): keyword arguments that can be used in place or to override provided :class:`~acouchbase_analytics.options.StartQueryOptions`
+
+        Returns:
+            :class:`~acouchbase_analytics.query_handle.AsyncQueryHandle`: An instance of a :class:`~acouchbase_analytics.query_handle.AsyncQueryHandle`
+        """  # noqa: E501
+        return self._impl.start_query(statement, *args, **kwargs)
 
     async def shutdown(self) -> None:
         """Shuts down this cluster instance. Cleaning up all resources associated with it.

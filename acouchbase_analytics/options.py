@@ -16,9 +16,13 @@
 
 from couchbase_analytics.common.options import ClusterOptions as ClusterOptions  # noqa: F401
 from couchbase_analytics.common.options import ClusterOptionsKwargs as ClusterOptionsKwargs  # noqa: F401
+from couchbase_analytics.common.options import FetchResultsOptions as FetchResultsOptions  # noqa: F401
+from couchbase_analytics.common.options import FetchResultsOptionsKwargs as FetchResultsOptionsKwargs  # noqa: F401
 from couchbase_analytics.common.options import QueryOptions as QueryOptions  # noqa: F401
 from couchbase_analytics.common.options import QueryOptionsKwargs as QueryOptionsKwargs  # noqa: F401
 from couchbase_analytics.common.options import SecurityOptions as SecurityOptions  # noqa: F401
 from couchbase_analytics.common.options import SecurityOptionsKwargs as SecurityOptionsKwargs  # noqa: F401
+from couchbase_analytics.common.options import StartQueryOptions as StartQueryOptions  # noqa: F401
+from couchbase_analytics.common.options import StartQueryOptionsKwargs as StartQueryOptionsKwargs  # noqa: F401
 from couchbase_analytics.common.options import TimeoutOptions as TimeoutOptions  # noqa: F401
 from couchbase_analytics.common.options import TimeoutOptionsKwargs as TimeoutOptionsKwargs  # noqa: F401

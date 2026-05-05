@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 from copy import copy
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, TypedDict, TypeVar, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, TypedDict, Union, overload
 
 from couchbase_analytics.common._core import JsonStreamConfig
 from couchbase_analytics.common._core.utils import (
@@ -35,15 +35,19 @@ from couchbase_analytics.common.deserializer import Deserializer
 from couchbase_analytics.common.enums import QueryScanConsistency
 from couchbase_analytics.common.options import (
     ClusterOptions,
+    FetchResultsOptions,
     OptionsClass,
     QueryOptions,
     SecurityOptions,
+    StartQueryOptions,
     TimeoutOptions,
 )
 from couchbase_analytics.common.options_base import (
     ClusterOptionsValidKeys,
+    FetchResultsOptionsValidKeys,
     QueryOptionsValidKeys,
     SecurityOptionsValidKeys,
+    StartQueryOptionsValidKeys,
     TimeoutOptionsValidKeys,
 )
 
@@ -103,17 +107,20 @@ class SecurityOptionsTransformedKwargs(TypedDict, total=False):
 
 class TimeoutOptionsTransforms(TypedDict):
     connect_timeout: Dict[Literal['connect_timeout'], Callable[[Any], float]]
+    handle_request_timeout: Dict[Literal['handle_request_timeout'], Callable[[Any], float]]
     query_timeout: Dict[Literal['query_timeout'], Callable[[Any], float]]
 
 
 TIMEOUT_OPTIONS_TRANSFORMS: TimeoutOptionsTransforms = {
     'connect_timeout': {'connect_timeout': to_seconds},
+    'handle_request_timeout': {'handle_request_timeout': to_seconds},
     'query_timeout': {'query_timeout': to_seconds},
 }
 
 
 class TimeoutOptionsTransformedKwargs(TypedDict, total=False):
     connect_timeout: Optional[int]
+    handle_request_timeout: Optional[int]
     query_timeout: Optional[int]
 
 
@@ -155,7 +162,6 @@ class QueryOptionsTransformedKwargs(TypedDict, total=False):
     max_retries: Optional[int]
     named_parameters: Optional[Any]
     positional_parameters: Optional[Any]
-    priority: Optional[bool]
     query_context: Optional[str]
     raw: Optional[Dict[str, Any]]
     readonly: Optional[bool]
@@ -164,25 +170,65 @@ class QueryOptionsTransformedKwargs(TypedDict, total=False):
     timeout: Optional[float]
 
 
-TransformedOptionKwargs = TypeVar(
-    'TransformedOptionKwargs',
-    QueryOptionsTransformedKwargs,
-    ClusterOptionsTransformedKwargs,
-    SecurityOptionsTransformedKwargs,
-    TimeoutOptionsTransformedKwargs,
-)
+class StartQueryOptionsTransforms(TypedDict):
+    client_context_id: Dict[Literal['client_context_id'], Callable[[Any], str]]
+    max_retries: Dict[Literal['max_retries'], Callable[[Any], int]]
+    named_parameters: Dict[Literal['named_parameters'], Callable[[Any], Any]]
+    positional_parameters: Dict[Literal['positional_parameters'], Callable[[Any], Any]]
+    query_context: Dict[Literal['query_context'], Callable[[Any], str]]
+    raw: Dict[Literal['raw'], Callable[[Any], Dict[str, Any]]]
+    readonly: Dict[Literal['readonly'], Callable[[Any], bool]]
+    scan_consistency: Dict[Literal['scan_consistency'], Callable[[Any], str]]
+    stream_config: Dict[Literal['stream_config'], Callable[[Any], JsonStreamConfig]]
+    timeout: Dict[Literal['timeout'], Callable[[Any], float]]
 
-TransformedClusterOptionKwargs = TypeVar(
-    'TransformedClusterOptionKwargs',
-    ClusterOptionsTransformedKwargs,
-    SecurityOptionsTransformedKwargs,
-    TimeoutOptionsTransformedKwargs,
-)
+
+START_QUERY_OPTIONS_TRANSFORMS: StartQueryOptionsTransforms = {
+    'client_context_id': {'client_context_id': VALIDATE_STR},
+    'max_retries': {'max_retries': VALIDATE_INT},
+    'named_parameters': {'named_parameters': lambda x: x},
+    'positional_parameters': {'positional_parameters': lambda x: x},
+    'query_context': {'query_context': VALIDATE_STR},
+    'raw': {'raw': validate_raw_dict},
+    'readonly': {'readonly': VALIDATE_BOOL},
+    'scan_consistency': {'scan_consistency': QUERY_CONSISTENCY_TO_STR},
+    'stream_config': {'stream_config': lambda x: x},
+    'timeout': {'timeout': to_seconds},
+}
+
+
+class StartQueryOptionsTransformedKwargs(TypedDict, total=False):
+    client_context_id: Optional[str]
+    max_retries: Optional[int]
+    named_parameters: Optional[Any]
+    positional_parameters: Optional[Any]
+    query_context: Optional[str]
+    raw: Optional[Dict[str, Any]]
+    readonly: Optional[bool]
+    scan_consistency: Optional[str]
+    stream_config: Optional[JsonStreamConfig]
+    timeout: Optional[float]
+
+
+class FetchResultsOptionsTransforms(TypedDict):
+    deserializer: Dict[Literal['deserializer'], Callable[[Any], Deserializer]]
+
+
+FETCH_RESULTS_OPTIONS_TRANSFORMS: FetchResultsOptionsTransforms = {
+    'deserializer': {'deserializer': VALIDATE_DESERIALIZER},
+}
+
+
+class FetchResultsOptionsTransformedKwargs(TypedDict, total=False):
+    deserializer: Optional[Deserializer]
+
 
 TransformDetailsPair = Union[
     Tuple[List[QueryOptionsValidKeys], QueryOptionsTransforms],
     Tuple[List[ClusterOptionsValidKeys], ClusterOptionsTransforms],
+    Tuple[List[FetchResultsOptionsValidKeys], FetchResultsOptionsTransforms],
     Tuple[List[SecurityOptionsValidKeys], SecurityOptionsTransforms],
+    Tuple[List[StartQueryOptionsValidKeys], StartQueryOptionsTransforms],
     Tuple[List[TimeoutOptionsValidKeys], TimeoutOptionsTransforms],
 ]
 
@@ -216,18 +262,20 @@ class OptionsBuilder:
             return TimeoutOptions.VALID_OPTION_KEYS, TIMEOUT_OPTIONS_TRANSFORMS
         elif option_type == 'QueryOptions':
             return QueryOptions.VALID_OPTION_KEYS, QUERY_OPTIONS_TRANSFORMS
+        elif option_type == 'StartQueryOptions':
+            return StartQueryOptions.VALID_OPTION_KEYS, START_QUERY_OPTIONS_TRANSFORMS
+        elif option_type == 'FetchResultsOptions':
+            return FetchResultsOptions.VALID_OPTION_KEYS, FETCH_RESULTS_OPTIONS_TRANSFORMS
         else:
             raise ValueError('Invalid OptionType.')
 
     def build_cluster_options(  # noqa: C901
         self,
-        option_type: type[OptionsClass],
-        output_type: type[TransformedClusterOptionKwargs],
         orig_kwargs: Dict[str, object],
         options: Optional[object] = None,
         query_str_opts: Optional[Dict[str, QueryStrVal]] = None,
-    ) -> TransformedClusterOptionKwargs:
-        temp_options = self._get_options_copy(option_type, orig_kwargs, options)
+    ) -> ClusterOptionsTransformedKwargs:
+        temp_options = self._get_options_copy(ClusterOptions, orig_kwargs, options)
 
         # we flatten all the nested options (timeout_options & security_options)
         # so that we can combine the nested options w/ potential query string options
@@ -254,37 +302,84 @@ class OptionsBuilder:
 
         keys_to_ignore: List[str] = [*ClusterOptions.VALID_OPTION_KEYS, *TimeoutOptions.VALID_OPTION_KEYS]
 
-        # not going to be able to make mypy happy w/ keys_to_ignore :/
-        transformed_security_opts = self.build_options(
-            SecurityOptions, SecurityOptionsTransformedKwargs, temp_options, keys_to_ignore=keys_to_ignore
-        )
+        transformed_security_opts = self.build_options(SecurityOptions, temp_options, keys_to_ignore=keys_to_ignore)
         if transformed_security_opts:
             temp_options['security_options'] = transformed_security_opts
 
         keys_to_ignore = [*ClusterOptions.VALID_OPTION_KEYS, *SecurityOptions.VALID_OPTION_KEYS]
 
-        # not going to be able to make mypy happy w/ keys_to_ignore :/
-        transformed_timeout_opts = self.build_options(
-            TimeoutOptions, TimeoutOptionsTransformedKwargs, temp_options, keys_to_ignore=keys_to_ignore
-        )
+        transformed_timeout_opts = self.build_options(TimeoutOptions, temp_options, keys_to_ignore=keys_to_ignore)
         if transformed_timeout_opts:
             temp_options['timeout_options'] = transformed_timeout_opts
 
         # transform final ClusterOptions
-        transformed_opts = self.build_options(option_type, output_type, temp_options)
+        transformed_opts = self.build_options(ClusterOptions, temp_options)
 
         return transformed_opts
+
+    @overload
+    def build_options(
+        self,
+        option_type: type[ClusterOptions],
+        orig_kwargs: Dict[str, object],
+        options: Optional[object] = ...,
+        keys_to_ignore: Optional[List[str]] = ...,
+    ) -> ClusterOptionsTransformedKwargs: ...
+
+    @overload
+    def build_options(
+        self,
+        option_type: type[SecurityOptions],
+        orig_kwargs: Dict[str, object],
+        options: Optional[object] = ...,
+        keys_to_ignore: Optional[List[str]] = ...,
+    ) -> SecurityOptionsTransformedKwargs: ...
+
+    @overload
+    def build_options(
+        self,
+        option_type: type[TimeoutOptions],
+        orig_kwargs: Dict[str, object],
+        options: Optional[object] = ...,
+        keys_to_ignore: Optional[List[str]] = ...,
+    ) -> TimeoutOptionsTransformedKwargs: ...
+
+    @overload
+    def build_options(
+        self,
+        option_type: type[QueryOptions],
+        orig_kwargs: Dict[str, object],
+        options: Optional[object] = ...,
+        keys_to_ignore: Optional[List[str]] = ...,
+    ) -> QueryOptionsTransformedKwargs: ...
+
+    @overload
+    def build_options(
+        self,
+        option_type: type[StartQueryOptions],
+        orig_kwargs: Dict[str, object],
+        options: Optional[object] = ...,
+        keys_to_ignore: Optional[List[str]] = ...,
+    ) -> StartQueryOptionsTransformedKwargs: ...
+
+    @overload
+    def build_options(
+        self,
+        option_type: type[FetchResultsOptions],
+        orig_kwargs: Dict[str, object],
+        options: Optional[object] = ...,
+        keys_to_ignore: Optional[List[str]] = ...,
+    ) -> FetchResultsOptionsTransformedKwargs: ...
 
     def build_options(
         self,
         option_type: type[OptionsClass],
-        output_type: type[TransformedOptionKwargs],
         orig_kwargs: Dict[str, object],
         options: Optional[object] = None,
         keys_to_ignore: Optional[List[str]] = None,
-    ) -> TransformedOptionKwargs:
+    ) -> Any:
         temp_options = self._get_options_copy(option_type, orig_kwargs, options)
-        transformed_opts: TransformedOptionKwargs = {}
+        transformed_opts: Any = {}
         # Option 1 satisfies mypy, but we want temp_options to be the limiting factor for the loop.
         # Option 2. Also makes providing warnings/exceptions for users not using static type checking easier,
         # but unfortunately we need to use some type: ignore comments
@@ -304,7 +399,7 @@ class OptionsBuilder:
                 for nk, cfn in transforms.items():
                     conv = cfn(v)
                     if conv is not None:
-                        transformed_opts[nk] = conv  # type: ignore[literal-required]
+                        transformed_opts[nk] = conv
             elif keys_to_ignore and k not in keys_to_ignore:
                 raise ValueError(f'Invalid key provided (key={k}).')
 

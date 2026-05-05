@@ -20,8 +20,20 @@ import json
 import logging
 import pathlib
 import sys
+import time
 from os import path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    TypedDict,
+    Union,
+)
 
 if sys.version_info < (3, 11):
     from typing_extensions import Unpack
@@ -32,11 +44,17 @@ import anyio
 import pytest
 
 from acouchbase_analytics.cluster import AsyncCluster
+from acouchbase_analytics.protocol._core.anyio_utils import get_time, sleep
+from acouchbase_analytics.protocol.query_handle import AsyncQueryHandle, AsyncQueryResultHandle
 from acouchbase_analytics.result import AsyncQueryResult
 from acouchbase_analytics.scope import AsyncScope
 from couchbase_analytics.cluster import Cluster
+from couchbase_analytics.common.query_handle import AsyncQueryHandle as _CoreAsyncQueryHandle
+from couchbase_analytics.common.query_handle import BlockingQueryHandle as _CoreBlockingQueryHandle
+from couchbase_analytics.common.request import RequestState
 from couchbase_analytics.credential import Credential
 from couchbase_analytics.options import ClusterOptions, SecurityOptions
+from couchbase_analytics.protocol.query_handle import BlockingQueryHandle, BlockingQueryResultHandle
 from couchbase_analytics.result import BlockingQueryResult
 from couchbase_analytics.scope import Scope
 from tests import TEST_LOGGER_NAME, AnalyticsTestEnvironmentError
@@ -312,6 +330,44 @@ class BlockingTestEnvironment(TestEnvironment):
         if exc is not None:
             raise exc
 
+    def wait_for_query_results(
+        self,
+        handle: _CoreBlockingQueryHandle,
+        delay: float = 2.5,
+        timeout: int = 120,
+        return_only_result_handle: Optional[bool] = False,
+    ) -> Tuple[BlockingQueryResultHandle, Optional[BlockingQueryResult]]:
+        assert isinstance(handle, BlockingQueryHandle)
+        expected_state = RequestState.Completed
+        assert handle._http_response._request_context.request_state == expected_state
+
+        current_time = time.monotonic()
+        deadline = current_time + timeout  # seconds
+        status = None
+        result_handle = None
+        while True:
+            try:
+                status = handle.fetch_status()
+                if status.results_ready():
+                    result_handle = status.result_handle()
+                    break
+            except Exception:
+                raise
+
+            current_time = time.monotonic()
+            delay_time = current_time + delay
+            if deadline < delay_time:
+                raise TimeoutError(f'Query results not ready within {timeout} seconds.')
+
+            time.sleep(delay)
+
+        assert isinstance(result_handle, BlockingQueryResultHandle)
+        if return_only_result_handle is True:
+            return result_handle, None
+        result = result_handle.fetch_results()
+        assert isinstance(result, BlockingQueryResult)
+        return result_handle, result
+
     @classmethod
     def get_environment(
         cls, config: AnalyticsConfig, server_handler: Optional[WebServerHandler] = None
@@ -350,6 +406,28 @@ class BlockingTestEnvironment(TestEnvironment):
         env_opts['scope_name'] = config.scope_name
         env_opts['collection_name'] = config.collection_name
         return cls(config, **env_opts)
+
+    @staticmethod
+    def try_n_times_till_exception(
+        num_times: int,
+        seconds_between: Union[int, float],
+        func: Callable[..., Any],
+        *args: Any,
+        expected_exceptions: Tuple[Type[Exception], ...] = (Exception,),
+        raise_exception: Optional[bool] = False,
+        **kwargs: Any,
+    ) -> None:
+        for _ in range(num_times):
+            try:
+                func(*args, **kwargs)
+                time.sleep(seconds_between)
+            except expected_exceptions:
+                if raise_exception:
+                    raise
+                # helpful to have this print statement when tests fail
+                return
+            except Exception:
+                raise
 
 
 class AsyncTestEnvironment(TestEnvironment):
@@ -516,6 +594,45 @@ class AsyncTestEnvironment(TestEnvironment):
             raise AnalyticsTestEnvironmentError('No cluster available, cannot enable test server.')
         self._async_cluster._impl._client_adapter.update_request_json(json)
 
+    async def wait_for_query_results(
+        self,
+        handle: _CoreAsyncQueryHandle,
+        delay: float = 2.5,
+        timeout: int = 120,
+        return_only_result_handle: Optional[bool] = False,
+    ) -> Tuple[AsyncQueryResultHandle, Optional[AsyncQueryResult]]:
+        assert isinstance(handle, AsyncQueryHandle)
+        expected_state = RequestState.Completed
+        assert handle._http_response._request_context.request_state == expected_state
+
+        current_time = get_time()
+        deadline = current_time + timeout  # seconds
+        status = None
+        result_handle = None
+        while True:
+            try:
+                status = await handle.fetch_status()
+                if status.results_ready():
+                    result_handle = status.result_handle()
+                    break
+            except Exception as ex:
+                logger.error(f'Error while fetching query status: {ex}')
+                raise
+
+            current_time = get_time()
+            delay_time = current_time + delay
+            if deadline < delay_time:
+                raise TimeoutError(f'Query results not ready within {timeout} seconds.')
+
+            await sleep(delay)
+
+        assert isinstance(result_handle, AsyncQueryResultHandle)
+        if return_only_result_handle is True:
+            return result_handle, None
+        result = await result_handle.fetch_results()
+        assert isinstance(result, AsyncQueryResult)
+        return result_handle, result
+
     async def warmup_test_server(self) -> None:
         row_count = 5
         self.set_url_path('/test_results')
@@ -574,6 +691,28 @@ class AsyncTestEnvironment(TestEnvironment):
         env_opts['scope_name'] = config.scope_name
         env_opts['collection_name'] = config.collection_name
         return cls(config, **env_opts)
+
+    @staticmethod
+    async def try_n_times_till_exception(
+        num_times: int,
+        seconds_between: Union[int, float],
+        func: Callable[..., Any],
+        *args: Any,
+        expected_exceptions: Tuple[Type[Exception], ...] = (Exception,),
+        raise_exception: Optional[bool] = False,
+        **kwargs: Any,
+    ) -> None:
+        for _ in range(num_times):
+            try:
+                await func(*args, **kwargs)
+                await sleep(seconds_between)
+            except expected_exceptions as ex:
+                if raise_exception:
+                    raise
+                logger.error(f'Caught expected exception(s) {ex} from function {func.__name__}, as expected.')
+                return
+            except Exception:
+                raise
 
 
 @pytest.fixture(scope='class', name='sync_test_env')

@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Optional, cast
+from typing import Optional, cast
 from uuid import uuid4
 
 from httpx import URL, AsyncClient, BasicAuth, Response
@@ -25,11 +25,9 @@ from httpx import URL, AsyncClient, BasicAuth, Response
 from couchbase_analytics.common.credential import Credential
 from couchbase_analytics.common.deserializer import Deserializer
 from couchbase_analytics.common.logging import LogLevel, log_message
+from couchbase_analytics.protocol._core.request import CancelRequest, HttpRequest, QueryRequest, StartQueryRequest
 from couchbase_analytics.protocol.connection import _ConnectionDetails
 from couchbase_analytics.protocol.options import OptionsBuilder
-
-if TYPE_CHECKING:
-    from couchbase_analytics.protocol._core.request import QueryRequest
 
 
 class _AsyncClientAdapter:
@@ -164,7 +162,7 @@ class _AsyncClientAdapter:
     def log_message(self, message: str, log_level: LogLevel) -> None:
         log_message(logger, f'{self.log_prefix} {message}', log_level)
 
-    async def send_request(self, request: QueryRequest) -> Response:
+    async def send_request(self, request: HttpRequest, stream: Optional[bool] = True) -> Response:
         """
         **INTERNAL**
         """
@@ -177,8 +175,18 @@ class _AsyncClientAdapter:
             port=request.url.port,
             path=request.url.path,
         )
-        req = self._client.build_request(request.method, url, json=request.body, extensions=request.extensions)
-        return await self._client.send(req, stream=True)
+        if isinstance(request, (QueryRequest, StartQueryRequest)):
+            req = self._client.build_request(request.method, url, json=request.body, extensions=request.extensions)
+        else:
+            data = request.data if isinstance(request, CancelRequest) else None
+            req = self._client.build_request(
+                request.method, url, data=data, headers=request.headers, extensions=request.extensions
+            )
+
+        if stream is None:
+            stream = True
+
+        return await self._client.send(req, stream=stream)
 
     def reset_client(self) -> None:
         """

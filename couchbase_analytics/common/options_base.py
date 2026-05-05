@@ -109,11 +109,13 @@ class SecurityOptionsBase(Dict[str, object]):
 
 class TimeoutOptionsKwargs(TypedDict, total=False):
     connect_timeout: Optional[timedelta]
+    handle_request_timeout: Optional[timedelta]
     query_timeout: Optional[timedelta]
 
 
 TimeoutOptionsValidKeys: TypeAlias = Literal[
     'connect_timeout',
+    'handle_request_timeout',
     'query_timeout',
 ]
 
@@ -125,6 +127,7 @@ class TimeoutOptionsBase(Dict[str, object]):
 
     VALID_OPTION_KEYS: List[TimeoutOptionsValidKeys] = [
         'connect_timeout',
+        'handle_request_timeout',
         'query_timeout',
     ]
 
@@ -181,5 +184,68 @@ class QueryOptionsBase(Dict[str, object]):
     ]
 
     def __init__(self, **kwargs: Unpack[QueryOptionsKwargs]) -> None:
+        filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        super().__init__(**filtered_kwargs)
+
+
+class StartQueryOptionsKwargs(TypedDict, total=False):
+    client_context_id: Optional[str]
+    max_retries: Optional[int]
+    named_parameters: Optional[Dict[str, JSONType]]
+    positional_parameters: Optional[Iterable[JSONType]]
+    query_context: Optional[str]
+    raw: Optional[Dict[str, Any]]
+    readonly: Optional[bool]
+    scan_consistency: Optional[Union[QueryScanConsistency, str]]
+    stream_config: Optional[JsonStreamConfig]
+    timeout: Optional[timedelta]
+
+
+StartQueryOptionsValidKeys: TypeAlias = Literal[
+    'client_context_id',
+    'max_retries',
+    'named_parameters',
+    'positional_parameters',
+    'query_context',
+    'raw',
+    'readonly',
+    'scan_consistency',
+    'stream_config',
+    'timeout',
+]
+
+
+class StartQueryOptionsBase(Dict[str, object]):
+    VALID_OPTION_KEYS: List[StartQueryOptionsValidKeys] = [
+        'client_context_id',
+        'max_retries',
+        'named_parameters',
+        'positional_parameters',
+        'query_context',
+        'raw',
+        'readonly',
+        'scan_consistency',
+        'stream_config',
+        'timeout',
+    ]
+
+    def __init__(self, **kwargs: Unpack[StartQueryOptionsKwargs]) -> None:
+        filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        super().__init__(**filtered_kwargs)
+
+
+class FetchResultsOptionsKwargs(TypedDict, total=False):
+    deserializer: Optional[Deserializer]
+
+
+FetchResultsOptionsValidKeys: TypeAlias = Literal['deserializer',]
+
+
+class FetchResultsOptionsBase(Dict[str, object]):
+    VALID_OPTION_KEYS: List[FetchResultsOptionsValidKeys] = [
+        'deserializer',
+    ]
+
+    def __init__(self, **kwargs: Unpack[FetchResultsOptionsKwargs]) -> None:
         filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
         super().__init__(**filtered_kwargs)

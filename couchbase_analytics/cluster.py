@@ -20,6 +20,7 @@ from concurrent.futures import Future
 from typing import TYPE_CHECKING, Optional, Union
 
 from couchbase_analytics.database import Database
+from couchbase_analytics.query_handle import BlockingQueryHandle
 from couchbase_analytics.result import BlockingQueryResult
 
 if TYPE_CHECKING:
@@ -138,6 +139,22 @@ class Cluster:
 
         """  # noqa: E501
         return self._impl.execute_query(statement, *args, **kwargs)
+
+    def start_query(self, statement: str, *args: object, **kwargs: object) -> BlockingQueryHandle:
+        """Executes a query against an Analytics cluster in async mode.
+
+        .. seealso::
+            :meth:`couchbase_analytics.Scope.start_query`: For how to execute scope-level queries.
+
+        Args:
+            statement: The SQL++ statement to execute.
+            options (:class:`~couchbase_analytics.options.StartQueryOptions`): Optional parameters for the query operation.
+            **kwargs (Dict[str, Any]): keyword arguments that can be used in place or to override provided :class:`~couchbase_analytics.options.StartQueryOptions`
+
+        Returns:
+            :class:`~couchbase_analytics.query_handle.BlockingQueryHandle`: An instance of a :class:`~couchbase_analytics.query_handle.BlockingQueryHandle`
+        """  # noqa: E501
+        return self._impl.start_query(statement, *args, **kwargs)
 
     def shutdown(self) -> None:
         """Shuts down this cluster instance. Cleaning up all resources associated with it.

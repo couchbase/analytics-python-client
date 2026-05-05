@@ -186,10 +186,15 @@ class ClusterOptionsTestSuite:
         [
             ({}, None),
             ({'connect_timeout': timedelta(seconds=30)}, {'connect_timeout': 30}),
+            ({'handle_request_timeout': timedelta(seconds=20)}, {'handle_request_timeout': 20}),
             ({'query_timeout': timedelta(seconds=30)}, {'query_timeout': 30}),
             (
-                {'connect_timeout': timedelta(seconds=60), 'query_timeout': timedelta(seconds=30)},
-                {'connect_timeout': 60, 'query_timeout': 30},
+                {
+                    'connect_timeout': timedelta(seconds=60),
+                    'handle_request_timeout': timedelta(seconds=20),
+                    'query_timeout': timedelta(seconds=30),
+                },
+                {'connect_timeout': 60, 'handle_request_timeout': 20, 'query_timeout': 30},
             ),
         ],
     )
@@ -202,10 +207,15 @@ class ClusterOptionsTestSuite:
         'opts, expected_opts',
         [
             ({'connect_timeout': timedelta(seconds=30)}, {'connect_timeout': 30}),
+            ({'handle_request_timeout': timedelta(seconds=20)}, {'handle_request_timeout': 20}),
             ({'query_timeout': timedelta(seconds=30)}, {'query_timeout': 30}),
             (
-                {'connect_timeout': timedelta(seconds=60), 'query_timeout': timedelta(seconds=30)},
-                {'connect_timeout': 60, 'query_timeout': 30},
+                {
+                    'connect_timeout': timedelta(seconds=60),
+                    'handle_request_timeout': timedelta(seconds=20),
+                    'query_timeout': timedelta(seconds=30),
+                },
+                {'connect_timeout': 60, 'handle_request_timeout': 20, 'query_timeout': 30},
             ),
         ],
     )
@@ -215,7 +225,12 @@ class ClusterOptionsTestSuite:
         assert expected_opts == client.connection_details.cluster_options.get('timeout_options')
 
     @pytest.mark.parametrize(
-        'opts', [{'connect_timeout': timedelta(seconds=-1)}, {'query_timeout': timedelta(seconds=-1)}]
+        'opts',
+        [
+            {'connect_timeout': timedelta(seconds=-1)},
+            {'handle_request_timeout': timedelta(seconds=-1)},
+            {'query_timeout': timedelta(seconds=-1)},
+        ],
     )
     def test_timeout_options_must_be_positive(self, opts: TimeoutOptionsKwargs) -> None:
         cred = Credential.from_username_and_password('Administrator', 'password')
@@ -223,7 +238,12 @@ class ClusterOptionsTestSuite:
             _ClientAdapter('https://localhost', cred, ClusterOptions(timeout_options=TimeoutOptions(**opts)))
 
     @pytest.mark.parametrize(
-        'opts', [{'connect_timeout': timedelta(seconds=-1)}, {'query_timeout': timedelta(seconds=-1)}]
+        'opts',
+        [
+            {'connect_timeout': timedelta(seconds=-1)},
+            {'handle_request_timeout': timedelta(seconds=-1)},
+            {'query_timeout': timedelta(seconds=-1)},
+        ],
     )
     def test_timeout_options_must_be_positive_kwargs(self, opts: Dict[str, object]) -> None:
         cred = Credential.from_username_and_password('Administrator', 'password')

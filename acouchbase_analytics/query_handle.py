@@ -13,6 +13,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from couchbase_analytics.common.result import AsyncQueryResult as AsyncQueryResult  # noqa: F401
-from couchbase_analytics.common.result import BlockingQueryResult as BlockingQueryResult  # noqa: F401
-from couchbase_analytics.common.result import QueryResult as QueryResult  # noqa: F401
+from couchbase_analytics.common.query_handle import AsyncQueryHandle as AsyncQueryHandle  # noqa: F401
+from couchbase_analytics.common.query_handle import AsyncQueryResultHandle as AsyncQueryResultHandle  # noqa: F401
+from couchbase_analytics.common.query_handle import AsyncQueryStatus as AsyncQueryStatus  # noqa: F401

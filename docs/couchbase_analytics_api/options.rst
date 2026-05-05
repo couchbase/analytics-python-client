@@ -29,6 +29,14 @@ QueryOptions
 ++++++++++++++++++++++
 .. autoclass:: QueryOptions
 
+StartQueryOptions
+++++++++++++++++++++++
+.. autoclass:: StartQueryOptions
+
+FetchResultsOptions
+++++++++++++++++++++++
+.. autoclass:: FetchResultsOptions
+
 
 Option TypeDict Classes
 =========================
@@ -54,5 +62,17 @@ TimeoutOptionsKwargs
 QueryOptionsKwargs
 ++++++++++++++++++++++
 .. autoclass:: QueryOptionsKwargs
+    :members:
+    :undoc-members:
+
+StartQueryOptionsKwargs
++++++++++++++++++++++++
+.. autoclass:: StartQueryOptionsKwargs
+    :members:
+    :undoc-members:
+
+FetchResultsOptionsKwargs
++++++++++++++++++++++++++
+.. autoclass:: FetchResultsOptionsKwargs
     :members:
     :undoc-members:

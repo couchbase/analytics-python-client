@@ -21,9 +21,11 @@ if sys.version_info < (3, 11):
 else:
     from typing import Unpack
 
+from acouchbase_analytics import JSONType
+from acouchbase_analytics.options import QueryOptions, QueryOptionsKwargs, StartQueryOptions, StartQueryOptionsKwargs
 from acouchbase_analytics.protocol.database import AsyncDatabase as AsyncDatabase
-from couchbase_analytics.options import QueryOptions, QueryOptionsKwargs
-from couchbase_analytics.result import AsyncQueryResult
+from acouchbase_analytics.query_handle import AsyncQueryHandle
+from acouchbase_analytics.result import AsyncQueryResult
 
 class AsyncScope:
     def __init__(self, database: AsyncDatabase, scope_name: str) -> None: ...
@@ -41,11 +43,31 @@ class AsyncScope:
     ) -> Awaitable[AsyncQueryResult]: ...
     @overload
     def execute_query(
-        self, statement: str, options: QueryOptions, *args: str, **kwargs: Unpack[QueryOptionsKwargs]
+        self, statement: str, options: QueryOptions, *args: JSONType, **kwargs: Unpack[QueryOptionsKwargs]
     ) -> Awaitable[AsyncQueryResult]: ...
     @overload
     def execute_query(
-        self, statement: str, options: QueryOptions, *args: str, **kwargs: str
+        self, statement: str, options: QueryOptions, *args: JSONType, **kwargs: str
     ) -> Awaitable[AsyncQueryResult]: ...
     @overload
-    def execute_query(self, statement: str, *args: str, **kwargs: str) -> Awaitable[AsyncQueryResult]: ...
+    def execute_query(self, statement: str, *args: JSONType, **kwargs: str) -> Awaitable[AsyncQueryResult]: ...
+    @overload
+    def start_query(self, statement: str) -> Awaitable[AsyncQueryHandle]: ...
+    @overload
+    def start_query(self, statement: str, options: StartQueryOptions) -> Awaitable[AsyncQueryHandle]: ...
+    @overload
+    def start_query(self, statement: str, **kwargs: Unpack[StartQueryOptionsKwargs]) -> Awaitable[AsyncQueryHandle]: ...
+    @overload
+    def start_query(
+        self, statement: str, options: StartQueryOptions, **kwargs: Unpack[StartQueryOptionsKwargs]
+    ) -> Awaitable[AsyncQueryHandle]: ...
+    @overload
+    def start_query(
+        self, statement: str, options: StartQueryOptions, *args: JSONType, **kwargs: Unpack[StartQueryOptionsKwargs]
+    ) -> Awaitable[AsyncQueryHandle]: ...
+    @overload
+    def start_query(
+        self, statement: str, options: StartQueryOptions, *args: JSONType, **kwargs: str
+    ) -> Awaitable[AsyncQueryHandle]: ...
+    @overload
+    def start_query(self, statement: str, *args: JSONType, **kwargs: str) -> Awaitable[AsyncQueryHandle]: ...

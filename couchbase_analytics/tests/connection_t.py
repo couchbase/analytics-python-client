@@ -67,7 +67,7 @@ class ConnectionTestSuite:
         connstr = f'https://localhost?max_retries={max_retries}'
         client = _ClientAdapter(connstr, cred)
         req_builder = _RequestBuilder(client)
-        req = req_builder.build_base_query_request('SELECT 1=1')
+        req = req_builder.build_query_request('SELECT 1=1')
         assert req.max_retries == max_retries
 
     @pytest.mark.parametrize(
@@ -99,7 +99,7 @@ class ConnectionTestSuite:
         connstr = f'https://localhost?{to_query_str(opts)}'
         client = _ClientAdapter(connstr, cred)
         req_builder = _RequestBuilder(client)
-        req = req_builder.build_base_query_request('SELECT 1=1')
+        req = req_builder.build_query_request('SELECT 1=1')
         expected = float(expected_seconds)
         returned_timeout_opts = req.get_request_timeouts()
         assert isinstance(returned_timeout_opts, dict)

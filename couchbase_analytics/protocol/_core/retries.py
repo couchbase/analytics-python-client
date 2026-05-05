@@ -19,7 +19,7 @@ from __future__ import annotations
 from concurrent.futures import CancelledError
 from functools import wraps
 from time import sleep
-from typing import TYPE_CHECKING, Callable, Optional, Union
+from typing import TYPE_CHECKING, Callable, Optional, TypeVar, Union
 
 from httpx import ConnectError, ConnectTimeout, CookieConflict, HTTPError, InvalidURL, ReadTimeout, StreamError
 
@@ -29,8 +29,12 @@ from couchbase_analytics.common.request import RequestState
 from couchbase_analytics.protocol.errors import WrappedError
 
 if TYPE_CHECKING:
-    from couchbase_analytics.protocol._core.request_context import RequestContext
+    from couchbase_analytics.protocol._core.request_context import RequestContext, StreamingRequestContext
+    from couchbase_analytics.protocol._core.response import HttpResponse
     from couchbase_analytics.protocol.streaming import HttpStreamingResponse
+
+ReqContext = Union['RequestContext', 'StreamingRequestContext']
+T = TypeVar('T', bound=Union['HttpResponse', 'HttpStreamingResponse'])
 
 
 class RetryHandler:
@@ -39,7 +43,7 @@ class RetryHandler:
     """
 
     @staticmethod
-    def handle_httpx_retry(ex: Union[ConnectError, ConnectTimeout], ctx: RequestContext) -> Optional[Exception]:
+    def handle_httpx_retry(ex: Union[ConnectError, ConnectTimeout], ctx: ReqContext) -> Optional[Exception]:
         err_str = str(ex)
         if 'SSL:' in err_str:
             message = 'TLS connection error occurred.'
@@ -62,7 +66,7 @@ class RetryHandler:
         return None
 
     @staticmethod
-    def handle_retry(ex: WrappedError, ctx: RequestContext) -> Optional[Union[BaseException, Exception]]:
+    def handle_retry(ex: WrappedError, ctx: ReqContext) -> Optional[Union[BaseException, Exception]]:
         if ex.retriable is True:
             delay = ctx.calculate_backoff()
             err: Optional[Union[BaseException, Exception]] = None
@@ -91,9 +95,11 @@ class RetryHandler:
         return ex.unwrap()
 
     @staticmethod
-    def with_retries(fn: Callable[[HttpStreamingResponse], None]) -> Callable[[HttpStreamingResponse], None]:  # noqa: C901
+    def with_retries(  # noqa: C901
+        fn: Callable[[T], None],
+    ) -> Callable[[T], None]:  # noqa: C901
         @wraps(fn)
-        def wrapped_fn(self: HttpStreamingResponse) -> None:  # noqa: C901
+        def wrapped_fn(self: T) -> None:  # noqa: C901
             while True:
                 try:
                     fn(self)

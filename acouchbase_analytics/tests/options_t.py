@@ -21,16 +21,16 @@ from typing import Dict, Optional, Type
 
 import pytest
 
-from acouchbase_analytics.protocol._core.client_adapter import _AsyncClientAdapter
-from couchbase_analytics.credential import Credential
-from couchbase_analytics.deserializer import DefaultJsonDeserializer, Deserializer, PassthroughDeserializer
-from couchbase_analytics.options import (
+from acouchbase_analytics.credential import Credential
+from acouchbase_analytics.deserializer import DefaultJsonDeserializer, Deserializer, PassthroughDeserializer
+from acouchbase_analytics.options import (
     ClusterOptions,
     SecurityOptions,
     SecurityOptionsKwargs,
     TimeoutOptions,
     TimeoutOptionsKwargs,
 )
+from acouchbase_analytics.protocol._core.client_adapter import _AsyncClientAdapter
 from tests.utils import get_test_cert_list, get_test_cert_path, get_test_cert_str
 
 TEST_CERT_PATH = get_test_cert_path()
@@ -186,12 +186,16 @@ class ClusterOptionsTestSuite:
     @pytest.mark.parametrize(
         'opts, expected_opts',
         [
-            ({}, None),
             ({'connect_timeout': timedelta(seconds=30)}, {'connect_timeout': 30}),
+            ({'handle_request_timeout': timedelta(seconds=20)}, {'handle_request_timeout': 20}),
             ({'query_timeout': timedelta(seconds=30)}, {'query_timeout': 30}),
             (
-                {'connect_timeout': timedelta(seconds=60), 'query_timeout': timedelta(seconds=30)},
-                {'connect_timeout': 60, 'query_timeout': 30},
+                {
+                    'connect_timeout': timedelta(seconds=60),
+                    'handle_request_timeout': timedelta(seconds=20),
+                    'query_timeout': timedelta(seconds=30),
+                },
+                {'connect_timeout': 60, 'handle_request_timeout': 20, 'query_timeout': 30},
             ),
         ],
     )
@@ -204,10 +208,15 @@ class ClusterOptionsTestSuite:
         'opts, expected_opts',
         [
             ({'connect_timeout': timedelta(seconds=30)}, {'connect_timeout': 30}),
+            ({'handle_request_timeout': timedelta(seconds=20)}, {'handle_request_timeout': 20}),
             ({'query_timeout': timedelta(seconds=30)}, {'query_timeout': 30}),
             (
-                {'connect_timeout': timedelta(seconds=60), 'query_timeout': timedelta(seconds=30)},
-                {'connect_timeout': 60, 'query_timeout': 30},
+                {
+                    'connect_timeout': timedelta(seconds=60),
+                    'handle_request_timeout': timedelta(seconds=20),
+                    'query_timeout': timedelta(seconds=30),
+                },
+                {'connect_timeout': 60, 'handle_request_timeout': 20, 'query_timeout': 30},
             ),
         ],
     )
@@ -217,7 +226,12 @@ class ClusterOptionsTestSuite:
         assert expected_opts == client.connection_details.cluster_options.get('timeout_options')
 
     @pytest.mark.parametrize(
-        'opts', [{'connect_timeout': timedelta(seconds=-1)}, {'query_timeout': timedelta(seconds=-1)}]
+        'opts',
+        [
+            {'connect_timeout': timedelta(seconds=-1)},
+            {'handle_request_timeout': timedelta(seconds=-1)},
+            {'query_timeout': timedelta(seconds=-1)},
+        ],
     )
     def test_timeout_options_must_be_positive(self, opts: TimeoutOptionsKwargs) -> None:
         cred = Credential.from_username_and_password('Administrator', 'password')
@@ -225,7 +239,12 @@ class ClusterOptionsTestSuite:
             _AsyncClientAdapter('https://localhost', cred, ClusterOptions(timeout_options=TimeoutOptions(**opts)))
 
     @pytest.mark.parametrize(
-        'opts', [{'connect_timeout': timedelta(seconds=-1)}, {'query_timeout': timedelta(seconds=-1)}]
+        'opts',
+        [
+            {'connect_timeout': timedelta(seconds=-1)},
+            {'handle_request_timeout': timedelta(seconds=-1)},
+            {'query_timeout': timedelta(seconds=-1)},
+        ],
     )
     def test_timeout_options_must_be_positive_kwargs(self, opts: Dict[str, object]) -> None:
         cred = Credential.from_username_and_password('Administrator', 'password')

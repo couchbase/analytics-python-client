@@ -22,7 +22,9 @@ from typing import TYPE_CHECKING, Union
 from couchbase_analytics.common.result import BlockingQueryResult
 from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter
 from couchbase_analytics.protocol._core.request import _RequestBuilder
-from couchbase_analytics.protocol._core.request_context import RequestContext
+from couchbase_analytics.protocol._core.request_context import RequestContext, StreamingRequestContext
+from couchbase_analytics.protocol._core.response import HttpResponse
+from couchbase_analytics.protocol.query_handle import BlockingQueryHandle
 from couchbase_analytics.protocol.streaming import HttpStreamingResponse
 
 if TYPE_CHECKING:
@@ -33,7 +35,7 @@ class Scope:
     def __init__(self, database: Database, scope_name: str) -> None:
         self._database = database
         self._scope_name = scope_name
-        self._request_builder = _RequestBuilder(self.client_adapter, self._database.name, self.name)
+        self._request_builder = _RequestBuilder(self._database.client_adapter, self._database.name, self.name)
 
     @property
     def client_adapter(self) -> _ClientAdapter:
@@ -59,11 +61,11 @@ class Scope:
     def execute_query(
         self, statement: str, *args: object, **kwargs: object
     ) -> Union[BlockingQueryResult, Future[BlockingQueryResult]]:
-        base_req = self._request_builder.build_base_query_request(statement, *args, **kwargs)
-        lazy_execute = base_req.options.pop('lazy_execute', None)
-        stream_config = base_req.options.pop('stream_config', None)
-        request_context = RequestContext(
-            self.client_adapter, base_req, self.threadpool_executor, stream_config=stream_config
+        req = self._request_builder.build_query_request(statement, *args, **kwargs)
+        lazy_execute = req.options.pop('lazy_execute', None)
+        stream_config = req.options.pop('stream_config', None)
+        request_context = StreamingRequestContext(
+            self.client_adapter, req, self.threadpool_executor, stream_config=stream_config
         )
         resp = HttpStreamingResponse(request_context, lazy_execute=lazy_execute)
 
@@ -84,3 +86,13 @@ class Scope:
             if lazy_execute is not True:
                 resp.send_request()
             return BlockingQueryResult(resp)
+
+    def start_query(self, statement: str, *args: object, **kwargs: object) -> BlockingQueryHandle:
+        base_req = self._request_builder.build_start_query_request(statement, *args, **kwargs)
+        stream_config = base_req.options.pop('stream_config', None)
+        request_context = RequestContext(self.client_adapter, base_req)
+        resp = HttpResponse(request_context)
+        resp.send_request()
+        return BlockingQueryHandle(
+            self.client_adapter, self._request_builder, resp, self.threadpool_executor, stream_config=stream_config
+        )

@@ -12,6 +12,9 @@ Asynchronous API
 :doc:`query`
    API reference for query (SQL++) operations.
 
+:doc:`query_handle`
+   API reference for server async requests operations.
+
 :doc:`options`
    API reference for operation options.
 
@@ -42,6 +45,7 @@ Asynchronous API
    acouchbase_analytics_core
    credential
    query
+   query_handle
    options
    results
    errors

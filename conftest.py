@@ -38,6 +38,8 @@ _UNIT_TESTS = [
     'couchbase_analytics/tests/options_t.py::ClusterOptionsTests',
     'couchbase_analytics/tests/query_options_t.py::ClusterQueryOptionsTests',
     'couchbase_analytics/tests/query_options_t.py::ScopeQueryOptionsTests',
+    'couchbase_analytics/tests/start_query_options_t.py::ClusterStartQueryOptionsTests',
+    'couchbase_analytics/tests/start_query_options_t.py::ScopeStartQueryOptionsTests',
     'couchbase_analytics/tests/test_server_t.py::ClusterTestServerTests',
     'couchbase_analytics/tests/test_server_t.py::ScopeTestServerTests',
 ]
@@ -46,9 +48,13 @@ _INTEGRATRION_TESTS = [
     'acouchbase_analytics/tests/connect_integration_t.py::ConnectTests',
     'acouchbase_analytics/tests/query_integration_t.py::ClusterQueryTests',
     'acouchbase_analytics/tests/query_integration_t.py::ScopeQueryTests',
+    'acouchbase_analytics/tests/start_query_integration_t.py::ClusterStartQueryTests',
+    'acouchbase_analytics/tests/start_query_integration_t.py::ScopeStartQueryTests',
     'couchbase_analytics/tests/connect_integration_t.py::ConnectTests',
     'couchbase_analytics/tests/query_integration_t.py::ClusterQueryTests',
     'couchbase_analytics/tests/query_integration_t.py::ScopeQueryTests',
+    'couchbase_analytics/tests/start_query_integration_t.py::ClusterStartQueryTests',
+    'couchbase_analytics/tests/start_query_integration_t.py::ScopeStartQueryTests',
 ]
 
 

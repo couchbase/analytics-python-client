@@ -21,6 +21,11 @@ Cluster
         See :ref:`Cluster Overloads<cluster-overloads-ref>` for details on overloaded methods.
 
     .. automethod:: execute_query
+
+    .. important::
+        See :ref:`Cluster Overloads<cluster-overloads-ref>` for details on overloaded methods.
+
+    .. automethod:: start_query
     .. automethod:: shutdown
 
 
@@ -45,3 +50,8 @@ Scope
         See :ref:`Scope Overloads<scope-overloads-ref>` for details on overloaded methods.
 
     .. automethod:: execute_query
+
+    .. important::
+        See :ref:`Scope Overloads<scope-overloads-ref>` for details on overloaded methods.
+
+    .. automethod:: start_query

@@ -17,11 +17,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from httpx import Response as HttpCoreResponse
 
-from couchbase_analytics.protocol._core.request import QueryRequest
+from couchbase_analytics.protocol._core.request import FetchResultsRequest, HttpRequest, QueryRequest
 
 
 @dataclass
@@ -42,6 +42,9 @@ class ErrorContext:
     def set_first_error(self, error: Dict[str, Any]) -> None:
         self.first_error = error
 
+    def set_statement(self, statement: Optional[str]) -> None:
+        self.statement = statement
+
     def maybe_update_errors(self) -> None:
         if self.errors is not None and len(self.errors) > 0:
             return
@@ -51,8 +54,10 @@ class ErrorContext:
     def update_num_attempts(self) -> None:
         self.num_attempts += 1
 
-    def update_request_context(self, request: QueryRequest) -> None:
-        self.path = request.url.path
+    def update_request_context(
+        self, request: Union[HttpRequest, FetchResultsRequest, QueryRequest], path: Optional[str] = None
+    ) -> None:
+        self.path = path or request.url.path
 
     def update_response_context(self, response: HttpCoreResponse) -> None:
         network_stream = response.extensions.get('network_stream', None)

@@ -14,12 +14,12 @@
 #  limitations under the License.
 
 
-from typing import Dict
+from typing import Dict, Optional, Union
 
 from httpx import URL, Response
 
 from acouchbase_analytics.protocol._core.client_adapter import _AsyncClientAdapter
-from couchbase_analytics.protocol._core.request import QueryRequest
+from couchbase_analytics.protocol._core.request import CancelRequest, HttpRequest, QueryRequest, StartQueryRequest
 
 
 def client_adapter_init_override(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
@@ -38,7 +38,11 @@ def client_adapter_init_override(self, *args, **kwargs) -> None:  # type: ignore
         self._http_transport_cls = adapter._http_transport_cls
 
 
-async def send_request_override(self: _AsyncClientAdapter, request: QueryRequest) -> Response:
+async def send_request_override(
+    self: _AsyncClientAdapter,
+    request: Union[CancelRequest, HttpRequest, QueryRequest, StartQueryRequest],
+    stream: Optional[bool] = True,
+) -> Response:
     if not hasattr(self, '_client'):
         raise RuntimeError('Client not created yet')
 
@@ -56,7 +60,9 @@ async def send_request_override(self: _AsyncClientAdapter, request: QueryRequest
 
     url = URL(scheme=request.url.scheme, host=request.url.host, port=request.url.port, path=request.url.path)
     req = self._client.build_request(request.method, url, json=request_json, extensions=request_extensions)
-    return await self._client.send(req, stream=True)
+    if stream is None:
+        stream = True
+    return await self._client.send(req, stream=stream)
 
 
 def set_request_path(self: _AsyncClientAdapter, path: str) -> None:

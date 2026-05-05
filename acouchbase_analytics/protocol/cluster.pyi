@@ -21,11 +21,20 @@ if sys.version_info < (3, 11):
 else:
     from typing import Unpack
 
+from acouchbase_analytics import JSONType
+from acouchbase_analytics.credential import Credential
+from acouchbase_analytics.options import (
+    ClusterOptions,
+    ClusterOptionsKwargs,
+    QueryOptions,
+    QueryOptionsKwargs,
+    StartQueryOptions,
+    StartQueryOptionsKwargs,
+)
 from acouchbase_analytics.protocol._core.client_adapter import _AsyncClientAdapter
 from acouchbase_analytics.protocol.database import AsyncDatabase
-from couchbase_analytics.common.credential import Credential
-from couchbase_analytics.common.result import AsyncQueryResult
-from couchbase_analytics.options import ClusterOptions, ClusterOptionsKwargs, QueryOptions, QueryOptionsKwargs
+from acouchbase_analytics.protocol.query_handle import AsyncQueryHandle
+from acouchbase_analytics.result import AsyncQueryResult
 
 class AsyncCluster:
     @overload
@@ -56,14 +65,34 @@ class AsyncCluster:
     ) -> Awaitable[AsyncQueryResult]: ...
     @overload
     def execute_query(
-        self, statement: str, options: QueryOptions, *args: str, **kwargs: Unpack[QueryOptionsKwargs]
+        self, statement: str, options: QueryOptions, *args: JSONType, **kwargs: Unpack[QueryOptionsKwargs]
     ) -> Awaitable[AsyncQueryResult]: ...
     @overload
     def execute_query(
-        self, statement: str, options: QueryOptions, *args: str, **kwargs: str
+        self, statement: str, options: QueryOptions, *args: JSONType, **kwargs: str
     ) -> Awaitable[AsyncQueryResult]: ...
     @overload
-    def execute_query(self, statement: str, *args: str, **kwargs: str) -> Awaitable[AsyncQueryResult]: ...
+    def execute_query(self, statement: str, *args: JSONType, **kwargs: str) -> Awaitable[AsyncQueryResult]: ...
+    @overload
+    def start_query(self, statement: str) -> Awaitable[AsyncQueryHandle]: ...
+    @overload
+    def start_query(self, statement: str, options: StartQueryOptions) -> Awaitable[AsyncQueryHandle]: ...
+    @overload
+    def start_query(self, statement: str, **kwargs: Unpack[StartQueryOptionsKwargs]) -> Awaitable[AsyncQueryHandle]: ...
+    @overload
+    def start_query(
+        self, statement: str, options: StartQueryOptions, **kwargs: Unpack[StartQueryOptionsKwargs]
+    ) -> Awaitable[AsyncQueryHandle]: ...
+    @overload
+    def start_query(
+        self, statement: str, options: StartQueryOptions, *args: JSONType, **kwargs: Unpack[StartQueryOptionsKwargs]
+    ) -> Awaitable[AsyncQueryHandle]: ...
+    @overload
+    def start_query(
+        self, statement: str, options: StartQueryOptions, *args: JSONType, **kwargs: str
+    ) -> Awaitable[AsyncQueryHandle]: ...
+    @overload
+    def start_query(self, statement: str, *args: JSONType, **kwargs: str) -> Awaitable[AsyncQueryHandle]: ...
     @overload
     @classmethod
     def create_instance(cls, endpoint: str, credential: Credential) -> AsyncCluster: ...

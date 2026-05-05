@@ -23,8 +23,9 @@ else:
     from typing import Unpack
 
 from couchbase_analytics import JSONType
-from couchbase_analytics.options import QueryOptions, QueryOptionsKwargs
+from couchbase_analytics.options import QueryOptions, QueryOptionsKwargs, StartQueryOptions, StartQueryOptionsKwargs
 from couchbase_analytics.protocol.database import Database as Database
+from couchbase_analytics.query_handle import BlockingQueryHandle
 from couchbase_analytics.result import BlockingQueryResult
 
 class Scope:
@@ -101,3 +102,23 @@ class Scope:
     def execute_query(
         self, statement: str, *args: JSONType, enable_cancel: bool, **kwargs: str
     ) -> Future[BlockingQueryResult]: ...
+    @overload
+    def start_query(self, statement: str) -> BlockingQueryHandle: ...
+    @overload
+    def start_query(self, statement: str, options: StartQueryOptions) -> BlockingQueryHandle: ...
+    @overload
+    def start_query(self, statement: str, **kwargs: Unpack[StartQueryOptionsKwargs]) -> BlockingQueryHandle: ...
+    @overload
+    def start_query(
+        self, statement: str, options: StartQueryOptions, **kwargs: Unpack[StartQueryOptionsKwargs]
+    ) -> BlockingQueryHandle: ...
+    @overload
+    def start_query(
+        self, statement: str, options: StartQueryOptions, *args: JSONType, **kwargs: Unpack[StartQueryOptionsKwargs]
+    ) -> BlockingQueryHandle: ...
+    @overload
+    def start_query(
+        self, statement: str, options: StartQueryOptions, *args: JSONType, **kwargs: str
+    ) -> BlockingQueryHandle: ...
+    @overload
+    def start_query(self, statement: str, *args: JSONType, **kwargs: str) -> BlockingQueryHandle: ...

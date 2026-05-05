@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING, Awaitable
+from typing import TYPE_CHECKING, Awaitable, Optional
 
 if sys.version_info < (3, 10):
     from typing_extensions import TypeAlias
@@ -26,14 +26,17 @@ else:
 
 from acouchbase_analytics.protocol._core.anyio_utils import current_async_library
 from acouchbase_analytics.protocol._core.client_adapter import _AsyncClientAdapter
-from acouchbase_analytics.protocol._core.request_context import AsyncRequestContext
+from acouchbase_analytics.protocol._core.request_context import AsyncRequestContext, AsyncStreamingRequestContext
+from acouchbase_analytics.protocol._core.response import AsyncHttpResponse
+from acouchbase_analytics.protocol.query_handle import AsyncQueryHandle
 from acouchbase_analytics.protocol.streaming import AsyncHttpStreamingResponse
+from acouchbase_analytics.result import AsyncQueryResult
 from couchbase_analytics.common.logging import LogLevel
-from couchbase_analytics.common.result import AsyncQueryResult
 from couchbase_analytics.protocol._core.request import _RequestBuilder
 
 if TYPE_CHECKING:
     from acouchbase_analytics.protocol.database import AsyncDatabase
+    from couchbase_analytics.common._core import JsonStreamConfig
 
 
 class AsyncScope:
@@ -73,15 +76,35 @@ class AsyncScope:
         return AsyncQueryResult(http_resp)
 
     def execute_query(self, statement: str, *args: object, **kwargs: object) -> Awaitable[AsyncQueryResult]:
-        base_req = self._request_builder.build_base_query_request(statement, *args, is_async=True, **kwargs)
-        stream_config = base_req.options.pop('stream_config', None)
-        request_context = AsyncRequestContext(
-            client_adapter=self.client_adapter, request=base_req, stream_config=stream_config, backend=self._backend
+        req = self._request_builder.build_query_request(statement, *args, **kwargs)
+        stream_config = req.options.pop('stream_config', None)
+        request_context = AsyncStreamingRequestContext(
+            client_adapter=self.client_adapter, request=req, stream_config=stream_config, backend=self._backend
         )
         resp = AsyncHttpStreamingResponse(request_context)
         if self._backend.backend_lib == 'asyncio':
             return request_context.create_response_task(self._execute_query, resp)
         return self._execute_query(resp)
+
+    async def _start_query(
+        self, http_resp: AsyncHttpResponse, stream_config: Optional[JsonStreamConfig]
+    ) -> AsyncQueryHandle:
+        if not self.client_adapter.has_client:
+            self.client_adapter.log_message(
+                'Cluster does not have a connection.  Creating the client.', LogLevel.WARNING
+            )
+            await self._create_client()
+        await http_resp.send_request()
+        return AsyncQueryHandle(self.client_adapter, self._request_builder, http_resp, stream_config=stream_config)
+
+    def start_query(self, statement: str, *args: object, **kwargs: object) -> Awaitable[AsyncQueryHandle]:
+        req = self._request_builder.build_start_query_request(statement, *args, **kwargs)
+        stream_config = req.options.pop('stream_config', None)
+        request_context = AsyncRequestContext(self.client_adapter, req, backend=self._backend)
+        resp = AsyncHttpResponse(request_context)
+        if self._backend.backend_lib == 'asyncio':
+            return request_context.create_response_task(self._start_query, resp, stream_config)
+        return self._start_query(resp, stream_config)
 
 
 Scope: TypeAlias = AsyncScope

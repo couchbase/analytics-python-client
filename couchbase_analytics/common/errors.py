@@ -122,6 +122,29 @@ class QueryError(AnalyticsError):
         return self.__repr__()
 
 
+class QueryNotFoundError(AnalyticsError):
+    """
+    Indicates that a request returned a not found status code.
+    """
+
+    def __init__(
+        self,
+        cause: Optional[Union[BaseException, Exception]] = None,
+        context: Optional[str] = None,
+        message: Optional[str] = None,
+    ) -> None:
+        super().__init__(cause=cause, context=context, message=message)
+
+    def __repr__(self) -> str:
+        details = self._err_details()
+        if details:
+            return f'{type(self).__name__}({details})'
+        return f'{type(self).__name__}()'
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+
 class TimeoutError(AnalyticsError):
     """
     Indicates that a request was unable to complete prior to reaching the deadline specified for the reqest.

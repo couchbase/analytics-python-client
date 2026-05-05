@@ -56,3 +56,26 @@ Scope
         :returns: An instance of :class:`~couchbase_analytics.result.BlockingQueryResult`. When a cancel token is provided
             a :class:`~concurrent.futures.Future` is returned.  Once the :class:`~concurrent.futures.Future` completes, an instance of a :class:`~couchbase_analytics.result.BlockingQueryResult` will be available.
         :rtype: Union[Future[:class:`~couchbase_analytics.result.BlockingQueryResult`], :class:`~couchbase_analytics.result.BlockingQueryResult`]
+
+    .. py:method:: start_query(statement: str) -> BlockingQueryHandle
+                   start_query(statement: str, options: StartQueryOptions) -> BlockingQueryHandle
+                   start_query(statement: str, **kwargs: StartQueryOptionsKwargs) -> BlockingQueryHandle
+                   start_query(statement: str, options: StartQueryOptions, **kwargs: StartQueryOptionsKwargs) -> BlockingQueryHandle
+                   start_query(statement: str, options: StartQueryOptions, *args: JSONType, **kwargs: StartQueryOptionsKwargs) -> BlockingQueryHandle
+                   start_query(statement: str, options: StartQueryOptions, *args: JSONType, **kwargs: str) -> BlockingQueryHandle
+                   start_query(statement: str, *args: JSONType, **kwargs: str) -> BlockingQueryHandle
+        :no-index:
+
+        Executes a query against an Analytics scope using the asynchronous server requests API.
+
+        :param statement: The SQL++ statement to execute.
+        :type statement: str
+        :param options: Options to set for the query.
+        :type options: Optional[:class:`~couchbase_analytics.options.StartQueryOptions`]
+        :type \*args: Optional[:py:type:`~couchbase_analytics.JSONType`]
+        :param \*\*kwargs: Keyword arguments that can be used in place or to overrride provided :class:`~couchbase_analytics.options.StartClusterOptions`.
+            Can also be used to pass in named query placeholders.
+        :type \*\*kwargs: Optional[Union[:class:`~couchbase_analytics.options.StartQueryOptionsKwargs`, str]]
+
+        :returns: An instance of :class:`~couchbase_analytics.query_handle.BlockingQueryHandle`.
+        :rtype: :class:`~couchbase_analytics.query_handle.BlockingQueryHandle`
