@@ -20,11 +20,12 @@ import logging
 from typing import Optional, cast
 from uuid import uuid4
 
-from httpx import URL, BasicAuth, Client, Response
+from httpx import URL, Client, Response
 
-from couchbase_analytics.common.credential import Credential
+from couchbase_analytics.common.credential import Credential, _CredentialHolder
 from couchbase_analytics.common.deserializer import Deserializer
 from couchbase_analytics.common.logging import LogLevel, log_message
+from couchbase_analytics.protocol._core.auth import DynamicCredentialAuth
 from couchbase_analytics.protocol._core.request import CancelRequest, HttpRequest, QueryRequest, StartQueryRequest
 from couchbase_analytics.protocol.connection import _ConnectionDetails
 from couchbase_analytics.protocol.options import OptionsBuilder
@@ -49,6 +50,7 @@ class _ClientAdapter:
         self._http_transport_cls = None
         kwargs['logger_name'] = self.logger_name
         self._conn_details = _ConnectionDetails.create(self._opts_builder, http_endpoint, credential, options, **kwargs)
+        self._credential_holder = _CredentialHolder(credential)
 
     @property
     def analytics_path(self) -> str:
@@ -77,6 +79,13 @@ class _ClientAdapter:
         **INTERNAL**
         """
         return self._conn_details
+
+    @property
+    def credential_holder(self) -> _CredentialHolder:
+        """
+        **INTERNAL**
+        """
+        return self._credential_holder
 
     @property
     def default_deserializer(self) -> Deserializer:
@@ -136,7 +145,7 @@ class _ClientAdapter:
         **INTERNAL**
         """
         if not hasattr(self, '_client'):
-            auth = BasicAuth(*self._conn_details.credential)
+            auth = DynamicCredentialAuth(self._credential_holder)
             if self._conn_details.is_secure():
                 if self._conn_details.ssl_context is None:
                     raise ValueError('SSL context is required for secure connections.')
@@ -186,6 +195,11 @@ class _ClientAdapter:
         """
         if hasattr(self, '_client'):
             del self._client
+
+    def update_credential(self, new_credential: Credential) -> None:
+        self._credential_holder.replace(new_credential)
+        # Future mTLS: rebuild SSL context + httpx Client here.
+        self.log_message('Cluster HTTP credential updated', LogLevel.INFO)
 
 
 logger = logging.getLogger(_ClientAdapter.LOGGER_NAME)

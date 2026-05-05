@@ -158,6 +158,22 @@ class AsyncCluster:
         """  # noqa: E501
         return self._impl.start_query(statement, *args, **kwargs)
 
+    async def set_credential(self, credential: Credential) -> None:
+        """Replace the credential used for subsequent HTTP requests.
+
+        Allows updating credentials (in particular, rotating a JWT) without restarting
+        the application.  The new credential must be of the same type as the current
+        credential.
+
+        Args:
+            credential: The new :class:`.Credential` to use.
+
+        Raises:
+            TypeError: If the new credential is a different type than the current
+                credential.
+        """
+        await self._impl.set_credential(credential)
+
     async def shutdown(self) -> None:
         """Shuts down this cluster instance. Cleaning up all resources associated with it.
 

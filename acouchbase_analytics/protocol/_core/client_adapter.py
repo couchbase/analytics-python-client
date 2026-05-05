@@ -20,11 +20,12 @@ import logging
 from typing import Optional, cast
 from uuid import uuid4
 
-from httpx import URL, AsyncClient, BasicAuth, Response
+from httpx import URL, AsyncClient, Response
 
-from couchbase_analytics.common.credential import Credential
+from couchbase_analytics.common.credential import Credential, _CredentialHolder
 from couchbase_analytics.common.deserializer import Deserializer
 from couchbase_analytics.common.logging import LogLevel, log_message
+from couchbase_analytics.protocol._core.auth import DynamicCredentialAuth
 from couchbase_analytics.protocol._core.request import CancelRequest, HttpRequest, QueryRequest, StartQueryRequest
 from couchbase_analytics.protocol.connection import _ConnectionDetails
 from couchbase_analytics.protocol.options import OptionsBuilder
@@ -47,6 +48,7 @@ class _AsyncClientAdapter:
         self._opts_builder = OptionsBuilder()
         kwargs['logger_name'] = self.logger_name
         self._conn_details = _ConnectionDetails.create(self._opts_builder, http_endpoint, credential, options, **kwargs)
+        self._credential_holder = _CredentialHolder(credential)
         # PYCO-67:  Do we want to allow supporting custom HTTP transports?
         self._http_transport_cls = None
 
@@ -77,6 +79,13 @@ class _AsyncClientAdapter:
         **INTERNAL**
         """
         return self._conn_details
+
+    @property
+    def credential_holder(self) -> _CredentialHolder:
+        """
+        **INTERNAL**
+        """
+        return self._credential_holder
 
     @property
     def default_deserializer(self) -> Deserializer:
@@ -136,6 +145,7 @@ class _AsyncClientAdapter:
         **INTERNAL**
         """
         if not hasattr(self, '_client'):
+            auth = DynamicCredentialAuth(self._credential_holder)
             if self._conn_details.is_secure():
                 if self._conn_details.ssl_context is None:
                     raise ValueError('SSL context is required for secure connections.')
@@ -144,14 +154,14 @@ class _AsyncClientAdapter:
                     transport = self._http_transport_cls(verify=self._conn_details.ssl_context)
                 self._client = AsyncClient(
                     verify=self._conn_details.ssl_context,
-                    auth=BasicAuth(*self._conn_details.credential),
+                    auth=auth,
                     transport=transport,
                 )
             else:
                 transport = None
                 if self._http_transport_cls is not None:
                     transport = self._http_transport_cls()
-                self._client = AsyncClient(auth=BasicAuth(*self._conn_details.credential), transport=transport)
+                self._client = AsyncClient(auth=auth, transport=transport)
             self.log_message(
                 (f'Cluster HTTP client created: connection_details={self._conn_details.get_init_details()}'),
                 LogLevel.INFO,
@@ -194,6 +204,11 @@ class _AsyncClientAdapter:
         """
         if hasattr(self, '_client'):
             del self._client
+
+    async def update_credential(self, new_credential: Credential) -> None:
+        self._credential_holder.replace(new_credential)
+        # Future mTLS: await close_client(), rebuild SSL context, await create_client().
+        self.log_message('Cluster HTTP credential updated', LogLevel.INFO)
 
 
 logger = logging.getLogger(_AsyncClientAdapter.LOGGER_NAME)
