@@ -162,15 +162,18 @@ class ErrorMapper:
         return WrappedError(q_err, retriable=retriable)
 
     @staticmethod
-    def maybe_raise_error_from_status_code(
+    def maybe_get_error_from_status_code(
         status_code: int, context: str, ignore_not_found_status: Optional[bool] = False
-    ) -> None:
+    ) -> Optional[WrappedError]:
+        err = None
         if status_code == 401:
-            raise WrappedError(InvalidCredentialError(context=context, message='Invalid credentials provided.'))
-        if status_code == 404 and ignore_not_found_status is not True:
-            raise WrappedError(QueryNotFoundError(context=context, message='Resource not found'))
-        if status_code == 503:
-            raise WrappedError(AnalyticsError(context=context, message='Service unavailable.'), retriable=True)
+            err = WrappedError(InvalidCredentialError(context=context, message='Invalid credentials provided.'))
+        elif status_code == 404 and ignore_not_found_status is not True:
+            err = WrappedError(QueryNotFoundError(context=context, message='Resource not found'))
+        elif status_code == 503:
+            err = WrappedError(AnalyticsError(context=context, message='Service unavailable.'), retriable=True)
+
+        return err
 
     @staticmethod
     def handle_socket_error(

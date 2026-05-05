@@ -171,6 +171,9 @@ class HttpStreamingResponse:
         self._request_context.start_stream(self._core_response)
         # block until we either know we have rows or errors
         self._request_context.wait_for_stage_notification()
+        # it is possible we have "rows" but the HTTP status code is indicative of an error (e.g. 404, 503, etc.),
+        # so we need to check for HTTP status errors before allowing iteration to continue
+        self._request_context.check_for_http_status_error(self._core_response.status_code, close_handler=self.close)
         if not self._request_context.okay_to_iterate:
             self._request_context.finish_processing_stream()
             self._process_response()

@@ -123,6 +123,7 @@ class AsyncHttpResponse:
         if 200 <= status_code < 300 or status_code == 404:
             await self._request_context.shutdown()
             return
+        await self._request_context.check_for_http_status_error(status_code, ignore_not_found_status=True)
         ctx = str(self._request_context.error_context)
         raise WrappedError(AnalyticsError(context=ctx, message=f'Request failed with status {status_code}.'))
 
@@ -131,6 +132,9 @@ class AsyncHttpResponse:
         **INTERNAL**
         """
         self._json_response = await self._request_context.process_response(
-            self._core_response, self.close, handle_context_shutdown=True
+            self._core_response,
+            self.close,
+            handle_context_shutdown=True,
+            ignore_not_found_status=self._has_no_body_response,
         )
         await self.set_metadata(json_data=self._json_response)

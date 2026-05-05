@@ -1,7 +1,7 @@
 # Couchbase Python Analytics Client
 Python client for [Couchbase](https://couchbase.com) Analytics.
 
-Currently Python 3.9 - Python 3.13 is supported.
+Currently Python 3.10 - Python 3.14 is supported.
 
 The Analytics SDK supports static typing.  Currently only [mypy](https://github.com/python/mypy) is supported.  You mileage may vary (YMMV) with the use of other static type checkers (e.g. [pyright](https://github.com/microsoft/pyright)).
 

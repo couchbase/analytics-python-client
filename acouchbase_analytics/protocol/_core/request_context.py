@@ -104,6 +104,22 @@ class AsyncRequestContext:
     def calculate_backoff(self) -> float:
         return self._backoff_calc.calculate_backoff(self._error_context.num_attempts) / 1000
 
+    async def check_for_http_status_error(
+        self,
+        status_code: int,
+        ignore_not_found_status: Optional[bool] = False,
+        close_handler: Optional[Callable[[], Awaitable[None]]] = None,
+    ) -> None:
+        ctx = str(self._error_context)
+        err = ErrorMapper.maybe_get_error_from_status_code(
+            status_code, ctx, ignore_not_found_status=ignore_not_found_status
+        )
+        if err is None:
+            return
+        if close_handler is not None:
+            await close_handler()
+        raise err
+
     def create_response_task(self, fn: Callable[..., Coroutine[Any, Any, Any]], *args: object) -> Task[Any]:
         if self._backend is None or self._backend.backend_lib != 'asyncio':
             raise RuntimeError('Must use the asyncio backend to create a response task.')
@@ -188,10 +204,13 @@ class AsyncRequestContext:
         core_response: HttpCoreResponse,
         close_handler: Callable[[], Awaitable[None]],
         handle_context_shutdown: Optional[bool] = False,
+        ignore_not_found_status: Optional[bool] = False,
     ) -> Any:
         # we have all the data, close the core response/stream
         await close_handler()
-
+        await self.check_for_http_status_error(
+            core_response.status_code, ignore_not_found_status=ignore_not_found_status
+        )
         try:
             json_response = core_response.json()
         except json.JSONDecodeError:
@@ -243,7 +262,6 @@ class AsyncRequestContext:
             'request_deadline': f'{self._request_deadline}',
         }
         self.log_message('HTTP response', LogLevel.DEBUG, message_data=message_data)
-        self._check_for_http_status_error(response.status_code, ignore_not_found_status=ignore_not_found_status)
         return response
 
     async def shutdown(
@@ -264,12 +282,6 @@ class AsyncRequestContext:
             self._request_state = RequestState.Completed
         self._shutdown = True
         self.log_message('Request context shutdown complete', LogLevel.INFO)
-
-    def _check_for_http_status_error(self, status_code: int, ignore_not_found_status: Optional[bool] = False) -> None:
-        ctx = str(self._error_context)
-        ErrorMapper.maybe_raise_error_from_status_code(
-            status_code, ctx, ignore_not_found_status=ignore_not_found_status
-        )
 
     def _check_timed_out(self) -> None:
         if self._request_state in (RequestState.Timeout, RequestState.Error):
