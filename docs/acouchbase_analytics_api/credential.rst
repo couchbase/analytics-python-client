@@ -11,5 +11,7 @@ Credential
 
     .. automethod:: from_username_and_password
         :no-index:
+    .. automethod:: from_jwt
+        :no-index:
     .. automethod:: from_callable
         :no-index:

@@ -122,6 +122,9 @@ class Cluster:
         else:
             self._client_adapter.log_message('Cluster does not have a connection, no need to shutdown.', LogLevel.INFO)
 
+    def set_credential(self, credential: Credential) -> None:
+        self._client_adapter.update_credential(credential)
+
     def execute_query(
         self, statement: str, *args: object, **kwargs: object
     ) -> Union[BlockingQueryResult, Future[BlockingQueryResult]]:

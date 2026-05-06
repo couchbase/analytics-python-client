@@ -34,6 +34,7 @@ def client_adapter_init_override(self, *args, **kwargs) -> None:  # type: ignore
     self._cluster_id = adapter._cluster_id
     self._opts_builder = adapter._opts_builder
     self._conn_details = adapter._conn_details
+    self._credential_holder = adapter._credential_holder
     if self._http_transport_cls is None:
         self._http_transport_cls = adapter._http_transport_cls
 

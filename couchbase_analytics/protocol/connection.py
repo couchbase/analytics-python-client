@@ -155,13 +155,13 @@ def parse_query_str_options(
 
 @dataclass
 class _ConnectionDetails:
-    """
-    **INTERNAL**
+    """**INTERNAL** Cluster-level config: URL, options, SSL context.
+
+    Credential state lives in :class:`._CredentialHolder`, not here.
     """
 
     url: RequestURL
     cluster_options: ClusterOptionsTransformedKwargs
-    credential: Tuple[bytes, bytes]
     default_deserializer: Deserializer
     ssl_context: Optional[ssl.SSLContext] = None
     sni_hostname: Optional[str] = None
@@ -202,7 +202,8 @@ class _ConnectionDetails:
     def is_secure(self) -> bool:
         return self.url.scheme == 'https'
 
-    def validate_security_options(self) -> None:  # noqa: C901
+    def validate_security_options(self, credential: Credential) -> None:  # noqa: C901
+        credential._check_endpoint_compatible(self.is_secure())
         security_opts: Optional[SecurityOptionsTransformedKwargs] = self.cluster_options.get('security_options')
         if security_opts is not None:
             # separate between value options and boolean option (trust_only_capella)
@@ -275,6 +276,6 @@ class _ConnectionDetails:
         if default_deserializer is None:
             default_deserializer = DefaultJsonDeserializer()
 
-        conn_dtls = cls(url, cluster_opts, credential.astuple(), default_deserializer, logger_name=logger_name)
-        conn_dtls.validate_security_options()
+        conn_dtls = cls(url, cluster_opts, default_deserializer, logger_name=logger_name)
+        conn_dtls.validate_security_options(credential)
         return conn_dtls

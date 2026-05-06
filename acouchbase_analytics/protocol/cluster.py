@@ -99,6 +99,9 @@ class AsyncCluster:
         else:
             self.client_adapter.log_message('Cluster does not have a connection.  Ignoring shutdown.', LogLevel.WARNING)
 
+    async def set_credential(self, credential: Credential) -> None:
+        await self._client_adapter.update_credential(credential)
+
     async def _execute_query(self, http_resp: AsyncHttpStreamingResponse) -> AsyncQueryResult:
         if not self.has_client:
             self.client_adapter.log_message(
