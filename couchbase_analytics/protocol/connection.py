@@ -254,6 +254,11 @@ class _ConnectionDetails:
             self.ssl_context.check_hostname = True
             self.ssl_context.verify_mode = ssl.CERT_REQUIRED
 
+        # Cert credentials attach their chain here; no-op for password/JWT.
+        # Runs after verify_mode is set so OpenSSL has a fully configured
+        # context when load_cert_chain fires.
+        credential._apply_to_ssl_context(self.ssl_context)
+
     @classmethod
     def create(
         cls,

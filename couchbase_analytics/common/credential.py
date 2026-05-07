@@ -17,8 +17,13 @@
 
 from __future__ import annotations
 
+import os
+import ssl
+import tempfile
 from base64 import b64encode
 from typing import TYPE_CHECKING, Callable, Dict, Literal, Optional
+
+from couchbase_analytics.common._core.utils import validate_path
 
 if TYPE_CHECKING:
     from httpx import Request
@@ -31,18 +36,39 @@ class Credential:
 
         Credential(username='Administrator', password='swordfish')
         Credential(jwt_token='eyJ...')
+        Credential(cert_path='/path/to/cert.pem', key_path='/path/to/key.pem')
+        Credential(cert_path='/path/to/client.p12', cert_password='secret')
         Credential.from_username_and_password('Administrator', 'swordfish')
         Credential.from_jwt('eyJ...')
+        Credential.from_certificate('/path/to/cert.pem', '/path/to/key.pem')
+        Credential.from_certificate('/path/to/client.p12', password='secret')
         Credential.from_callable(lambda: Credential.from_jwt(get_token()))
     """
 
-    __slots__ = ('_kind', '_header', '_password', '_token', '_username')
+    __slots__ = (
+        '_kind',
+        '_header',
+        '_password',
+        '_token',
+        '_username',
+        '_cert_path',
+        '_key_path',
+        '_cert_password',
+    )
 
-    _kind: Literal['password', 'jwt']
-    _header: str
+    # PEM and PKCS#12 share `_kind = 'cert'` because they're functionally
+    # identical from the SDK's point of view: TLS-handshake auth, https-only,
+    # client rebuild on rotation.  What differs is how cert + key are packaged
+    # on disk.  We tell the two apart by `_key_path`: set for PEM, None for
+    # PKCS#12.
+    _kind: Literal['password', 'jwt', 'cert']
+    _header: Optional[str]
     _password: Optional[str]
     _token: Optional[str]
     _username: Optional[str]
+    _cert_path: Optional[str]
+    _key_path: Optional[str]
+    _cert_password: Optional[str]
 
     def __init__(
         self,
@@ -50,10 +76,23 @@ class Credential:
         username: Optional[str] = None,
         password: Optional[str] = None,
         jwt_token: Optional[str] = None,
+        cert_path: Optional[str] = None,
+        key_path: Optional[str] = None,
+        cert_password: Optional[str] = None,
     ) -> None:
+        self._header = None
+        self._password = None
+        self._token = None
+        self._username = None
+        self._cert_path = None
+        self._key_path = None
+        self._cert_password = None
+
+        has_cert = cert_path is not None or key_path is not None or cert_password is not None
+
         if jwt_token is not None:
-            if username is not None or password is not None:
-                raise ValueError('Cannot provide both a JWT token and username/password.')
+            if username is not None or password is not None or has_cert:
+                raise ValueError('Cannot provide both a JWT token and username/password or certificate.')
             if not isinstance(jwt_token, str):
                 raise TypeError('The JWT token must be a str.')
             jwt_token = jwt_token.strip()
@@ -61,30 +100,63 @@ class Credential:
                 raise ValueError('The JWT token must not be empty.')
             self._kind = 'jwt'
             self._header = f'Bearer {jwt_token}'
-            self._password = None
             self._token = jwt_token
-            self._username = None
+        elif has_cert:
+            if username is not None or password is not None:
+                raise ValueError('Cannot provide both certificate and username/password.')
+            self._init_certificate(cert_path, key_path, cert_password)
         elif username is not None or password is not None:
-            if username is None:
-                raise ValueError('Must provide a username.')
-            if password is None:
-                raise ValueError('Must provide a password.')
-            if not isinstance(username, str):
-                raise TypeError('The username must be a str.')
-            if not isinstance(password, str):
-                raise TypeError('The password must be a str.')
-            self._kind = 'password'
-            self._header = 'Basic ' + b64encode(f'{username}:{password}'.encode()).decode('ascii')
-            self._password = password
-            self._token = None
-            self._username = username
+            self._init_password(username, password)
         else:
-            raise ValueError('Must provide either jwt_token or username and password.')
+            raise ValueError('Must provide one of: (username + password), jwt_token, or cert_path.')
+
+    def _init_password(self, username: Optional[str], password: Optional[str]) -> None:
+        if username is None:
+            raise ValueError('Must provide a username.')
+        if password is None:
+            raise ValueError('Must provide a password.')
+        if not isinstance(username, str):
+            raise TypeError('The username must be a str.')
+        if not isinstance(password, str):
+            raise TypeError('The password must be a str.')
+        self._kind = 'password'
+        self._header = 'Basic ' + b64encode(f'{username}:{password}'.encode()).decode('ascii')
+        self._password = password
+        self._username = username
+
+    def _init_certificate(
+        self,
+        cert_path: Optional[str],
+        key_path: Optional[str],
+        cert_password: Optional[str],
+    ) -> None:
+        if cert_path is None:
+            raise ValueError('Must provide a cert_path.')
+        if not isinstance(cert_path, str):
+            raise TypeError('The cert_path must be a str.')
+        if key_path is not None and not isinstance(key_path, str):
+            raise TypeError('The key_path must be a str or None.')
+        if cert_password is not None and not isinstance(cert_password, str):
+            raise TypeError('The cert_password must be a str or None.')
+
+        self._kind = 'cert'
+        self._cert_path = validate_path(cert_path)
+        self._key_path = validate_path(key_path) if key_path is not None else None
+        self._cert_password = cert_password
 
     def _asdict(self) -> Dict[str, str]:
         """**INTERNAL**"""
         if self._kind == 'jwt':
             return {'jwt_token': self._token or ''}
+        if self._kind == 'cert':
+            d: Dict[str, str] = {'cert_path': self._cert_path or ''}
+            if self._key_path is not None:
+                d['key_path'] = self._key_path
+            # Omit cert_password when None so reconstruction round-trips an
+            # unencrypted file as unencrypted, not as cert_password=''.
+            if self._cert_password is not None:
+                d['cert_password'] = self._cert_password
+            return d
         return {'username': self._username or '', 'password': self._password or ''}
 
     @classmethod
@@ -121,6 +193,55 @@ class Credential:
         return cls(jwt_token=token)
 
     @classmethod
+    def from_certificate(
+        cls,
+        cert_path: str,
+        key_path: Optional[str] = None,
+        *,
+        password: Optional[str] = None,
+    ) -> Credential:
+        """Create a :class:`.Credential` for client-certificate (mTLS) authentication.
+
+        Two file layouts are accepted:
+
+        * **PEM cert + PEM key.** Pass both paths::
+
+              Credential.from_certificate('/path/cert.pem', '/path/key.pem')
+
+          ``password`` decrypts the key file if it's encrypted.
+
+        * **PKCS#12 bundle** (``.p12`` / ``.pfx``). Pass only ``cert_path``::
+
+              Credential.from_certificate('/path/client.p12', password='secret')
+
+          Use ``password=None`` (the default) if the file is unencrypted.
+
+        Authentication happens during the TLS handshake; no HTTP
+        ``Authorization`` header is sent.  Cert credentials may only be used
+        with an ``https://`` endpoint.
+
+        .. note::
+            Rotating a cert credential via
+            :meth:`~couchbase_analytics.cluster.Cluster.set_credential` rebuilds
+            the HTTP client, since the cert is baked into the SSL context.
+
+        Args:
+            cert_path: Path to a PEM-encoded certificate (chain) or a PKCS#12
+                bundle.
+            key_path: Path to the PEM-encoded private key.  ``None`` if
+                ``cert_path`` is a PKCS#12 bundle that already contains the key.
+            password: Decryption password for the PEM key file or PKCS#12
+                bundle.  ``None`` if the file is unencrypted.
+        """
+        if not isinstance(cert_path, str):
+            raise TypeError('The cert_path must be a str.')
+        if key_path is not None and not isinstance(key_path, str):
+            raise TypeError('The key_path must be a str or None.')
+        if password is not None and not isinstance(password, str):
+            raise TypeError('The password must be a str or None.')
+        return cls(cert_path=cert_path, key_path=key_path, cert_password=password)
+
+    @classmethod
     def from_callable(cls, callback: Callable[[], Credential]) -> Credential:
         """Create a :class:`.Credential` by invoking a callback.
 
@@ -142,15 +263,71 @@ class Credential:
         """
         return cls(**callback()._asdict())
 
-    # Internal contract for the transport layer.  Credential rotation is
-    # last-writer-wins; each request sees a fully-constructed credential.
-
     def _apply_to_request(self, request: Request) -> None:
-        request.headers['Authorization'] = self._header
+        if self._header is not None:
+            request.headers['Authorization'] = self._header
+
+    def _apply_to_ssl_context(self, ctx: ssl.SSLContext) -> None:
+        # No-op for password/JWT credentials.
+        if self._kind != 'cert':
+            return
+        assert self._cert_path is not None  # for mypy; set in _init_certificate
+        if self._key_path is None:
+            # PKCS#12 bundle: cert_path holds the .p12 file.
+            self._load_pkcs12_into_context(ctx)
+            return
+        # PEM cert + PEM key.  password is forwarded to OpenSSL so it can
+        # decrypt the key file if it's encrypted; ignored for plain keys.
+        ctx.load_cert_chain(
+            certfile=self._cert_path,
+            keyfile=self._key_path,
+            password=self._cert_password,
+        )
+
+    def _load_pkcs12_into_context(self, ctx: ssl.SSLContext) -> None:
+        from cryptography.hazmat.primitives.serialization import (
+            Encoding,
+            NoEncryption,
+            PrivateFormat,
+            pkcs12,
+        )
+
+        assert self._cert_path is not None  # for mypy; set in _init_certificate
+        with open(self._cert_path, 'rb') as f:
+            data = f.read()
+        password_bytes = self._cert_password.encode('utf-8') if self._cert_password is not None else None
+        try:
+            key, cert, additional_certs = pkcs12.load_key_and_certificates(data, password_bytes)
+        except ValueError as e:
+            # cryptography raises ValueError for both wrong password and malformed
+            # input.  Wrap with the path so the cluster log identifies which file.
+            raise ValueError(f'Failed to load PKCS#12 file at {self._cert_path}: {e}') from e
+        if key is None or cert is None:
+            raise ValueError(f'PKCS#12 file at {self._cert_path} does not contain a private key + certificate pair.')
+
+        # ssl.SSLContext.load_cert_chain only accepts file paths, so we write
+        # the chain plus the decrypted key into a single PEM tempfile, hand
+        # the path to OpenSSL, and unlink right after.  The unencrypted key is
+        # on disk only between the write and the unlink in finally.
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix='.pem', prefix='pycbac-pkcs12-')
+        try:
+            with os.fdopen(tmp_fd, 'wb') as tmp:
+                tmp.write(cert.public_bytes(Encoding.PEM))
+                for ca in additional_certs or []:
+                    tmp.write(ca.public_bytes(Encoding.PEM))
+                tmp.write(key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()))
+            ctx.load_cert_chain(certfile=tmp_path)
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
     def _check_endpoint_compatible(self, is_secure: bool) -> None:
         if self._kind == 'jwt' and not is_secure:
             raise ValueError('JWT credentials require a secure (https) connection.')
+        if self._kind == 'cert' and not is_secure:
+            raise ValueError('Client-certificate credentials require a secure (https) connection.')
 
     def _check_replaceable_with(self, new_credential: Credential) -> None:
         if self._kind != new_credential._kind:
@@ -162,6 +339,11 @@ class Credential:
     def __repr__(self) -> str:
         if self._kind == 'password':
             return f'Credential(username={self._username!r}, password=****)'
+        if self._kind == 'cert':
+            pw = ', cert_password=****' if self._cert_password is not None else ''
+            if self._key_path is None:
+                return f'Credential(cert_path={self._cert_path!r}{pw})'
+            return f'Credential(cert_path={self._cert_path!r}, key_path={self._key_path!r}{pw})'
         return 'Credential(jwt_token=****)'
 
 

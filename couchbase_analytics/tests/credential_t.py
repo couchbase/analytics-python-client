@@ -16,8 +16,12 @@
 
 from __future__ import annotations
 
+import pathlib
+import shutil
+import ssl
+import subprocess
 from base64 import b64encode
-from typing import Any
+from typing import Any, Tuple
 
 import pytest
 from httpx import Request
@@ -27,6 +31,70 @@ from couchbase_analytics.protocol._core.auth import DynamicCredentialAuth
 from couchbase_analytics.protocol._core.client_adapter import _ClientAdapter
 
 _SAMPLE_JWT = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature'
+_PKCS12_PASSWORD = 'pycbac-test-pw'
+
+
+@pytest.fixture(scope='session')
+def pkcs12_path(cert_paths: Tuple[str, str], tmp_path_factory: pytest.TempPathFactory) -> str:
+    """Bundle the session cert + key into a password-encrypted PKCS#12 file."""
+    if shutil.which('openssl') is None:
+        pytest.skip('openssl CLI not available; skipping PKCS#12 tests')
+    cert, key = cert_paths
+    tmp = tmp_path_factory.mktemp('mtls-pkcs12')
+    p12 = tmp / 'client.p12'
+    subprocess.run(
+        [
+            'openssl',
+            'pkcs12',
+            '-export',
+            '-out',
+            str(p12),
+            '-inkey',
+            key,
+            '-in',
+            cert,
+            '-passout',
+            f'pass:{_PKCS12_PASSWORD}',
+        ],
+        check=True,
+        capture_output=True,
+    )
+    return str(p12)
+
+
+@pytest.fixture(scope='session')
+def cert_paths(tmp_path_factory: pytest.TempPathFactory) -> Tuple[str, str]:
+    """Self-signed PEM cert + key for mTLS unit tests.
+
+    The tests don't need a real CA, just PEM that ``ssl.SSLContext.load_cert_chain``
+    can parse.  Skipped if the ``openssl`` CLI isn't on PATH.
+    """
+    if shutil.which('openssl') is None:
+        pytest.skip('openssl CLI not available; skipping mTLS cert tests')
+    tmp = tmp_path_factory.mktemp('mtls-certs')
+    cert = tmp / 'client.crt'
+    key = tmp / 'client.key'
+    subprocess.run(
+        [
+            'openssl',
+            'req',
+            '-x509',
+            '-newkey',
+            'rsa:2048',
+            '-keyout',
+            str(key),
+            '-out',
+            str(cert),
+            '-days',
+            '1',
+            '-nodes',
+            '-subj',
+            '/CN=pycbac-test-client',
+        ],
+        check=True,
+        capture_output=True,
+    )
+    return str(cert), str(key)
 
 
 def _authorization_header(client: Any) -> str:
@@ -35,7 +103,7 @@ def _authorization_header(client: Any) -> str:
     req = Request('POST', request_url)
     flow = auth.auth_flow(req)
     dispatched = next(flow)
-    return dispatched.headers['Authorization']
+    return dispatched.headers.get('Authorization', '')
 
 
 class CredentialTestSuite:
@@ -45,7 +113,9 @@ class CredentialTestSuite:
         'test_jwt_credential_rejects_non_string',
         'test_credential_direct_construction_with_jwt',
         'test_credential_direct_construction_with_password',
+        'test_credential_direct_construction_with_certificate',
         'test_credential_rejects_unknown_kwargs',
+        'test_credential_rejects_mixed_kwargs',
         'test_credential_hides_internal_details',
         'test_credential_from_callable_with_jwt',
         'test_jwt_credential_repr_redacts_token',
@@ -53,11 +123,29 @@ class CredentialTestSuite:
         'test_jwt_credential_accepts_https_endpoint',
         'test_password_credential_http_authorization_header',
         'test_password_credential_repr_redacts_password',
+        'test_certificate_credential_creation',
+        'test_certificate_credential_rejects_nonexistent_path',
+        'test_certificate_credential_rejects_non_string_cert_path',
+        'test_certificate_credential_rejects_non_string_key_path',
+        'test_certificate_credential_repr',
+        'test_certificate_credential_rejects_http_endpoint',
+        'test_certificate_credential_accepts_https_endpoint',
+        'test_pkcs12_credential_creation',
+        'test_pkcs12_credential_repr_redacts_password',
+        'test_pkcs12_wrong_password_fails',
+        'test_pkcs12_credential_accepts_https_endpoint',
+        'test_pkcs12_credential_rejects_http_endpoint',
+        'test_set_credential_pem_to_pkcs12_rotation',
         'test_dynamic_auth_sets_header_from_current_credential',
         'test_dynamic_auth_picks_up_rotated_credential',
+        'test_dynamic_auth_omits_header_for_certificate',
         'test_set_credential_same_type_updates_state',
         'test_set_credential_password_to_jwt_fails',
         'test_set_credential_jwt_to_password_fails',
+        'test_set_credential_password_to_certificate_fails',
+        'test_set_credential_certificate_to_jwt_fails',
+        'test_set_credential_certificate_rotation_rebuilds_client',
+        'test_set_credential_certificate_rotation_failure_does_not_change_state',
         'test_set_credential_failure_does_not_change_state',
     ]
 
@@ -98,15 +186,31 @@ class CredentialTestSuite:
         expected = 'Basic ' + b64encode(b'Administrator:password').decode('ascii')
         assert _authorization_header(client) == expected
 
+    def test_credential_direct_construction_with_certificate(self, cert_paths: Tuple[str, str]) -> None:
+        cert_path, key_path = cert_paths
+        cred = Credential(cert_path=cert_path, key_path=key_path)
+        client = _ClientAdapter('https://localhost', cred)
+        assert _authorization_header(client) == ''
+
     def test_credential_rejects_unknown_kwargs(self) -> None:
         with pytest.raises(TypeError, match='unexpected keyword argument'):
             Credential(usernme='Administrator', password='password')  # type: ignore[call-arg]
         with pytest.raises(TypeError, match='unexpected keyword argument'):
             Credential(jwt_token=_SAMPLE_JWT, extra='ignored')  # type: ignore[call-arg]
 
+    def test_credential_rejects_mixed_kwargs(self, cert_paths: Tuple[str, str]) -> None:
+        cert_path, key_path = cert_paths
+        with pytest.raises(ValueError, match='Cannot provide both'):
+            Credential(jwt_token=_SAMPLE_JWT, cert_path=cert_path, key_path=key_path)
+
     def test_credential_hides_internal_details(self) -> None:
         public_attrs = {name for name in dir(Credential.from_jwt(_SAMPLE_JWT)) if not name.startswith('_')}
-        assert public_attrs == {'from_callable', 'from_jwt', 'from_username_and_password'}
+        assert public_attrs == {
+            'from_callable',
+            'from_certificate',
+            'from_jwt',
+            'from_username_and_password',
+        }
 
     def test_credential_from_callable_with_jwt(self) -> None:
         cred = Credential.from_callable(lambda: Credential.from_jwt(_SAMPLE_JWT))
@@ -140,6 +244,92 @@ class CredentialTestSuite:
         assert '****' in rendered
         assert 'Administrator' in rendered
 
+    def test_certificate_credential_creation(self, cert_paths: Tuple[str, str]) -> None:
+        cert_path, key_path = cert_paths
+        cred = Credential.from_certificate(cert_path, key_path)
+        assert cred._kind == 'cert'
+
+    def test_certificate_credential_rejects_nonexistent_path(self, tmp_path: pathlib.Path) -> None:
+        existing = tmp_path / 'exists'
+        existing.write_text('placeholder')
+        missing = tmp_path / 'missing'
+        with pytest.raises(FileNotFoundError):
+            Credential.from_certificate(str(missing), str(existing))
+        with pytest.raises(FileNotFoundError):
+            Credential.from_certificate(str(existing), str(missing))
+
+    @pytest.mark.parametrize('bad_value', [12345, None])
+    def test_certificate_credential_rejects_non_string_cert_path(self, bad_value: object) -> None:
+        with pytest.raises((TypeError, ValueError)):
+            Credential.from_certificate(bad_value, '/tmp/key.pem')  # type: ignore[arg-type]
+
+    def test_certificate_credential_rejects_non_string_key_path(self) -> None:
+        # key_path=None is now a valid PKCS#12 signature, so only non-str/non-None
+        # values are rejected.
+        with pytest.raises(TypeError):
+            Credential.from_certificate('/tmp/cert.pem', 12345)  # type: ignore[arg-type]
+
+    def test_certificate_credential_repr(self, cert_paths: Tuple[str, str]) -> None:
+        cert_path, key_path = cert_paths
+        cred = Credential.from_certificate(cert_path, key_path)
+        rendered = repr(cred)
+        assert 'Credential(cert_path=' in rendered
+        assert 'key_path=' in rendered
+
+    def test_certificate_credential_rejects_http_endpoint(self, cert_paths: Tuple[str, str]) -> None:
+        cert_path, key_path = cert_paths
+        with pytest.raises(ValueError, match='require a secure'):
+            _ClientAdapter('http://localhost', Credential.from_certificate(cert_path, key_path))
+
+    def test_certificate_credential_accepts_https_endpoint(self, cert_paths: Tuple[str, str]) -> None:
+        cert_path, key_path = cert_paths
+        client = _ClientAdapter('https://localhost', Credential.from_certificate(cert_path, key_path))
+        assert client.connection_details.ssl_context is not None
+
+    def test_pkcs12_credential_creation(self, pkcs12_path: str) -> None:
+        cred = Credential.from_certificate(pkcs12_path, password=_PKCS12_PASSWORD)
+        # PKCS#12 still maps to _kind == 'cert'; only the storage shape differs.
+        assert cred._kind == 'cert'
+        assert cred._key_path is None
+
+    def test_pkcs12_credential_repr_redacts_password(self, pkcs12_path: str) -> None:
+        cred = Credential.from_certificate(pkcs12_path, password=_PKCS12_PASSWORD)
+        rendered = repr(cred)
+        assert _PKCS12_PASSWORD not in rendered
+        assert 'cert_password=****' in rendered
+
+    def test_pkcs12_wrong_password_fails(self, pkcs12_path: str) -> None:
+        cred = Credential.from_certificate(pkcs12_path, password='wrong-password')
+        # The decode happens lazily when the SSL context is built, i.e. inside
+        # _ClientAdapter init via validate_security_options.
+        with pytest.raises(ValueError, match='Failed to load PKCS#12 file'):
+            _ClientAdapter('https://localhost', cred)
+
+    def test_pkcs12_credential_accepts_https_endpoint(self, pkcs12_path: str) -> None:
+        cred = Credential.from_certificate(pkcs12_path, password=_PKCS12_PASSWORD)
+        client = _ClientAdapter('https://localhost', cred)
+        assert client.connection_details.ssl_context is not None
+
+    def test_pkcs12_credential_rejects_http_endpoint(self, pkcs12_path: str) -> None:
+        cred = Credential.from_certificate(pkcs12_path, password=_PKCS12_PASSWORD)
+        with pytest.raises(ValueError, match='require a secure'):
+            _ClientAdapter('http://localhost', cred)
+
+    def test_set_credential_pem_to_pkcs12_rotation(self, cert_paths: Tuple[str, str], pkcs12_path: str) -> None:
+        # PEM and PKCS#12 are both _kind == 'cert', so cross-format rotation is
+        # allowed.  Both forms should rebuild the client + SSL context.
+        cert_path, key_path = cert_paths
+        client = _ClientAdapter('https://localhost', Credential.from_certificate(cert_path, key_path))
+        client.create_client()
+        first_client = client.client
+        first_ssl = client.connection_details.ssl_context
+
+        client.update_credential(Credential.from_certificate(pkcs12_path, password=_PKCS12_PASSWORD))
+
+        assert client.client is not first_client
+        assert client.connection_details.ssl_context is not first_ssl
+        assert client.credential_holder.credential._key_path is None  # now PKCS#12-shaped
+
     def test_dynamic_auth_sets_header_from_current_credential(self) -> None:
         cred = Credential.from_jwt(_SAMPLE_JWT)
         client = _ClientAdapter('https://localhost', cred)
@@ -164,6 +354,17 @@ class CredentialTestSuite:
         dispatched = next(flow)
         assert dispatched.headers['Authorization'] == f'Bearer {new_token}'
 
+    def test_dynamic_auth_omits_header_for_certificate(self, cert_paths: Tuple[str, str]) -> None:
+        cert_path, key_path = cert_paths
+        cred = Credential.from_certificate(cert_path, key_path)
+        client = _ClientAdapter('https://localhost', cred)
+        auth = DynamicCredentialAuth(client.credential_holder)
+
+        req = Request('POST', 'https://localhost/api/v1/request')
+        flow = auth.auth_flow(req)
+        dispatched = next(flow)
+        assert 'Authorization' not in dispatched.headers
+
     def test_set_credential_same_type_updates_state(self) -> None:
         cred = Credential.from_jwt(_SAMPLE_JWT)
         client = _ClientAdapter('https://localhost', cred)
@@ -185,6 +386,55 @@ class CredentialTestSuite:
         client = _ClientAdapter('https://localhost', cred)
         with pytest.raises(TypeError, match='Cannot switch credential type'):
             client.update_credential(Credential.from_username_and_password('Administrator', 'password'))
+
+    def test_set_credential_password_to_certificate_fails(self, cert_paths: Tuple[str, str]) -> None:
+        cert_path, key_path = cert_paths
+        cred = Credential.from_username_and_password('Administrator', 'password')
+        client = _ClientAdapter('http://localhost', cred)
+        with pytest.raises(TypeError, match='Cannot switch credential type'):
+            client.update_credential(Credential.from_certificate(cert_path, key_path))
+
+    def test_set_credential_certificate_to_jwt_fails(self, cert_paths: Tuple[str, str]) -> None:
+        cert_path, key_path = cert_paths
+        cred = Credential.from_certificate(cert_path, key_path)
+        client = _ClientAdapter('https://localhost', cred)
+        client.create_client()
+        with pytest.raises(TypeError, match='Cannot switch credential type'):
+            client.update_credential(Credential.from_jwt(_SAMPLE_JWT))
+
+    def test_set_credential_certificate_rotation_rebuilds_client(self, cert_paths: Tuple[str, str]) -> None:
+        cert_path, key_path = cert_paths
+        cred = Credential.from_certificate(cert_path, key_path)
+        client = _ClientAdapter('https://localhost', cred)
+        client.create_client()
+        first_client = client.client
+        first_ssl = client.connection_details.ssl_context
+
+        client.update_credential(Credential.from_certificate(cert_path, key_path))
+
+        assert client.client is not first_client
+        assert client.connection_details.ssl_context is not first_ssl
+
+    def test_set_credential_certificate_rotation_failure_does_not_change_state(
+        self, cert_paths: Tuple[str, str], tmp_path: pathlib.Path
+    ) -> None:
+        cert_path, key_path = cert_paths
+        cred = Credential.from_certificate(cert_path, key_path)
+        client = _ClientAdapter('https://localhost', cred)
+        client.create_client()
+        first_client = client.client
+        first_ssl = client.connection_details.ssl_context
+        bad_cert = tmp_path / 'bad.crt'
+        bad_key = tmp_path / 'bad.key'
+        bad_cert.write_text('not a cert')
+        bad_key.write_text('not a key')
+
+        with pytest.raises(ssl.SSLError):
+            client.update_credential(Credential.from_certificate(str(bad_cert), str(bad_key)))
+
+        assert client.credential_holder.credential is cred
+        assert client.client is first_client
+        assert client.connection_details.ssl_context is first_ssl
 
     def test_set_credential_failure_does_not_change_state(self) -> None:
         cred = Credential.from_username_and_password('Administrator', 'password')
