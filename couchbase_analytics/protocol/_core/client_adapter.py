@@ -26,7 +26,7 @@ from couchbase_analytics.common.credential import Credential, _CredentialHolder
 from couchbase_analytics.common.deserializer import Deserializer
 from couchbase_analytics.common.logging import LogLevel, log_message
 from couchbase_analytics.protocol._core.auth import DynamicCredentialAuth
-from couchbase_analytics.protocol._core.request import CancelRequest, HttpRequest, QueryRequest, StartQueryRequest
+from couchbase_analytics.protocol._core.request import HttpRequest
 from couchbase_analytics.protocol.connection import _ConnectionDetails
 from couchbase_analytics.protocol.options import OptionsBuilder
 
@@ -177,13 +177,14 @@ class _ClientAdapter:
             raise RuntimeError('Client not created yet')
 
         url = URL(scheme=request.url.scheme, host=request.url.ip, port=request.url.port, path=request.url.path)
-        if isinstance(request, (QueryRequest, StartQueryRequest)):
-            req = self._client.build_request(request.method, url, json=request.body, extensions=request.extensions)
-        else:
-            data = request.data if isinstance(request, CancelRequest) else None
-            req = self._client.build_request(
-                request.method, url, data=data, headers=request.headers, extensions=request.extensions
-            )
+        req = self._client.build_request(
+            request.method,
+            url,
+            data=request.data,
+            json=request.body,
+            headers=request.headers,
+            extensions=request.extensions,
+        )
 
         if stream is None:
             stream = True

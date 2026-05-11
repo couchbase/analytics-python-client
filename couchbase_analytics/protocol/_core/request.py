@@ -59,7 +59,7 @@ class RequestExtensions(TypedDict, total=False):
     trace: Optional[Callable[[str, str], Union[None, Coroutine[Any, Any, None]]]]
 
 
-@dataclass
+@dataclass(kw_only=True)
 class HttpRequest:
     url: RequestURL
     extensions: RequestExtensions
@@ -67,6 +67,9 @@ class HttpRequest:
     method: str
     headers: Mapping[str, str]
     max_retries: int
+    data: Optional[Dict[str, Union[str, object]]] = None
+    body: Optional[Dict[str, Union[str, object]]] = None
+    should_stream: Optional[bool] = False
 
     def add_trace_to_extensions(
         self, handler: Callable[[str, str], Union[None, Coroutine[Any, Any, None]]]
@@ -96,22 +99,18 @@ class HttpRequest:
         return self
 
 
-class CancelRequestData(TypedDict):
-    request_id: str
-
-
-@dataclass
+@dataclass(kw_only=True)
 class CancelRequest(HttpRequest):
-    data: CancelRequestData
+    pass
 
 
-@dataclass
+@dataclass(kw_only=True)
 class FetchResultsRequest(HttpRequest):
     deserializer: Deserializer
     should_stream: bool = True
 
 
-@dataclass
+@dataclass(kw_only=True)
 class QueryRequest(HttpRequest):
     deserializer: Deserializer
     body: Dict[str, Union[str, object]]
@@ -128,11 +127,10 @@ class QueryRequest(HttpRequest):
         return None
 
 
-@dataclass
+@dataclass(kw_only=True)
 class StartQueryRequest(HttpRequest):
     body: Dict[str, Union[str, object]]
     options: Optional[StartQueryOptionsTransformedKwargs] = None
-    should_stream: bool = False
 
     def get_request_statement(self) -> Optional[str]:
         """
@@ -171,20 +169,27 @@ class _RequestBuilder:
         max_retries = self._conn_details.get_max_retries()
         parsed = urlparse(handle)
         path = parsed.path if parsed.scheme else handle
-        return HttpRequest(self._conn_details.url, extensions, path, method=method, headers={}, max_retries=max_retries)
+        return HttpRequest(
+            url=self._conn_details.url,
+            extensions=extensions,
+            path=path,
+            method=method,
+            headers={},
+            max_retries=max_retries,
+        )
 
     def build_cancel_request(self, request_id: str) -> CancelRequest:
         extensions = deepcopy(self._extensions)
         extensions['timeout']['read'] = self._handle_request_timeout
         max_retries = self._conn_details.get_max_retries()
         return CancelRequest(
-            self._conn_details.url,
-            extensions,
-            '/api/v1/active_requests',
-            'DELETE',
-            {'Content-Type': 'application/x-www-form-urlencoded'},
-            max_retries,
-            {'request_id': request_id},
+            url=self._conn_details.url,
+            extensions=extensions,
+            path='/api/v1/active_requests',
+            method='DELETE',
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            max_retries=max_retries,
+            data={'request_id': request_id},
         )
 
     def build_discard_results_request(self, handle: str) -> HttpRequest:
@@ -198,13 +203,13 @@ class _RequestBuilder:
         deserializer = q_opts.pop('deserializer', None) or self._conn_details.default_deserializer
         max_retries = self._conn_details.get_max_retries()
         return FetchResultsRequest(
-            base_request.url,
-            base_request.extensions,
-            base_request.path,
-            base_request.method,
-            {},
-            max_retries,
-            deserializer,
+            url=base_request.url,
+            extensions=base_request.extensions,
+            path=base_request.path,
+            method=base_request.method,
+            headers={},
+            max_retries=max_retries,
+            deserializer=deserializer,
         )
 
     def build_query_request(
@@ -241,14 +246,14 @@ class _RequestBuilder:
         max_retries = retries if retries is not None else self._conn_details.get_max_retries()
 
         return QueryRequest(
-            self._conn_details.url,
-            extensions,
-            '',
-            'POST',
-            {},
-            max_retries,
-            deserializer,
-            body,
+            url=self._conn_details.url,
+            extensions=extensions,
+            path='',
+            method='POST',
+            headers={},
+            max_retries=max_retries,
+            deserializer=deserializer,
+            body=body,
             options=q_opts,
             enable_cancel=enable_cancel,
         )
@@ -279,13 +284,13 @@ class _RequestBuilder:
         max_retries = retries if retries is not None else self._conn_details.get_max_retries()
 
         return StartQueryRequest(
-            self._conn_details.url,
-            extensions,
-            '',
-            'POST',
-            {},
-            max_retries,
-            body,
+            url=self._conn_details.url,
+            extensions=extensions,
+            path='',
+            method='POST',
+            headers={},
+            max_retries=max_retries,
+            body=body,
             options=q_opts,
         )
 

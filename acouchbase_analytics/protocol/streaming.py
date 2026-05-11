@@ -172,6 +172,12 @@ class AsyncHttpStreamingResponse:
         self._request_context.start_stream(self._core_response)
         # block until we either know we have rows or we have an error
         await self._request_context.wait_for_results_or_errors()
+
+        # it is possible we have "rows" but the HTTP status code is indicative of an error (e.g. 404, 503, etc.),
+        # so we need to check for HTTP status errors before allowing iteration to continue
+        await self._request_context.check_for_http_status_error(
+            self._core_response.status_code, close_handler=self.close
+        )
         if not self._request_context.okay_to_iterate:
             await self._request_context.finish_processing_stream()
             await self._process_response()

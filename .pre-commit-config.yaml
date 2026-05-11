@@ -58,12 +58,12 @@ repos:
       # Compile requirements
       - id: pip-compile
         name: pip-compile requirements.in
-        args: [requirements.in, --python-version, '3.9', --universal, -o, requirements.txt]
+        args: [requirements.in, --python-version, '3.10', --universal, -o, requirements.txt]
       - id: pip-compile
         name: pip-compile requirements-dev.in
-        args: [requirements-dev.in, --python-version, '3.9', --universal, -o, requirements-dev.txt]
+        args: [requirements-dev.in, --python-version, '3.10', --universal, -o, requirements-dev.txt]
         files: ^requirements-dev\.(in|txt)$
       - id: pip-compile
         name: pip-compile requirements-sphinx.in
-        args: [requirements-sphinx.in, --python-version, '3.9', --universal, -o, requirements-sphinx.txt]
+        args: [requirements-sphinx.in, --python-version, '3.10', --universal, -o, requirements-sphinx.txt]
         files: ^requirements-sphinx\.(in|txt)$

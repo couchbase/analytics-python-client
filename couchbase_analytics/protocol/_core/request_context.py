@@ -139,6 +139,22 @@ class RequestContext:
     def calculate_backoff(self) -> float:
         return self._backoff_calc.calculate_backoff(self._error_context.num_attempts) / 1000
 
+    def check_for_http_status_error(
+        self,
+        status_code: int,
+        ignore_not_found_status: Optional[bool] = False,
+        close_handler: Optional[Callable[[], None]] = None,
+    ) -> None:
+        ctx = str(self._error_context)
+        err = ErrorMapper.maybe_get_error_from_status_code(
+            status_code, ctx, ignore_not_found_status=ignore_not_found_status
+        )
+        if err is None:
+            return
+        if close_handler is not None:
+            close_handler()
+        raise err
+
     def initialize(self) -> None:
         if self._request_state == RequestState.ResetAndNotStarted:
             self.log_message(
@@ -209,9 +225,11 @@ class RequestContext:
         core_response: HttpCoreResponse,
         close_handler: Callable[[], None],
         handle_context_shutdown: Optional[bool] = False,
+        ignore_not_found_status: Optional[bool] = False,
     ) -> Any:
         # we have all the data, close the core response/stream
         close_handler()
+        self.check_for_http_status_error(core_response.status_code, ignore_not_found_status=ignore_not_found_status)
         try:
             json_response = core_response.json()
         except json.JSONDecodeError:
@@ -221,9 +239,7 @@ class RequestContext:
                 self._process_error(json_response['errors'], handle_context_shutdown=handle_context_shutdown)
             return json_response
 
-    def send_request(
-        self, enable_trace_handling: Optional[bool] = False, ignore_not_found_status: Optional[bool] = False
-    ) -> HttpCoreResponse:
+    def send_request(self, enable_trace_handling: Optional[bool] = False) -> HttpCoreResponse:
         self._error_context.update_num_attempts()
         ip = get_request_ip(self._request.url.host, self._request.url.port, self.log_message)
 
@@ -258,7 +274,6 @@ class RequestContext:
             'request_deadline': f'{self._request_deadline}',
         }
         self.log_message('HTTP response', LogLevel.DEBUG, message_data=message_data)
-        self._check_for_http_status_error(response.status_code, ignore_not_found_status=ignore_not_found_status)
         return response
 
     def shutdown(self, exc_val: Optional[BaseException] = None) -> None:
@@ -304,12 +319,6 @@ class RequestContext:
                 self._request_state = RequestState.SyncCancelledPriorToTimeout
             else:
                 self._request_state = RequestState.Timeout
-
-    def _check_for_http_status_error(self, status_code: int, ignore_not_found_status: Optional[bool] = False) -> None:
-        ctx = str(self._error_context)
-        ErrorMapper.maybe_raise_error_from_status_code(
-            status_code, ctx, ignore_not_found_status=ignore_not_found_status
-        )
 
     def _process_error(
         self, json_data: Union[str, List[Dict[str, Any]]], handle_context_shutdown: Optional[bool] = False
