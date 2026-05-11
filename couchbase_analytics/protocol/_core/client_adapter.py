@@ -199,12 +199,13 @@ class _ClientAdapter:
             del self._client
 
     def update_credential(self, new_credential: Credential) -> None:
+        old_client = None
+        self._credential_holder.credential._check_replaceable_with(new_credential)
         if new_credential._kind == 'cert':
             # httpx pins the SSL context to the Client at construction, and
             # the cert chain is part of that context.  So a cert rotation
             # needs a fresh Client.  Build it before closing the old one,
             # otherwise a concurrent send_request can see self._client gone.
-            self._credential_holder.credential._check_replaceable_with(new_credential)
             old_client = getattr(self, '_client', None)
             old_ssl_context = self._conn_details.ssl_context
             old_sni_hostname = self._conn_details.sni_hostname
@@ -212,18 +213,15 @@ class _ClientAdapter:
                 self._conn_details.validate_security_options(new_credential)
                 # If the cluster hasn't issued a request yet there's no Client
                 # to swap; we still refreshed the SSL context above.
-                new_client = self._build_client() if old_client is not None else None
+                if old_client is not None:
+                    self._client = self._build_client()
             except Exception:
                 self._conn_details.ssl_context = old_ssl_context
                 self._conn_details.sni_hostname = old_sni_hostname
                 raise
-            if new_client is not None:
-                self._client = new_client
-            self._credential_holder.replace(new_credential)
-            if old_client is not None:
-                old_client.close()
-        else:
-            self._credential_holder.replace(new_credential)
+        self._credential_holder.replace(new_credential)
+        if old_client is not None:
+            old_client.close()
         self.log_message('Cluster HTTP credential updated', LogLevel.INFO)
 
 

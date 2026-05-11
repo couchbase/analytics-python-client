@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import ssl
 import tempfile
@@ -27,6 +28,9 @@ from couchbase_analytics.common._core.utils import validate_path
 
 if TYPE_CHECKING:
     from httpx import Request
+
+
+logger = logging.getLogger(__name__)
 
 
 class Credential:
@@ -321,7 +325,12 @@ class Credential:
             try:
                 os.unlink(tmp_path)
             except OSError:
-                pass
+                logger.warning(
+                    'Failed to remove temporary PKCS#12 PEM file %s; '
+                    'decrypted private key material may remain on disk.',
+                    tmp_path,
+                    exc_info=True,
+                )
 
     def _check_endpoint_compatible(self, is_secure: bool) -> None:
         if self._kind == 'jwt' and not is_secure:
@@ -365,6 +374,6 @@ class _CredentialHolder:
         self._credential._apply_to_request(request)
 
     def replace(self, new_credential: Credential) -> None:
-        # GIL-atomic store; concurrent rotators are last-writer-wins.
-        self._credential._check_replaceable_with(new_credential)
+        # Caller must have validated replaceability via _check_replaceable_with;
+        # this is a GIL-atomic store, last-writer-wins on concurrent rotators.
         self._credential = new_credential
