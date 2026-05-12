@@ -103,7 +103,7 @@ def _authorization_header(client: Any) -> str:
     req = Request('POST', request_url)
     flow = auth.auth_flow(req)
     dispatched = next(flow)
-    return dispatched.headers.get('Authorization', '')
+    return str(dispatched.headers.get('Authorization', ''))
 
 
 class CredentialTestSuite:

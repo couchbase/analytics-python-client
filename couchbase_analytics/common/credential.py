@@ -275,7 +275,10 @@ class Credential:
         # No-op for password/JWT credentials.
         if self._kind != 'cert':
             return
-        assert self._cert_path is not None  # for mypy; set in _init_certificate
+        cert_path = self._cert_path
+        if cert_path is None:
+            # Unreachable: _init_certificate always sets _cert_path when _kind=='cert'.
+            raise RuntimeError('_cert_path is unset for a cert credential.')
         if self._key_path is None:
             # PKCS#12 bundle: cert_path holds the .p12 file.
             self._load_pkcs12_into_context(ctx)
@@ -283,7 +286,7 @@ class Credential:
         # PEM cert + PEM key.  password is forwarded to OpenSSL so it can
         # decrypt the key file if it's encrypted; ignored for plain keys.
         ctx.load_cert_chain(
-            certfile=self._cert_path,
+            certfile=cert_path,
             keyfile=self._key_path,
             password=self._cert_password,
         )
@@ -296,8 +299,11 @@ class Credential:
             pkcs12,
         )
 
-        assert self._cert_path is not None  # for mypy; set in _init_certificate
-        with open(self._cert_path, 'rb') as f:
+        cert_path = self._cert_path
+        if cert_path is None:
+            # Unreachable: _init_certificate always sets _cert_path when _kind=='cert'.
+            raise RuntimeError('_cert_path is unset for a PKCS#12 credential.')
+        with open(cert_path, 'rb') as f:
             data = f.read()
         password_bytes = self._cert_password.encode('utf-8') if self._cert_password is not None else None
         try:
@@ -305,9 +311,9 @@ class Credential:
         except ValueError as e:
             # cryptography raises ValueError for both wrong password and malformed
             # input.  Wrap with the path so the cluster log identifies which file.
-            raise ValueError(f'Failed to load PKCS#12 file at {self._cert_path}: {e}') from e
+            raise ValueError(f'Failed to load PKCS#12 file at {cert_path}: {e}') from e
         if key is None or cert is None:
-            raise ValueError(f'PKCS#12 file at {self._cert_path} does not contain a private key + certificate pair.')
+            raise ValueError(f'PKCS#12 file at {cert_path} does not contain a private key + certificate pair.')
 
         # ssl.SSLContext.load_cert_chain only accepts file paths, so we write
         # the chain plus the decrypted key into a single PEM tempfile, hand
