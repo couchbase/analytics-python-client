@@ -140,25 +140,26 @@ class _ClientAdapter:
             self._client.close()
             self.log_message('Cluster HTTP client closed', LogLevel.INFO)
 
+    def _build_client(self) -> Client:
+        auth = DynamicCredentialAuth(self._credential_holder)
+        if self._conn_details.is_secure():
+            if self._conn_details.ssl_context is None:
+                raise ValueError('SSL context is required for secure connections.')
+            transport = None
+            if self._http_transport_cls is not None:
+                transport = self._http_transport_cls(verify=self._conn_details.ssl_context)
+            return Client(verify=self._conn_details.ssl_context, auth=auth, transport=transport)
+        transport = None
+        if self._http_transport_cls is not None:
+            transport = self._http_transport_cls()
+        return Client(auth=auth, transport=transport)
+
     def create_client(self) -> None:
         """
         **INTERNAL**
         """
         if not hasattr(self, '_client'):
-            auth = DynamicCredentialAuth(self._credential_holder)
-            if self._conn_details.is_secure():
-                if self._conn_details.ssl_context is None:
-                    raise ValueError('SSL context is required for secure connections.')
-                transport = None
-                if self._http_transport_cls is not None:
-                    transport = self._http_transport_cls(verify=self._conn_details.ssl_context)
-                self._client = Client(verify=self._conn_details.ssl_context, auth=auth, transport=transport)
-            else:
-                transport = None
-                if self._http_transport_cls is not None:
-                    transport = self._http_transport_cls()
-                self._client = Client(auth=auth, transport=transport)
-
+            self._client = self._build_client()
             self.log_message(
                 (f'Cluster HTTP client created: connection_details={self._conn_details.get_init_details()}'),
                 LogLevel.INFO,
@@ -198,8 +199,29 @@ class _ClientAdapter:
             del self._client
 
     def update_credential(self, new_credential: Credential) -> None:
+        old_client = None
+        self._credential_holder.credential._check_replaceable_with(new_credential)
+        if new_credential._kind == 'cert':
+            # httpx pins the SSL context to the Client at construction, and
+            # the cert chain is part of that context.  So a cert rotation
+            # needs a fresh Client.  Build it before closing the old one,
+            # otherwise a concurrent send_request can see self._client gone.
+            old_client = getattr(self, '_client', None)
+            old_ssl_context = self._conn_details.ssl_context
+            old_sni_hostname = self._conn_details.sni_hostname
+            try:
+                self._conn_details.validate_security_options(new_credential)
+                # If the cluster hasn't issued a request yet there's no Client
+                # to swap; we still refreshed the SSL context above.
+                if old_client is not None:
+                    self._client = self._build_client()
+            except Exception:
+                self._conn_details.ssl_context = old_ssl_context
+                self._conn_details.sni_hostname = old_sni_hostname
+                raise
         self._credential_holder.replace(new_credential)
-        # Future mTLS: rebuild SSL context + httpx Client here.
+        if old_client is not None:
+            old_client.close()
         self.log_message('Cluster HTTP credential updated', LogLevel.INFO)
 
 

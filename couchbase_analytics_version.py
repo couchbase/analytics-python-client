@@ -193,7 +193,7 @@ def gen_version(
 
 # uv does not support a dynamic project version (yet), this is a workaround in the interim
 def update_pyproject_version(pyproject_path: str, new_version: str) -> bool:
-    import tomli
+    import tomli  # type: ignore[import-not-found,unused-ignore]
     import tomli_w  # type: ignore[import-not-found]
 
     if not os.path.exists(pyproject_path):

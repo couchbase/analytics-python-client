@@ -13,5 +13,7 @@ Credential
         :no-index:
     .. automethod:: from_jwt
         :no-index:
+    .. automethod:: from_certificate
+        :no-index:
     .. automethod:: from_callable
         :no-index:
