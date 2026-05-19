@@ -20,7 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any, Optional
 
 from couchbase_analytics.common._core.query_handle import QueryHandleStatusResponse
-from couchbase_analytics.common.errors import AnalyticsError, QueryNotFoundError
+from couchbase_analytics.common.errors import AnalyticsError
 from couchbase_analytics.common.query_handle import BlockingQueryHandle as _CoreBlockingQueryHandle
 from couchbase_analytics.common.query_handle import BlockingQueryResultHandle as _CoreBlockingQueryResultHandle
 from couchbase_analytics.common.query_handle import BlockingQueryStatus as _CoreBlockingQueryStatus
@@ -83,11 +83,17 @@ class BlockingQueryHandle(_CoreBlockingQueryHandle):
             raise AnalyticsError(message='HTTP response does not contain JSON data.')
 
         request_id = self._http_response.json_response.get('requestID', None)
-        if request_id is None:
-            raise QueryNotFoundError(message='Server response is missing "requestID" field.')
         handle = self._http_response.json_response.get('handle', None)
+        required_fields_missing = []
+        if request_id is None:
+            required_fields_missing.append('requestID')
+
         if handle is None:
-            raise QueryNotFoundError(message='Server response is missing "handle" field.')
+            required_fields_missing.append('handle')
+
+        if len(required_fields_missing) > 0:
+            msg = f'Server response is missing required field(s): {", ".join(required_fields_missing)}.'
+            raise AnalyticsError(message=msg)
 
         self._request_id = request_id
         self._handle = handle

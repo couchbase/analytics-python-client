@@ -170,6 +170,8 @@ class ErrorMapper:
             err = WrappedError(InvalidCredentialError(context=context, message='Invalid credentials provided.'))
         elif status_code == 404 and ignore_not_found_status is not True:
             err = WrappedError(QueryNotFoundError(context=context, message='Resource not found'))
+        elif status_code == 500:
+            err = WrappedError(AnalyticsError(context=context, message='Internal server error (HTTP 500).'))
         elif status_code == 503:
             err = WrappedError(AnalyticsError(context=context, message='Service unavailable.'), retriable=True)
 
